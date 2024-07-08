@@ -13,5 +13,6 @@
 #$ -m be
 
 #Now run the job
+module load anaconda
 conda activate myenv
 python main.py
