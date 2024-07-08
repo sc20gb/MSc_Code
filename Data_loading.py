@@ -165,5 +165,5 @@ if __name__ == "__main__":
     # Example usage
     for images, masks, questions, answers in train_loader:
         # Visualize the first image in the batch
-        display_sample(images[0],  masks[0], questions[0], answers[0],os.path.join(os.getcwd(), 'outputs') )
+        display_sample(images[0],  masks[0], questions[0], answers[0],os.path.join(os.getcwd(), 'outputs', 'sample_plot.png') )
         break
