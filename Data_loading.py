@@ -7,17 +7,6 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 
-
-IMAGESIZE  = 240
-BATCHSIZE = 32
-SEED = 42
-torch.manual_seed(SEED)
-
-transform = transforms.Compose([
-    transforms.Resize((IMAGESIZE, IMAGESIZE)),
-    transforms.ToTensor()
-])
-
 class CustomMaskTransform(transforms.Compose):
     def __init__(self, transforms_list):
         super().__init__(transforms_list.transforms)
@@ -106,6 +95,7 @@ def display_sample(image_tensor, mask_tensor, question, answer, save_path=None):
     - save_path (str, optional): If provided, the path to save the plot as an image. 
                                  If None, the plot is displayed.
     """
+
     # Convert tensors to PIL images for displaying
     image = transforms.ToPILImage()(image_tensor)
     mask = transforms.ToPILImage()(mask_tensor)
@@ -137,33 +127,39 @@ def display_sample(image_tensor, mask_tensor, question, answer, save_path=None):
         plt.show()
 
 
-# Directory containing the JSON files
-directory = os.path.join(os.getcwd(), 'Slake1.0')
+def load_data(transform,batchSize,seed, dataDir):
 
-transform = transforms.Compose([
-    transforms.Resize((IMAGESIZE, IMAGESIZE)),
-    transforms.ToTensor()
-])
-
-test_json_path = os.path.normpath(os.path.join(directory, 'test.json'))
-train_json_path = os.path.normpath(os.path.join(directory, 'train.json'))
-validate_json_path = os.path.normpath(os.path.join(directory, 'validate.json'))
+    test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
+    train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
+    validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
 
 
-# Create Dataset objects
-test_dataset = JsonDataset(test_json_path, transform)
-train_dataset = JsonDataset(train_json_path, transform)
-validate_dataset = JsonDataset(validate_json_path, transform)
+    # Create Dataset objects
+    test_dataset = JsonDataset(test_json_path, transform)
+    train_dataset = JsonDataset(train_json_path, transform)
+    validate_dataset = JsonDataset(validate_json_path, transform)
 
-# Create DataLoader objects
-test_loader = DataLoader(test_dataset, batch_size=BATCHSIZE, shuffle=True, generator=torch.Generator().manual_seed(SEED))
-train_loader = DataLoader(train_dataset, batch_size=BATCHSIZE, shuffle=True, generator=torch.Generator().manual_seed(SEED))
-validate_loader = DataLoader(validate_dataset, batch_size=BATCHSIZE, shuffle=True, generator=torch.Generator().manual_seed(SEED))
+    # Create DataLoader objects
+    test_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+    train_loader = DataLoader(train_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+    validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+
+    return test_loader, train_loader, validate_loader
+
+
 
 # Ensure the main block runs only when the script is executed directly
 if __name__ == "__main__":
     # Example usage
+    test_loader, train_loader, validate_loader = load_data(transforms.Compose([
+        transforms.Resize((240, 240)),
+        transforms.ToTensor()
+    ]), 32, 42, os.path.join(os.getcwd(), 'Slake1.0')
+)
+
     for images, masks, questions, answers in train_loader:
         # Visualize the first image in the batch
         display_sample(images[0],  masks[0], questions[0], answers[0],os.path.join(os.getcwd(), 'outputs', 'sample_plot.png') )
         break
+
+
