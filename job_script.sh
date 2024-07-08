@@ -14,4 +14,4 @@
 
 #Now run the job
 conda activate myenv
-python data_loading.py
+python main.py

@@ -2,11 +2,17 @@ import torchvision.transforms as transforms
 import os
 from data_loading import load_data,  display_sample
 
+BATCHSIZE  = 32
+
+RANDSEED  = 42
+
+IMAGESIZE = 240
+
 # Example usage
 test_loader, train_loader, validate_loader = load_data(transforms.Compose([
-    transforms.Resize((240, 240)),
+    transforms.Resize((IMAGESIZE, IMAGESIZE)),
     transforms.ToTensor()
-]), 32, 42, os.path.join(os.getcwd(), 'Slake1.0')
+]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
 )
 
 for images, masks, questions, answers in train_loader:
