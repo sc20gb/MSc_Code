@@ -1,4 +1,4 @@
-#R single core submission script
+#Python single core submission script
 
 #Run with current environment (-V) and in the current directory (-cwd)
 #$ -V -cwd
@@ -13,5 +13,5 @@
 #$ -m be
 
 #Now run the job
-module load R
-R CMD BATCH R.in R.out
+conda activate myenv
+python data_loading.py

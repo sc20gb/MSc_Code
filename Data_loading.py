@@ -145,21 +145,3 @@ def load_data(transform,batchSize,seed, dataDir):
     validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
     return test_loader, train_loader, validate_loader
-
-
-
-# Ensure the main block runs only when the script is executed directly
-if __name__ == "__main__":
-    # Example usage
-    test_loader, train_loader, validate_loader = load_data(transforms.Compose([
-        transforms.Resize((240, 240)),
-        transforms.ToTensor()
-    ]), 32, 42, os.path.join(os.getcwd(), 'Slake1.0')
-)
-
-    for images, masks, questions, answers in train_loader:
-        # Visualize the first image in the batch
-        display_sample(images[0],  masks[0], questions[0], answers[0],os.path.join(os.getcwd(), 'outputs', 'sample_plot.png') )
-        break
-
-
