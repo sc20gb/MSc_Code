@@ -1,15 +1,15 @@
 import torchvision.transforms as transforms
 import os
 from data_loading import load_data,  display_sample
-from TextTransformerEncoder import TextTransformerEncoder
+#from TextTransformerEncoder import TextTransformerEncoder
 from vicuna_llm import CustomLlamaModel
 import torch
 
-import warnings
-warnings.filterwarnings("ignore")
-import torchtext
-torchtext.disable_torchtext_deprecation_warning()
-#TODO: deal with this issue
+# import warnings
+# warnings.filterwarnings("ignore")
+# import torchtext
+# torchtext.disable_torchtext_deprecation_warning()
+# #TODO: deal with this issue
 
 
 BATCHSIZE  = 32
@@ -19,16 +19,21 @@ RANDSEED  = 42
 IMAGESIZE = 240
 
 
-# CHECK GPU SUPPORT
+# Check GPU support
 if torch.cuda.is_available():
     # Get the number of GPUs available
     gpu_count = torch.cuda.device_count()
     print(f"CUDA is available with {gpu_count} GPU(s)!")
+
     # Print the name of each GPU available
     for i in range(gpu_count):
         print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
+
+    #TODO: We will need to change this so that we can use multipple GPUs
+    device = torch.device("cpu")
 else:
     print("CUDA is not available. Training will proceed on CPU.")
+    device = torch.device("cpu")
 
 
 #LOAD DATA
@@ -37,7 +42,6 @@ test_loader, train_loader, validate_loader = load_data(transforms.Compose([
     transforms.ToTensor()
 ]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
 )
-
 
 #CREATE/LOAD CORPUS
 corpus_filename = os.path.join(os.getcwd(), 'corpus', 'corpus.txt')
@@ -61,57 +65,39 @@ else:
         file.write(corpus)
 
 
-#CREATE TEXT ENCODER
-TextEncoder = TextTransformerEncoder(corpus)
-
-
-for images, masks, questions, answers in train_loader:
-    print(TextEncoder(questions,["<SOS>"  for i in answers]).size())
-    break
-
-
-
-
-
-
-
+# #CREATE TEXT ENCODER
+# TextEncoder = TextTransformerEncoder(corpus)
 
 
 # Loading Vicuna
 
-# #
-# from llama_cpp import Llama
+#
+from transformers import LlamaModel, LlamaConfig
 
-# path = os.path.join(os.getcwd(),"LLMModels","stable-vicuna-13B.ggmlv3.q8_0.bin")
+from transformers import LlamaForCausalLM, LlamaTokenizer
 
-# try:
-#     # Load the model
-#     model = Llama(model_path=path)
-#     print("Model loaded successfully")
-# except Exception as e:
-#     print(f"Failed to load model: {e}")
+model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 
-# print(path)
+print("Before")
 
-# # Load the model
-# model = CustomLlamaModel(modelpath=path)
+try:
+    tokenizer = LlamaTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"))
+    print("Tokenizer loaded successfully")
 
-
-# try:
-#     # Define the input prompt
-#     input_prompt = "Once upon a time there was a bob, "
-
-#     # Generate the output
-#     output = model(input_prompt, 50)
-
+    string = "Hello"
+    print(tokenizer(string))
     
+    model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
+    print("Model loaded successfully")
 
-#     # Print the generated text
-#     print(output["choices"][0]["text"])
-# finally:
-#     # Explicitly clean up the model, if not an exception occurs on windows.
-#     del model
+    # Example of running the model on the correct device
+    inputs = tokenizer(string, return_tensors="pt").to(device)
+    outputs = model(**inputs)
+    print("Model executed successfully on the correct device, output was:",outputs.size())
+    
+except Exception as e:
+    print(f"An error occurred: {e}")
 
 
-# #
+#
 
