@@ -43,6 +43,26 @@ test_loader, train_loader, validate_loader = load_data(transforms.Compose([
 ]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
 )
 
+#TESTING CLIP_ViT
+
+from clip_ViT import ClipEncoder
+
+imageEncoder = ClipEncoder(d_model=512,n_heads=8,r_mlp=4, img_size=240, patch_size=30, n_channels=3,max_seq_length=256)
+
+for image_tensor, mask_tensor, question_tensor, answer_tensor in train_loader:
+    imgEncodings = imageEncoder(image_tensor)
+    print("Image Encoded to ", imgEncodings.size())
+    break
+
+# TESTING TEXT ENCODER
+
+
+
+# 
+
+
+
+
 #CREATE/LOAD CORPUS
 corpus_filename = os.path.join(os.getcwd(), 'corpus', 'corpus.txt')
 
