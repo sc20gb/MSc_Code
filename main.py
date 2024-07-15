@@ -64,40 +64,27 @@ else:
     with open(corpus_filename, 'w') as file:
         file.write(corpus)
 
-
-# #CREATE TEXT ENCODER
-# TextEncoder = TextTransformerEncoder(corpus)
-
-
-# Loading Vicuna
-
-#
-from transformers import LlamaModel, LlamaConfig
-
-from transformers import LlamaForCausalLM, LlamaTokenizer
+# LOADING VICUNA
+from transformers import LlamaForCausalLM, AutoTokenizer
 
 model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 
-print("Before")
+tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
+print("Tokenizer loaded successfully")
 
-try:
-    tokenizer = LlamaTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"))
-    print("Tokenizer loaded successfully")
+string = "Hello?"
+print(tokenizer(string))
 
-    string = "Hello"
-    print(tokenizer(string))
-    
-    model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
-    print("Model loaded successfully")
+model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
+print("Victuna Model loaded successfully")
 
-    # Example of running the model on the correct device
-    inputs = tokenizer(string, return_tensors="pt").to(device)
-    outputs = model(**inputs)
-    print("Model executed successfully on the correct device, output was:",outputs.size())
-    
-except Exception as e:
-    print(f"An error occurred: {e}")
+# Example of running the model on the correct device
+inputs = tokenizer(string, return_tensors="pt").to(device)
 
+# The forward methods does not deal with the pre and post processing steps
+generated_ids = model.generate(inputs.input_ids)
 
-#
+print(generated_ids)
+decoded = tokenizer.batch_decode(generated_ids,clean_up_tokenization_spaces=False)
 
+print(decoded[0])
