@@ -7,6 +7,15 @@ import transformers
 
 import torch.nn as nn
 
+import numpy as np
+
+from CLIP import CLIP, VisionTransformer, convert_weights
+
+from transformers import LlamaForCausalLM, AutoTokenizer
+
+
+
+
 # import warnings
 # warnings.filterwarnings("ignore")
 # import torchtext
@@ -14,13 +23,15 @@ import torch.nn as nn
 # #TODO: deal with this issue
 
 
-BATCHSIZE  = 32
+BATCHSIZE  = 2
 
 RANDSEED  = 42
 
 MAX_LENGTH =  76
 
-IMAGESIZE = 240
+IMAGESIZE = 224
+
+VOCABSIZE = 10000
 
 
 # CHECK GPU SUPPORT AND ASSIGN DEVICE
@@ -34,7 +45,7 @@ if torch.cuda.is_available():
         print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
     #TODO: We will need to change this so that we can use multipple GPUs
-    device = torch.device("cpu")
+    device = torch.device("cuda")
 else:
     print("CUDA is not available. Training will proceed on CPU.")
     device = torch.device("cpu")
@@ -46,105 +57,56 @@ test_loader, train_loader, validate_loader = load_data(transforms.Compose([
 ]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
 )
 
-# CONTRASTIVE LANGUAGE-IMAGE PRE-TRAINING
+# Tokenizer, this is temp prehaps. We need to work out how to create our own from medical data, or use one created frommedical data.  Should be BPE to conform to  clip
+model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
 
-# Load the ViT
-from clip_ViT import ClipEncoder
-imageEncoder = ClipEncoder(d_model=512,n_heads=8,r_mlp=4, img_size=IMAGESIZE, patch_size=30, n_channels=3,max_seq_length=256)
 
-# Load GPT2 Model (text-encoder)
-from transformers import GPT2Tokenizer,  GPT2Model, GPT2Config, GPT2LMHeadModel
+# LOAD CLIP model
 
-# Change the config to that described by the CLIP paper
-config = GPT2Config.from_json_file(os.path.join(os.getcwd(), "gpt2Config","config.json"))
+clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=512,context_length=76,transformer_layers=12,transformer_heads=8, embed_dim=512, vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,device=device)
 
-# The Clip paper does not create a new tokenizer but uses one with a 49,152 vocab size
-textEncoderTokeniser = GPT2Tokenizer.from_pretrained('gpt2')
-textEncoderTokeniser.pad_token = textEncoderTokeniser.eos_token
-
-#Load the head as well
-LMHead = GPT2LMHeadModel(GPT2Config.from_json_file(os.path.join(os.getcwd(), "gpt2Config","config.json")))
-
-# Initalise an untrained model 
-textEncoder = GPT2Model(config)
+#reduce the size of the weights to fp16 where possible
+convert_weights(clip)
 
 # Training
+clip.to(device)
+
+# loss
+# Create the loss function object
+criterion = nn.CrossEntropyLoss()
 
 for image_tensor, mask_tensor, question, answer in train_loader:
 
-    #Encode Image
-    imgEncodings = imageEncoder(image_tensor)
-    print("Image Encoded to ", imgEncodings.size())
+    
+    
+    text = torch.cat([tokenizer(a +  " " + b,return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
 
-    #Tokenize question and answer
-    text = [a + " " + b for a, b in zip(question,answer)]
+    image_tensor = image_tensor.to(device)
 
-    tokens = textEncoderTokeniser(text, padding=True, truncation=True, return_tensors='pt', max_length=MAX_LENGTH)
+    print(image_tensor.size())
 
-    print(type(tokens))
+    print(text.size())
+    try:
+            logits_per_image, logits_per_text = clip(image_tensor,text)
+    except torch.cuda.CudaError as e:
+        print("CUDA error occurred:", e)
+    labels = np.arange(BATCHSIZE)
 
-    #Pass to the textEncoder,  Includes the mask
-    #EncoderOut = textEncoder(**tokens)
-    DecoderOut = LMHead(**tokens)
+    loss_i = criterion(logits_per_image, labels) 
+    loss_t = criterion(logits_per_text, labels) 
+    loss = (loss_i + loss_t)/2
 
-    print(DecoderOut.logits.size())
+    print(loss.to("cpu"))
+
     break
 
-    #  TODO:  Work out how to Train the two
-        # Could be that we train the llm on the question and answer pairs?
-    # TODO: Make sure that the  GPT2 model is the  right model, config and all
-    # TODO: Make sure taht the tokenizer is correct
+    # TODO: how do we combine the text and answers
 
+    # TODO:Sort out loss
 
+    # TODO: fix tokeniser, i.e make sure that we use one that is BPE and has medical vocab
 
-
-
-
-
-
-
-
-# Take the two embeddings and preject them linearly to a new joint embedding space
-
-
-
-# for m in textEncoder.modules():
-#     if not isinstance(m, nn.Sequential):
-#         print(m)
-
-
-textEncoder = torch.hub.load('huggingface/transformers', 'modelForCausalLM', 'gpt2')
-
-# load empty tokenizer for gpt2 model
-tokenizer = torch.hub.load('huggingface/transformers', 'tokenizer', 'gpt2')
-
-
-string = "Hello?"
-
-
-
-
-
-#CREATE/LOAD CORPUS
-corpus_filename = os.path.join(os.getcwd(), 'corpus', 'corpus.txt')
-
-# Check if corpus file exists
-if os.path.exists(corpus_filename):
-    # If corpus file exists, load it
-    with open(corpus_filename, 'r') as file:
-        corpus = file.read()
-else:
-    # If corpus file doesn't exist, create it
-    corpus = ""
-    for images, masks, questions, answers in train_loader:
-        for q in questions:
-            corpus += "<SOS> " + q + " <EOS> "
-        for a in answers:
-            corpus += "<SOS> " + a + " <EOS> "
-
-    # Save the corpus to file
-    with open(corpus_filename, 'w') as file:
-        file.write(corpus)
 
 # LOADING VICUNA
 from transformers import LlamaForCausalLM, AutoTokenizer
