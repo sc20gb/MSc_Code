@@ -13,6 +13,8 @@ from CLIP import CLIP, VisionTransformer, convert_weights
 
 from transformers import LlamaForCausalLM, AutoTokenizer
 
+import torch.nn.functional as F
+
 
 
 
@@ -23,7 +25,7 @@ from transformers import LlamaForCausalLM, AutoTokenizer
 # #TODO: deal with this issue
 
 
-BATCHSIZE  = 2
+BATCHSIZE  = 8
 
 RANDSEED  = 42
 
@@ -57,9 +59,12 @@ test_loader, train_loader, validate_loader = load_data(transforms.Compose([
 ]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
 )
 
-# Tokenizer, this is temp prehaps. We need to work out how to create our own from medical data, or use one created frommedical data.  Should be BPE to conform to  clip
+# Tokenizer, this is temp prehaps. We need to work out how to create our own from medical data, or use one created frommedical data.  Should be BPE to conform to  clip. When we do we need to make sure that EOS is the largest token
 model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
+
+print(tokenizer.all_special_tokens)
+print(tokenizer.all_special_ids)
 
 
 # LOAD CLIP model
@@ -76,37 +81,50 @@ clip.to(device)
 # Create the loss function object
 criterion = nn.CrossEntropyLoss()
 
-for image_tensor, mask_tensor, question, answer in train_loader:
+# Optimizer TODO: We use the Adam optimizer (Kingma & Ba, 2014) with decoupled weight decay regularization (Loshchilov & Hutter, 2017) applied to all weights that are not gains or biases, and decay the learning rate using a cosine schedule (Loshchilov & Hutter, 2016).
+optim  = torch.optim.Adam(clip.parameters())
 
+sim_mat = torch.tensor([0])
+
+for image_tensor, mask_tensor, question, answer in train_loader:
     
-    
-    text = torch.cat([tokenizer(a +  " " + b,return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
+    text = torch.cat([tokenizer(a +  " " + b + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
 
     image_tensor = image_tensor.to(device)
 
-    print(image_tensor.size())
+    array = np.arange(BATCHSIZE)
 
-    print(text.size())
-    try:
-            logits_per_image, logits_per_text = clip(image_tensor,text)
-    except torch.cuda.CudaError as e:
-        print("CUDA error occurred:", e)
-    labels = np.arange(BATCHSIZE)
+    np.random.shuffle(array)
 
-    loss_i = criterion(logits_per_image, labels) 
-    loss_t = criterion(logits_per_text, labels) 
+    sim_mat = clip(image_tensor,text)
+
+    labels = torch.eye(BATCHSIZE, dtype=torch.half, device=device)
+    
+    sim_mat_i = torch.softmax(sim_mat,dim=0)
+    sim_mat_t = torch.softmax(sim_mat, dim=1)
+
+    #Softmax i.e predicting image from text,or predicting text from image
+
+    loss_i = F.binary_cross_entropy(sim_mat_i, labels)
+    loss_t = F.binary_cross_entropy(sim_mat_t, labels)
+
+    #  Simertric cross entropy
+
     loss = (loss_i + loss_t)/2
 
-    print(loss.to("cpu"))
+    optim.zero_grad()
 
-    break
+    loss.backward()
+
+    print(loss.to('cpu').detach().numpy(),loss_i.to('cpu').detach().numpy(),loss_t.to('cpu').detach().numpy())
 
     # TODO: how do we combine the text and answers
 
-    # TODO:Sort out loss
+    # TODO: Check to make sure that the correct parts of sim_mat are being maximised and minimised
 
-    # TODO: fix tokeniser, i.e make sure that we use one that is BPE and has medical vocab
+    # TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
 
+print(sim_mat)
 
 # LOADING VICUNA
 from transformers import LlamaForCausalLM, AutoTokenizer

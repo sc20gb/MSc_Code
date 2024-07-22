@@ -126,6 +126,7 @@ class CLIP(nn.Module):
         
         nn.init.normal_(self.token_embedding.weight, std=0.02)
         nn.init.normal_(self.positional_embedding, std=0.01)
+        nn.init.normal_(self.text_projection, std=self.transformer.width ** -0.5)
 
         proj_std = (self.transformer.width ** -0.5) * ((2 * self.transformer.layers) ** -0.5)
         attn_std = self.transformer.width ** -0.5
@@ -158,15 +159,29 @@ class CLIP(nn.Module):
         x = self.token_embedding(text).type(self.dtype)
 
         x = x + self.positional_embedding.type(self.dtype)
+
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
         x = self.ln_final(x).type(self.dtype)
 
+
+        #TODO: TEMP CODE FOR USE WITH CURRENT TOKENIZER, CHNAGE BACK when OTHER is USED
+        token_id = 2 # REMOVE
+
+        mask = (text == token_id) # REMOVE
+
+        indices = mask.nonzero() # REMOVE
+
+        selected_features = x[torch.arange(x.shape[0]), indices[:,1]] # REMOVE
+
+        x = selected_features @ self.text_projection # REMOVE
+
+
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
-
+        #TODO: Retore this when using correct tokenizer: x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection # RESTORE
+        
         return x
     
     def forward(self, image, text):
@@ -177,15 +192,16 @@ class CLIP(nn.Module):
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
         text_features = text_features / text_features.norm(dim=1, keepdim=True)
 
-        # cosine similarity as logits
+        # cosine similarity as logits, logit_scale here is the tem scaling
         logit_scale = self.logit_scale.exp()
-        logits_per_image = logit_scale * image_features @ text_features.t()
-        logits_per_text = logits_per_image.t()
+        cosine_sim_mat = image_features @ text_features.t()
+
+        logits_per_image = logit_scale * cosine_sim_mat
+
+        return logits_per_image
 
         # shape = [global_batch_size, global_batch_size]
-        return logits_per_image, logits_per_text
-    
-
+       # return logits_per_image, logits_per_text
 
 def convert_weights(model: nn.Module):
     """Convert applicable model parameters to fp16"""
