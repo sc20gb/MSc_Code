@@ -1,7 +1,6 @@
 import torchvision.transforms as transforms
 import os
 from data_loading import load_data,  display_sample
-#from TextTransformerEncoder import TextTransformerEncoder
 import torch
 import transformers
 
@@ -16,24 +15,13 @@ from transformers import LlamaForCausalLM, AutoTokenizer
 import torch.nn.functional as F
 
 
-
-
-# import warnings
-# warnings.filterwarnings("ignore")
-# import torchtext
-# torchtext.disable_torchtext_deprecation_warning()
-# #TODO: deal with this issue
-
-
-BATCHSIZE  = 8
+BATCHSIZE  = 4
 
 RANDSEED  = 42
 
 MAX_LENGTH =  76
 
 IMAGESIZE = 224
-
-VOCABSIZE = 10000
 
 
 # CHECK GPU SUPPORT AND ASSIGN DEVICE
@@ -86,67 +74,114 @@ optim  = torch.optim.Adam(clip.parameters())
 
 sim_mat = torch.tensor([0])
 
-for image_tensor, mask_tensor, question, answer in train_loader:
-    
-    text = torch.cat([tokenizer(a +  " " + b + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
+for n in range(30):
 
-    image_tensor = image_tensor.to(device)
+    for image_tensor, mask_tensor, question, answer in train_loader:
+        
+        text = torch.cat([tokenizer(a +  " " + b + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
 
-    array = np.arange(BATCHSIZE)
+        image_tensor = image_tensor.to(device)
 
-    np.random.shuffle(array)
+        array = np.arange(image_tensor.size(0))
 
-    sim_mat = clip(image_tensor,text)
+        np.random.shuffle(array)
 
-    labels = torch.eye(BATCHSIZE, dtype=torch.half, device=device)
-    
-    sim_mat_i = torch.softmax(sim_mat,dim=0)
-    sim_mat_t = torch.softmax(sim_mat, dim=1)
+        sim_mat = clip(image_tensor,text)
 
-    #Softmax i.e predicting image from text,or predicting text from image
+        labels = torch.eye(image_tensor.size(0), dtype=torch.half, device=device)
+        
+        sim_mat_i = torch.softmax(sim_mat,dim=0)
+        sim_mat_t = torch.softmax(sim_mat, dim=1)
 
-    loss_i = F.binary_cross_entropy(sim_mat_i, labels)
-    loss_t = F.binary_cross_entropy(sim_mat_t, labels)
+        #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
 
-    #  Simertric cross entropy
+        loss_i = F.binary_cross_entropy(sim_mat_i, labels)
+        loss_t = F.binary_cross_entropy(sim_mat_t, labels)
 
-    loss = (loss_i + loss_t)/2
+        #  Simertric cross entropy
 
-    optim.zero_grad()
+        loss = (loss_i + loss_t)/2
 
-    loss.backward()
+        optim.zero_grad()
 
-    print(loss.to('cpu').detach().numpy(),loss_i.to('cpu').detach().numpy(),loss_t.to('cpu').detach().numpy())
+        loss.backward()
 
-    # TODO: how do we combine the text and answers
+        # TODO: how do we combine the text and answers
 
-    # TODO: Check to make sure that the correct parts of sim_mat are being maximised and minimised
+        # TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
 
-    # TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
+    #  VALIDTATE
+    loss_avg  = 0.0
+    loss_i_avg = 0.0
+    loss_t_avg = 0.0
+    clip.eval()
+    count=0
 
-print(sim_mat)
+    print("Validating at epoc ", n,":")
+    for image_tensor, mask_tensor, question, answer in validate_loader:
 
-# LOADING VICUNA
-from transformers import LlamaForCausalLM, AutoTokenizer
+        text = torch.cat([tokenizer(a +  " " + b + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
 
-model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+        image_tensor = image_tensor.to(device)
 
-tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
-print("Tokenizer loaded successfully")
+        array = np.arange(image_tensor.size(0))
 
-string = "Hello?"
-print(tokenizer(string))
+        np.random.shuffle(array)
 
-model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
-print("Victuna Model loaded successfully")
+        print("Model")
+        sim_mat = clip(image_tensor,text)
 
-# Example of running the model on the correct device
-inputs = tokenizer(string, return_tensors="pt").to(device)
+        print("aftermodel")
 
-# The forward methods does not deal with the pre and post processing steps
-generated_ids = model.generate(inputs.input_ids)
+        labels = torch.eye(image_tensor.size(0), dtype=torch.half, device=device)
+        
+        sim_mat_i = torch.softmax(sim_mat,dim=0)
+        sim_mat_t = torch.softmax(sim_mat, dim=1)
 
-print(generated_ids)
-decoded = tokenizer.batch_decode(generated_ids,clean_up_tokenization_spaces=False)
+        #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
+        print("BCE")
+        loss_i = F.binary_cross_entropy(sim_mat_i, labels)
+        loss_t = F.binary_cross_entropy(sim_mat_t, labels)
 
-print(decoded[0])
+        loss_i_avg += loss_i
+        loss_t_avg +=  loss_t
+
+        #  Simertric cross entropy
+        loss = (loss_i + loss_t)/2
+        loss_avg += loss
+        count  += 1
+        
+
+    print(loss_avg.to('cpu').detach().numpy()/count,loss_i_avg.to('cpu').detach().numpy()/count,loss_t_avg.to('cpu').detach().numpy()/count)
+    clip.train()
+
+
+
+
+
+
+def load_vicuna(model_dir):
+    # LOADING VICUNA
+    from transformers import LlamaForCausalLM, AutoTokenizer
+
+    model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
+    print("Tokenizer loaded successfully")
+
+    string = "Hello?"
+    print(tokenizer(string))
+
+    model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
+    print("Victuna Model loaded successfully")
+
+    # Example of running the model on the correct device
+    inputs = tokenizer(string, return_tensors="pt").to(device)
+
+    # The forward methods does not deal with the pre and post processing steps
+    generated_ids = model.generate(inputs.input_ids)
+
+    print(generated_ids)
+    decoded = tokenizer.batch_decode(generated_ids,clean_up_tokenization_spaces=False)
+
+    print(decoded[0])
