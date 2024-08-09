@@ -58,6 +58,8 @@ class JsonDataset(Dataset):
         # Get the image path for the current index
         img_path = os.path.normpath(os.path.join(self.img_dir, *self.data_frame.iloc[idx]['img_name'].split('/')))
 
+        print(img_path)
+
         # Load the image and convert it to a tensor
         image_tensor = self.load_image_as_tensor(img_path, self.transform)
         
@@ -82,7 +84,7 @@ class JsonDataset(Dataset):
         return image_tensor, mask_tensor, question_tensor, answer_tensor
 
 
-def display_sample(image_tensor, mask_tensor, question, answer, save_path=None):
+def display_sample(image_tensor, mask_tensor, question, answer, batchsize=1, save_path=None):
     """
     Display the image, its mask, the question, and the answer using Matplotlib.
     Optionally save the plot as an image instead of displaying it.
@@ -95,10 +97,14 @@ def display_sample(image_tensor, mask_tensor, question, answer, save_path=None):
     - save_path (str, optional): If provided, the path to save the plot as an image. 
                                  If None, the plot is displayed.
     """
-
-    # Convert tensors to PIL images for displaying
-    image = transforms.ToPILImage()(image_tensor)
-    mask = transforms.ToPILImage()(mask_tensor)
+    if batchsize <= 1:
+        # Convert tensors to PIL images for displaying
+        image = transforms.ToPILImage()(image_tensor)
+        mask = transforms.ToPILImage()(mask_tensor)
+    else:
+        # Convert tensors to PIL images for displaying
+        image = transforms.ToPILImage()(image_tensor[0])
+        mask = transforms.ToPILImage()(mask_tensor[0])
 
     # Create a matplotlib figure with two subplots: one for the image and one for the mask
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
@@ -114,7 +120,11 @@ def display_sample(image_tensor, mask_tensor, question, answer, save_path=None):
     axes[1].axis('off')
 
     # Display the question and answer as the main title
-    plt.suptitle(f"Question: {question}\nAnswer: {answer}")
+    if batchsize <=1:
+        plt.suptitle(f"Question: {question}\nAnswer: {answer}")
+    else:
+        plt.suptitle(f"Question: {question[0]}\nAnswer: {answer[0]}")
+
 
     if save_path:
         # Save the plot as an image
@@ -145,3 +155,9 @@ def load_data(transform,batchSize,seed, dataDir):
     validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
     return test_loader, train_loader, validate_loader
+
+
+class CLIPTrainJsonDataset(JsonDataset):
+    def __init__(self, json_file, transform=transforms.ToTensor()):
+        super().__init__(json_file,transform)
+    
