@@ -61,6 +61,8 @@ class VisionTransformer(nn.Module):
 
         scale = width ** -0.5
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
+
+        #TODO: change the psoitional embedding
         self.positional_embedding = nn.Parameter(scale * torch.randn((input_resolution // patch_size) ** 2 + 1, width))
         self.ln_pre = LayerNorm(width)
 
@@ -106,6 +108,8 @@ class CLIP(nn.Module):
         self.context_length = context_length
         self.device = device
         self.token_embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=transformer_width)
+
+        #TODO: change the psoitional embedding
         self.positional_embedding = nn.Parameter(torch.empty(context_length, transformer_width))
         self.transformer = Transformer(width=transformer_width, layers=transformer_layers, heads=transformer_heads, attn_mask=self.build_attention_mask(self.device))
                 

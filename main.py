@@ -4,6 +4,8 @@ from data_loading import load_data,  display_sample
 import torch
 import transformers
 
+import sys
+
 import torch.nn as nn
 
 import numpy as np
@@ -47,6 +49,10 @@ test_loader, train_loader, validate_loader = load_data(transforms.Compose([
 ]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
 )
 
+for image, mask, q, a in train_loader:
+    display_sample(image,mask,q,a, batchsize=2)
+    sys.exit()
+
 # Tokenizer, this is temp prehaps. We need to work out how to create our own from medical data, or use one created frommedical data.  Should be BPE to conform to  clip. When we do we need to make sure that EOS is the largest token
 model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
@@ -56,7 +62,6 @@ print(tokenizer.all_special_ids)
 
 
 # LOAD CLIP model
-
 clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=512,context_length=76,transformer_layers=12,transformer_heads=8, embed_dim=512, vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,device=device)
 
 #reduce the size of the weights to fp16 where possible
@@ -106,7 +111,7 @@ for n in range(30):
 
         loss.backward()
 
-        # TODO: how do we combine the text and answers
+        print("End of itr")
 
         # TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
 
