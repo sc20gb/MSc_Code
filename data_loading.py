@@ -24,7 +24,7 @@ class JsonDataset(Dataset):
 
     def __init__(self, json_file, transform=transforms.ToTensor()):
         self.data = self.load_json(json_file)
-        self.data_frame = pd.DataFrame(self.data)
+        self.data_frame = pd.DataFrame(self.data)        
         self.data_frame = self.data_frame[self.data_frame['q_lang'] == 'en']
         self.transform = transform
         dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
@@ -160,4 +160,74 @@ def load_data(transform,batchSize,seed, dataDir):
 class CLIPTrainJsonDataset(JsonDataset):
     def __init__(self, json_file, transform=transforms.ToTensor()):
         super().__init__(json_file,transform)
+        self.data = self.load_json(json_file)
+        self.data_frame = pd.DataFrame(self.data)
+        self.data_frame = self.data_frame[self.data_frame['q_lang'] == 'en']
+        grouped_data = self.data_frame.groupby('img_id')
+        columns=["img_id","img_name","text"]
+        self.data_frame = pd.DataFrame(columns=columns)
     
+        for img_id, group in self.data_frame:
+            text = ""
+            for row in group:
+                text += row["question"] + " " + row["answer"]
+                text += ", " 
+            text = text[:-2]
+             
+            new_row = {
+                 "img_id" : img_id,
+                 "img_name": group[0]["img_name"],
+                 "text": text
+             }                 
+            
+            self.data_frame = self.data_frame.append(new_row, ignore_index=True)
+            
+
+        print(self.data_frame.head())
+        self.transform = transform
+        dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
+        self.img_dir = os.path.normpath(dir)
+    
+    def __getitem__(self, idx):
+        # Get the image path for the current index
+        img_path = os.path.normpath(os.path.join(self.img_dir, *self.data_frame.iloc[idx]['img_name'].split('/')))
+
+        # Load the image and convert it to a tensor
+        image_tensor = self.load_image_as_tensor(img_path, self.transform)
+        
+        # Get the row from the DataFrame as a dictionary
+        df_row_dict = self.data_frame.iloc[idx].to_dict()
+
+        # word tokenization
+        text = df_row_dict['text']
+
+        # Get the img
+        img_directory = os.path.dirname(img_path)
+
+        # Get the mask path for the current index
+        mask_path = os.path.normpath(os.path.join(img_directory, 'mask.png'))
+        mt = CustomMaskTransform(self.transform)
+        
+        # Load the mask and convert it to a tensor
+        mask_tensor = self.load_image_as_tensor(mask_path, mt)
+                
+        return image_tensor, mask_tensor, text
+    
+
+def load_combined_text_data(transform,batchSize,seed, dataDir):
+
+    test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
+    train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
+    validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
+
+    # Create Dataset objects
+    test_dataset = CLIPTrainJsonDataset(test_json_path, transform)
+    train_dataset = CLIPTrainJsonDataset(train_json_path, transform)
+    validate_dataset = CLIPTrainJsonDataset(validate_json_path, transform)
+
+    # Create DataLoader objects
+    test_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+    train_loader = DataLoader(train_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+    validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+
+    return test_loader, train_loader, validate_loader
