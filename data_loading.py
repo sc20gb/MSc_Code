@@ -167,23 +167,27 @@ class CLIPTrainJsonDataset(JsonDataset):
         columns=["img_id","img_name","text"]
         self.data_frame = pd.DataFrame(columns=columns)
     
-        for img_id, group in self.data_frame:
+        for img_id, group in grouped_data:
             text = ""
-            for row in group:
-                text += row["question"] + " " + row["answer"]
+            imageName = ""
+            for index, row in group.iterrows():
+                text += row['question'] + " " + row['answer']
                 text += ", " 
+                imageName = row['img_name']
+
             text = text[:-2]
              
             new_row = {
-                 "img_id" : img_id,
-                 "img_name": group[0]["img_name"],
-                 "text": text
-             }                 
-            
-            self.data_frame = self.data_frame.append(new_row, ignore_index=True)
-            
+                "img_id": img_id,
+                "img_name": imageName,
+                "text": text
+            }
+           # Convert the dictionary to a DataFrame
+            new_row_df = pd.DataFrame([new_row])
 
-        print(self.data_frame.head())
+            # Append the new row DataFrame to the existing DataFrame
+            self.data_frame = pd.concat([self.data_frame, new_row_df], ignore_index=True)
+
         self.transform = transform
         dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
         self.img_dir = os.path.normpath(dir)
