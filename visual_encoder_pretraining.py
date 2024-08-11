@@ -78,9 +78,9 @@ for n in range(1,MAX_EPOC + 1):
         
         image_tensor = image_tensor.to(device)
 
-        array = np.arange(image_tensor.size(0))
+        # array = np.arange(image_tensor.size(0))
 
-        np.random.shuffle(array)
+        # np.random.shuffle(array)
 
         sim_mat = clip(image_tensor,text_tensor)
 
@@ -113,28 +113,18 @@ for n in range(1,MAX_EPOC + 1):
 
     print("Validating at epoc ", n,":")
     for image_tensor, mask_tensor, text in validate_loader:
-
         text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
-
         image_tensor = image_tensor.to(device)
-
         array = np.arange(image_tensor.size(0))
-        
 
         np.random.shuffle(array)
-
-        print("Model")
         sim_mat = clip(image_tensor,text_tensor)
 
-        print("aftermodel")
-
         labels = torch.eye(image_tensor.size(0), dtype=torch.half, device=device)
-        
         sim_mat_i = torch.softmax(sim_mat,dim=0)
         sim_mat_t = torch.softmax(sim_mat, dim=1)
 
         #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
-        print("BCE")
         loss_i = F.binary_cross_entropy(sim_mat_i, labels)
         loss_t = F.binary_cross_entropy(sim_mat_t, labels)
 
