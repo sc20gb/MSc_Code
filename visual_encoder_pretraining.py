@@ -14,13 +14,13 @@ import torch.nn.functional as F
 import csv
 
 
-BATCHSIZE  = 4
+BATCHSIZE  = 2
 
 # This is the random seed used by dataloading and models to ensure reproducability
 RANDSEED  = 42
 
 # This is the max sentence length used in the transformer
-MAX_LENGTH =  76
+MAX_LENGTH =  256
 
 IMAGESIZE = 224
 
@@ -57,7 +57,7 @@ model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
 
 # LOAD CLIP model
-clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=512,context_length=76,transformer_layers=12,transformer_heads=8, embed_dim=512, vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,device=device)
+clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=512,context_length=MAX_LENGTH,transformer_layers=12,transformer_heads=8, embed_dim=512, vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,device=device)
 
 #reduce the size of the weights to fp16 where possible
 convert_weights(clip)
@@ -72,17 +72,17 @@ optim  = torch.optim.Adam(clip.parameters())
 loss_epoch = []
 for n in range(1,MAX_EPOC + 1):
 
-    for image_tensor, mask_tensor, question, answer in train_loader:
-        
-        text = torch.cat([tokenizer(a +  " " + b + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
+    for image_tensor, mask_tensor, text in train_loader:
 
+        text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+        
         image_tensor = image_tensor.to(device)
 
         array = np.arange(image_tensor.size(0))
 
         np.random.shuffle(array)
 
-        sim_mat = clip(image_tensor,text)
+        sim_mat = clip(image_tensor,text_tensor)
 
         labels = torch.eye(image_tensor.size(0), dtype=torch.half, device=device)
         
@@ -112,18 +112,19 @@ for n in range(1,MAX_EPOC + 1):
     count=0
 
     print("Validating at epoc ", n,":")
-    for image_tensor, mask_tensor, question, answer in validate_loader:
+    for image_tensor, mask_tensor, text in validate_loader:
 
-        text = torch.cat([tokenizer(a +  " " + b + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a, b in zip(question,answer)],0).to(device)
+        text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
 
         image_tensor = image_tensor.to(device)
 
         array = np.arange(image_tensor.size(0))
+        
 
         np.random.shuffle(array)
 
         print("Model")
-        sim_mat = clip(image_tensor,text)
+        sim_mat = clip(image_tensor,text_tensor)
 
         print("aftermodel")
 
