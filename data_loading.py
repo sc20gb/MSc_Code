@@ -83,7 +83,6 @@ class JsonDataset(Dataset):
                 
         return image_tensor, mask_tensor, question_tensor, answer_tensor
 
-
 def display_sample(image_tensor, mask_tensor, question, answer, batchsize=1, save_path=None):
     """
     Display the image, its mask, the question, and the answer using Matplotlib.
