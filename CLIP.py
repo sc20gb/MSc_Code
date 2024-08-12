@@ -5,6 +5,29 @@ from torch import nn
 from collections import OrderedDict
 from typing import Tuple, Union
 
+
+# This class was found https://medium.com/correll-lab/building-a-vision-transformer-model-from-scratch-a3054f707cc6
+class PositionalEncoding(nn.Module):
+  def __init__(self, d_model, max_seq_length):
+    super().__init__()
+
+    # Creating positional encoding
+    pe = torch.zeros(max_seq_length, d_model)
+
+    for pos in range(max_seq_length):
+      for i in range(d_model):
+        if i % 2 == 0:
+          pe[pos][i] = np.sin(pos/(10000 ** (i/d_model)))
+        else:
+          pe[pos][i] = np.cos(pos/(10000 ** ((i-1)/d_model)))
+
+    self.register_buffer('pe', pe.unsqueeze(0))
+
+  def forward(self, x):
+    x = x + self.pe
+    return x
+
+
 class LayerNorm(nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
 
@@ -62,8 +85,7 @@ class VisionTransformer(nn.Module):
         scale = width ** -0.5
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
 
-        #TODO: change the psoitional embedding
-        self.positional_embedding = nn.Parameter(scale * torch.randn((input_resolution // patch_size) ** 2 + 1, width))
+        self.positional_embedding = PositionalEncoding(width, (input_resolution // patch_size) ** 2 + 1)
         self.ln_pre = LayerNorm(width)
 
         self.transformer = Transformer(width, layers, heads)
@@ -77,7 +99,7 @@ class VisionTransformer(nn.Module):
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
         x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
 
-        x = x + self.positional_embedding.to(x.dtype)
+        x = self.positional_embedding(x).to(x.dtype)
         x = self.ln_pre(x)
 
         x = x.permute(1, 0, 2)  # NLD -> LND
@@ -109,8 +131,7 @@ class CLIP(nn.Module):
         self.device = device
         self.token_embedding = nn.Embedding(num_embeddings=vocab_size, embedding_dim=transformer_width)
 
-        #TODO: change the psoitional embedding
-        self.positional_embedding = nn.Parameter(torch.empty(context_length, transformer_width))
+        self.positional_embedding = PositionalEncoding(transformer_width, context_length)
         self.transformer = Transformer(width=transformer_width, layers=transformer_layers, heads=transformer_heads, attn_mask=self.build_attention_mask(self.device))
                 
         self.ln_final = LayerNorm(transformer_width)
@@ -129,7 +150,6 @@ class CLIP(nn.Module):
             )
         
         nn.init.normal_(self.token_embedding.weight, std=0.02)
-        nn.init.normal_(self.positional_embedding, std=0.01)
         nn.init.normal_(self.text_projection, std=self.transformer.width ** -0.5)
 
         proj_std = (self.transformer.width ** -0.5) * ((2 * self.transformer.layers) ** -0.5)
@@ -162,7 +182,7 @@ class CLIP(nn.Module):
 
         x = self.token_embedding(text).type(self.dtype)
 
-        x = x + self.positional_embedding.type(self.dtype)
+        x = self.positional_embedding(x).type(self.dtype)
 
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
