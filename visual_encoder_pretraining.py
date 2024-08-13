@@ -107,43 +107,40 @@ for n in range(1,MAX_EPOC + 1):
     loss_avg  = 0.0
     loss_i_avg = 0.0
     loss_t_avg = 0.0
-    clip.eval()
     count=0
 
-    for image_tensor, mask_tensor, text in validate_loader:
-        text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
-        image_tensor = image_tensor.to(device)
+    with torch.no_grad():
+        for image_tensor, mask_tensor, text in validate_loader:
+            text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+            image_tensor = image_tensor.to(device)
 
-        sim_mat = clip(image_tensor,text_tensor)
+            sim_mat = clip(image_tensor,text_tensor)
 
-        labels = torch.eye(image_tensor.size(0), dtype=torch.float, device=device)
-        sim_mat_i = torch.softmax(sim_mat,dim=0).float()
-        sim_mat_t = torch.softmax(sim_mat, dim=1).float()
+            labels = torch.eye(image_tensor.size(0), dtype=torch.float, device=device)
+            sim_mat_i = torch.softmax(sim_mat,dim=0).float()
+            sim_mat_t = torch.softmax(sim_mat, dim=1).float()
 
-        #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
-        loss_i = F.binary_cross_entropy(sim_mat_i, labels)
-        loss_t = F.binary_cross_entropy(sim_mat_t, labels)
+            #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
+            loss_i = F.binary_cross_entropy(sim_mat_i, labels)
+            loss_t = F.binary_cross_entropy(sim_mat_t, labels)
 
-        loss_i_avg += loss_i
-        loss_t_avg +=  loss_t
+            loss_i_avg += loss_i
+            loss_t_avg +=  loss_t
 
-        #  Simertric cross entropy
-        loss = (loss_i + loss_t)/2
-        loss_avg += loss
-        count  += 1
-    
+            #  Simertric cross entropy
+            loss = (loss_i + loss_t)/2
+            loss_avg += loss
+            count  += 1
+        
 
-    print(loss_avg.to('cpu').detach().numpy()/count,loss_i_avg.to('cpu').detach().numpy()/count,loss_t_avg.to('cpu').detach().numpy()/count)
+        print(loss_avg.to('cpu').detach().numpy()/count,loss_i_avg.to('cpu').detach().numpy()/count,loss_t_avg.to('cpu').detach().numpy()/count)
 
-    #SAVE RESULTS
-    if not os.path.exists(os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
-        os.makedirs(os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION)))
-    torch.save(clip,os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
-    
-    loss_epoch.append([n,loss_avg.to('cpu').detach().numpy()/count])
-    
-    clip.train()
-
+        #SAVE RESULTS
+        if not os.path.exists(os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
+            os.makedirs(os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION)))
+        torch.save(clip,os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
+        
+        loss_epoch.append([n,loss_avg.to('cpu').detach().numpy()/count])
 
 # Specify the CSV file name
 filename = os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),'epoch_loss.csv')
