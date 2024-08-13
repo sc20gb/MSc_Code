@@ -1,4 +1,6 @@
-/Models
+/Models/vicuna-7b-v1.5/model/
+/Models/vicuna-13b-v1.5/
+
 /__pycache__
 __pycache__/data_loading.cpython-311.pyc
 /__pycache__
