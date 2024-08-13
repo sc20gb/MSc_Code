@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import csv
 
 
-BATCHSIZE  = 16
+BATCHSIZE  = 8
 
 # This is the random seed used by dataloading and models to ensure reproducability
 RANDSEED  = 42
