@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import csv
 
 
-BATCHSIZE  = 2
+BATCHSIZE  = 16
 
 # This is the random seed used by dataloading and models to ensure reproducability
 RANDSEED  = 42
@@ -24,7 +24,7 @@ MAX_LENGTH =  256
 
 IMAGESIZE = 224
 
-MAX_EPOC = 1
+MAX_EPOC = 40
 
 #This tells the file saving system which version of training we are in
 VERSION = 1
@@ -71,23 +71,22 @@ optim  = torch.optim.Adam(clip.parameters())
 # Record the loss at the epoch
 loss_epoch = []
 for n in range(1,MAX_EPOC + 1):
+    count = 0
 
     for image_tensor, mask_tensor, text in train_loader:
+        count += 1
+        print(count,  "of", train_loader.__len__())
 
         text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
         
         image_tensor = image_tensor.to(device)
 
-        # array = np.arange(image_tensor.size(0))
-
-        # np.random.shuffle(array)
-
         sim_mat = clip(image_tensor,text_tensor)
 
-        labels = torch.eye(image_tensor.size(0), dtype=torch.half, device=device)
+        labels = torch.eye(image_tensor.size(0), dtype=torch.float, device=device)
         
-        sim_mat_i = torch.softmax(sim_mat,dim=0)
-        sim_mat_t = torch.softmax(sim_mat, dim=1)
+        sim_mat_i = torch.softmax(sim_mat,dim=0).float()
+        sim_mat_t = torch.softmax(sim_mat, dim=1).float()
 
         #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
 
@@ -111,18 +110,15 @@ for n in range(1,MAX_EPOC + 1):
     clip.eval()
     count=0
 
-    print("Validating at epoc ", n,":")
     for image_tensor, mask_tensor, text in validate_loader:
         text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
         image_tensor = image_tensor.to(device)
-        array = np.arange(image_tensor.size(0))
 
-        np.random.shuffle(array)
         sim_mat = clip(image_tensor,text_tensor)
 
-        labels = torch.eye(image_tensor.size(0), dtype=torch.half, device=device)
-        sim_mat_i = torch.softmax(sim_mat,dim=0)
-        sim_mat_t = torch.softmax(sim_mat, dim=1)
+        labels = torch.eye(image_tensor.size(0), dtype=torch.float, device=device)
+        sim_mat_i = torch.softmax(sim_mat,dim=0).float()
+        sim_mat_t = torch.softmax(sim_mat, dim=1).float()
 
         #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
         loss_i = F.binary_cross_entropy(sim_mat_i, labels)
