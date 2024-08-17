@@ -1,11 +1,10 @@
+import torch.utils
 import torchvision.transforms as transforms
 import os
-from data_loading import load_combined_text_data,  display_sample
+from data_loading import load_combined_text_data
 import torch
 
-import numpy as np
-
-from CLIP import CLIP, convert_weights
+from CLIP import CLIP
 
 from transformers import AutoTokenizer
 
@@ -13,147 +12,245 @@ import torch.nn.functional as F
 
 import csv
 
+import wandb
 
-BATCHSIZE  = 8
+#V_1 uses torch.optim.AdamW(clip.parameters(), lr=1e-4, weight_decay=1e-4, eps=1.0e-08)
 
-# This is the random seed used by dataloading and models to ensure reproducability
-RANDSEED  = 42
+# TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
 
-# This is the max sentence length used in the transformer
-MAX_LENGTH =  256
+def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX_EPOC = 100, VERSION = 2, transformer_width=512, transformer_layers=12,transformer_heads=8,embed_dim=512,vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,lr=1e-4, weight_decay=1e-4, eps=1.0e-08,T_0=10, T_mult=2,save=False):
+    # CHECK GPU SUPPORT AND ASSIGN DEVICE
+    if torch.cuda.is_available():
+        # Get the number of GPUs available
+        gpu_count = torch.cuda.device_count()
+        print(f"CUDA is available with {gpu_count} GPU(s)!")
 
-IMAGESIZE = 224
+        # Print the name of each GPU available
+        for i in range(gpu_count):
+            print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
-MAX_EPOC = 40
+        device = torch.device("cuda")
+    else:
+        print("CUDA is not available. Training will proceed on CPU.")
+        device = torch.device("cpu")
 
-#This tells the file saving system which version of training we are in
-VERSION = 1
+    #LOAD DATA
+    test_loader, train_loader, validate_loader = load_combined_text_data(transforms.Compose([
+        transforms.Resize((IMAGESIZE, IMAGESIZE)),
+        transforms.ToTensor()
+    ]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
+    )
 
+    model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+    tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
 
-# CHECK GPU SUPPORT AND ASSIGN DEVICE
-if torch.cuda.is_available():
-    # Get the number of GPUs available
-    gpu_count = torch.cuda.device_count()
-    print(f"CUDA is available with {gpu_count} GPU(s)!")
+    # LOAD CLIP model
+    clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=MAX_LENGTH,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
 
-    # Print the name of each GPU available
-    for i in range(gpu_count):
-        print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
+    # Training
+    clip.to(device)
+    clip.train()
+    clip.zero_grad()
 
-    device = torch.device("cuda")
-else:
-    print("CUDA is not available. Training will proceed on CPU.")
-    device = torch.device("cpu")
+    #Optimizer and learning rate scheduling
+    optim = torch.optim.AdamW(clip.parameters(), lr=lr, weight_decay=weight_decay, eps=eps)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optim, T_0=T_0, T_mult=T_mult)
 
-#LOAD DATA
-test_loader, train_loader, validate_loader = load_combined_text_data(transforms.Compose([
-    transforms.Resize((IMAGESIZE, IMAGESIZE)),
-    transforms.ToTensor()
-]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
-)
+    # Record the loss at the epoch
+    loss_epoch = []
+    for n in range(1,MAX_EPOC + 1):
+        clip.train()
+        trainng_loss_avg  = torch.tensor([0.0])
+        count_t = 0
+        for image_tensor, mask_tensor, text in train_loader:
 
-# Tokenizer, this is temp prehaps. We need to work out how to create our own from medical data, or use one created frommedical data.  Should be BPE to conform to  clip. When we do we need to make sure that EOS is the largest token
-model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
-
-# LOAD CLIP model
-clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=512,context_length=MAX_LENGTH,transformer_layers=12,transformer_heads=8, embed_dim=512, vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,device=device)
-
-#reduce the size of the weights to fp16 where possible
-convert_weights(clip)
-
-# Training
-clip.to(device)
-
-# Optimizer TODO: We use the Adam optimizer (Kingma & Ba, 2014) with decoupled weight decay regularization (Loshchilov & Hutter, 2017) applied to all weights that are not gains or biases, and decay the learning rate using a cosine schedule (Loshchilov & Hutter, 2016).
-optim  = torch.optim.Adam(clip.parameters())
-
-# Record the loss at the epoch
-loss_epoch = []
-for n in range(1,MAX_EPOC + 1):
-    count = 0
-
-    for image_tensor, mask_tensor, text in train_loader:
-        count += 1
-        print(count,  "of", train_loader.__len__())
-
-        text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
-        
-        image_tensor = image_tensor.to(device)
-
-        sim_mat = clip(image_tensor,text_tensor)
-
-        labels = torch.eye(image_tensor.size(0), dtype=torch.float, device=device)
-        
-        sim_mat_i = torch.softmax(sim_mat,dim=0).float()
-        sim_mat_t = torch.softmax(sim_mat, dim=1).float()
-
-        #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
-
-        loss_i = F.binary_cross_entropy(sim_mat_i, labels)
-        loss_t = F.binary_cross_entropy(sim_mat_t, labels)
-
-        #  Simertric cross entropy
-
-        loss = (loss_i + loss_t)/2
-
-        optim.zero_grad()
-
-        loss.backward()
-
-        # TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
-
-    #  VALIDTATE
-    loss_avg  = 0.0
-    loss_i_avg = 0.0
-    loss_t_avg = 0.0
-    count=0
-
-    with torch.no_grad():
-        for image_tensor, mask_tensor, text in validate_loader:
+            optim.zero_grad()
+            
             text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+            
             image_tensor = image_tensor.to(device)
 
-            sim_mat = clip(image_tensor,text_tensor)
+            image_features,text_features = clip(image_tensor,text_tensor)
 
-            labels = torch.eye(image_tensor.size(0), dtype=torch.float, device=device)
-            sim_mat_i = torch.softmax(sim_mat,dim=0).float()
-            sim_mat_t = torch.softmax(sim_mat, dim=1).float()
+            #CALC LOSS FROM FEATURES
+            # normalised features
+            image_features = image_features / image_features.norm(dim=1, keepdim=True)
+            text_features = text_features / text_features.norm(dim=1, keepdim=True)
 
-            #Softmax i.e predicting image from text,or predicting text from image. These are now prob distributions 
-            loss_i = F.binary_cross_entropy(sim_mat_i, labels)
-            loss_t = F.binary_cross_entropy(sim_mat_t, labels)
+            # cosine similarity as logits
+            logit_scale = clip.logit_scale.exp()
+            logits_per_image = logit_scale * image_features @ text_features.t()
+            logits_per_text = logit_scale * text_features @ image_features.t()
 
-            loss_i_avg += loss_i
-            loss_t_avg +=  loss_t
+            labels = torch.arange(len(logits_per_image)).to(logits_per_image.device)
 
-            #  Simertric cross entropy
-            loss = (loss_i + loss_t)/2
-            loss_avg += loss
-            count  += 1
-        
+            image_loss = F.cross_entropy(logits_per_image, labels)
+            text_loss  = F.cross_entropy(logits_per_text, labels)
 
-        print(loss_avg.to('cpu').detach().numpy()/count,loss_i_avg.to('cpu').detach().numpy()/count,loss_t_avg.to('cpu').detach().numpy()/count)
+            loss = (image_loss + text_loss) / 2
+            loss.backward()
 
-        #SAVE RESULTS
-        if not os.path.exists(os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
-            os.makedirs(os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION)))
-        torch.save(clip,os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
-        
-        loss_epoch.append([n,loss_avg.to('cpu').detach().numpy()/count])
+            optim.step()
 
-# Specify the CSV file name
-filename = os.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),'epoch_loss.csv')
+            # logit scaling set as max 100 as mentioned in CLIP paper # log(100) = 4.6052
+            clip.logit_scale.data = torch.clamp(clip.logit_scale.data, 0, 4.6052)
 
-# Writing to the CSV file
-with open(filename, mode='w', newline='') as file:
-    writer = csv.writer(file)
+            clip.zero_grad()
+
+            trainng_loss_avg += loss.to('cpu')
+
+            count_t +=1
+
+        scheduler.step()
+        #  VALIDTATE
+        loss_avg  = torch.tensor([0.0])
+        count=0
+        clip.eval()
+        with torch.no_grad():
+            for image_tensor, mask_tensor, text in validate_loader:
+                text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+                image_tensor = image_tensor.to(device)
+
+                image_features,text_features = clip(image_tensor,text_tensor)
+
+                #CALC LOSS FROM FEATURES
+
+                # normalized features
+                image_features = image_features / image_features.norm(dim=1, keepdim=True)
+                text_features = text_features / text_features.norm(dim=1, keepdim=True)
+
+                # cosine similarity as logits
+                logit_scale = clip.logit_scale.exp()
+
+                logits_per_image = logit_scale * image_features @ text_features.t()
+                logits_per_text = logit_scale * text_features @ image_features.t()
+
+                labels = torch.arange(len(logits_per_image)).to(logits_per_image.device)
+
+                image_loss = F.cross_entropy(logits_per_image, labels)
+                text_loss  = F.cross_entropy(logits_per_text, labels)
+
+                loss = (image_loss + text_loss) / 2
+                loss_avg += loss.to('cpu')
+                count  += 1
+            
+
+            #print(loss_avg.to('cpu').detach().numpy()[0]/count,trainng_loss_avg.to('cpu').detach().numpy()[0]/count_t)
+
+            #SAVE RESULTS
+            if save:
+                if not os.path.exists(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
+                    os.makedirs(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION)))
+                torch.save(clip,os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
+            
+            loss_epoch.append([
+                n,
+                loss_avg.to('cpu').detach().numpy()[0]/count,
+                trainng_loss_avg.to('cpu').detach().numpy()[0]/count_t,
+                BATCHSIZE,
+                RANDSEED,
+                MAX_LENGTH,
+                IMAGESIZE,
+                MAX_EPOC,
+                VERSION,
+                transformer_width,
+                transformer_layers,
+                transformer_heads,
+                embed_dim,
+                vision_width,
+                image_resolution,
+                vision_patch_size,
+                vision_layers,
+                lr,
+                weight_decay,
+                eps,
+                T_0,
+                T_mult
+                ])
+
+
+    return loss_epoch
+
+
+
+def saveResults(VERSION,loss_epoch_):
+
+    if not os.path.exists(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
+                    os.makedirs(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION)))
     
-    # Write the header
-    writer.writerow(['Epoch', 'Loss'])
-    
-    # Write the data
-    writer.writerows(loss_epoch)
+    filename = os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"epoch_loss.csv")
 
-print(f"CSV file '{filename}' created successfully.")
+    # Writing to the CSV file
+    with open(filename, mode='w', newline='\n') as file:
+        writer = csv.writer(file)
+        
+        # Write the header
+        writer.writerow(['Epoch', 'Validation Loss','Training Loss'])
+        
+        # Write the data
+        writer.writerows(loss_epoch_)
+
+    print(f"CSV file '{filename}' created successfully.")
+
+
+
+# Configure parameters
+
+# Lists for each parameter
+BATCHSIZE_LIST = [16]
+MAX_EPOC_LIST = [30]
+VERSION_LIST = [5]
+LR_LIST = [1e-4, 1e-3, 1e-5]
+WEIGHT_DECAY_LIST = [1e-4, 0.2]
+EPS_LIST = [1.0e-08]
+T_0_LIST = [10,5]
+T_MULT_LIST = [2]
+
+# Generate the list of dictionaries with all combinations
+config_list = [
+    {
+        'BATCHSIZE': batchsize,
+        'MAX_EPOC': max_epoc,
+        'VERSION': version,
+        'lr': lr,
+        'weight_decay': weight_decay,
+        'eps': eps,
+        'T_0': t_0,
+        'T_mult': t_mult
+    }
+    for batchsize in BATCHSIZE_LIST
+    for max_epoc in MAX_EPOC_LIST
+    for version in VERSION_LIST
+    for lr in LR_LIST
+    for weight_decay in WEIGHT_DECAY_LIST
+    for eps in EPS_LIST
+    for t_0 in T_0_LIST
+    for t_mult in T_MULT_LIST
+]
+
+# Example usage: Iterating over the list of configuration dictionaries
+for i, config in enumerate(config_list):
+    print(f"Configuration {i+1}:")
+    print(config)
+    print()
+
+
+for i, p in enumerate(config_list):
+
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="MSc",
+        # track hyperparameters and run metadata
+        config=p
+    )
+
+    loss_epoch  = train(**p)
+    # save local results
+    # Specify the CSV file name
+
+    saveResults(10 + i,loss_epoch)
+
+
+    for epoch in loss_epoch:
+        wandb.log({"loss_validate":epoch[1], "loss_training":epoch[2]})
 
