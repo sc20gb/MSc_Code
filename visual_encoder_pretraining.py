@@ -167,6 +167,7 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
                 T_0,
                 T_mult
                 ])
+            wandb.log({"loss_validate":loss_avg.to('cpu').detach().numpy()[0]/count, "loss_training":trainng_loss_avg.to('cpu').detach().numpy()[0]/count_t})
 
 
     return loss_epoch
@@ -228,14 +229,10 @@ config_list = [
     for t_mult in T_MULT_LIST
 ]
 
-# Example usage: Iterating over the list of configuration dictionaries
-for i, config in enumerate(config_list):
-    print(f"Configuration {i+1}:")
-    print(config)
-    print()
-
-
 for i, p in enumerate(config_list):
+
+    if i ==  0:
+         continue
 
     wandb.init(
         # set the wandb project where this run will be logged
@@ -248,9 +245,7 @@ for i, p in enumerate(config_list):
     # save local results
     # Specify the CSV file name
 
+    wandb.finish()
+
     saveResults(10 + i,loss_epoch)
-
-
-    for epoch in loss_epoch:
-        wandb.log({"loss_validate":epoch[1], "loss_training":epoch[2]})
 
