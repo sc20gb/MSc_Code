@@ -198,13 +198,13 @@ def saveResults(VERSION,loss_epoch_):
 # Configure parameters
 
 # Lists for each parameter
-BATCHSIZE_LIST = [16]
+BATCHSIZE_LIST = [16,32]
 MAX_EPOC_LIST = [30]
-VERSION_LIST = [5]
-LR_LIST = [1e-4, 1e-3, 1e-5]
-WEIGHT_DECAY_LIST = [1e-4, 0.2]
+VERSION_LIST = [6]
+LR_LIST = [1e-4,3e-4,5e-4]
+WEIGHT_DECAY_LIST = [1e-4,1e-3]
 EPS_LIST = [1.0e-08]
-T_0_LIST = [10,5]
+T_0_LIST = [10]
 T_MULT_LIST = [2]
 
 # Generate the list of dictionaries with all combinations
@@ -231,9 +231,6 @@ config_list = [
 
 for i, p in enumerate(config_list):
 
-    if i ==  0:
-         continue
-
     wandb.init(
         # set the wandb project where this run will be logged
         project="MSc",
@@ -247,5 +244,5 @@ for i, p in enumerate(config_list):
 
     wandb.finish()
 
-    saveResults(10 + i,loss_epoch)
+    saveResults(100 + i,loss_epoch)
 
