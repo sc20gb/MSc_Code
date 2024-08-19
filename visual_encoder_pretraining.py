@@ -199,9 +199,8 @@ def saveResults(VERSION,loss_epoch_):
 
 # Lists for each parameter
 BATCHSIZE_LIST = [8,16]
-MAX_EPOC_LIST = [30]
-VERSION_LIST = [8]
-LR_LIST = [1e-4,5e-5,8e-5]
+MAX_EPOC_LIST = [100]
+LR_LIST = [8e-5]
 WEIGHT_DECAY_LIST = [1e-4,1e-3]
 EPS_LIST = [1.0e-08]
 T_0_LIST = [10]
@@ -212,7 +211,6 @@ config_list = [
     {
         'BATCHSIZE': batchsize,
         'MAX_EPOC': max_epoc,
-        'VERSION': version,
         'lr': lr,
         'weight_decay': weight_decay,
         'eps': eps,
@@ -221,7 +219,6 @@ config_list = [
     }
     for batchsize in BATCHSIZE_LIST
     for max_epoc in MAX_EPOC_LIST
-    for version in VERSION_LIST
     for lr in LR_LIST
     for weight_decay in WEIGHT_DECAY_LIST
     for eps in EPS_LIST
@@ -238,11 +235,11 @@ for i, p in enumerate(config_list):
         config=p
     )
 
-    loss_epoch  = train(**p)
+    loss_epoch  = train(**p,VERSION= 2000 + i,save=True)
     # save local results
     # Specify the CSV file name
 
     wandb.finish()
 
-    saveResults(10000 + i,loss_epoch)
+    saveResults(2000 + i,loss_epoch)
 
