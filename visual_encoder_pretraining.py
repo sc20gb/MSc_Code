@@ -198,10 +198,10 @@ def saveResults(VERSION,loss_epoch_):
 # Configure parameters
 
 # Lists for each parameter
-BATCHSIZE_LIST = [16,32]
+BATCHSIZE_LIST = [8,16]
 MAX_EPOC_LIST = [30]
-VERSION_LIST = [6]
-LR_LIST = [1e-4,3e-4,5e-4]
+VERSION_LIST = [8]
+LR_LIST = [1e-4,5e-5,8e-5]
 WEIGHT_DECAY_LIST = [1e-4,1e-3]
 EPS_LIST = [1.0e-08]
 T_0_LIST = [10]
@@ -244,5 +244,5 @@ for i, p in enumerate(config_list):
 
     wandb.finish()
 
-    saveResults(100 + i,loss_epoch)
+    saveResults(10000 + i,loss_epoch)
 
