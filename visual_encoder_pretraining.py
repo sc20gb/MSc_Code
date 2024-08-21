@@ -141,7 +141,7 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
             if save:
                 if not os.path.exists(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
                     os.makedirs(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION)))
-                torch.save(clip,os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
+                torch.save(clip.state_dict(),os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
             
             loss_epoch.append([
                 n,
