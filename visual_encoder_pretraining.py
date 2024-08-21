@@ -235,7 +235,7 @@ for i, p in enumerate(config_list):
         config=p
     )
 
-    loss_epoch  = train(**p,VERSION= 2000 + i,save=True)
+    loss_epoch  = train(**p,VERSION= 2000 + i,save=False)
     # save local results
     # Specify the CSV file name
 
