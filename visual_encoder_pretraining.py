@@ -18,6 +18,7 @@ import wandb
 
 # TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
 
+
 def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX_EPOC = 100, VERSION = 2, transformer_width=512, transformer_layers=12,transformer_heads=8,embed_dim=512,vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,lr=1e-4, weight_decay=1e-4, eps=1.0e-08,T_0=10, T_mult=2,save=False):
     # CHECK GPU SUPPORT AND ASSIGN DEVICE
     if torch.cuda.is_available():
@@ -198,10 +199,10 @@ def saveResults(VERSION,loss_epoch_):
 # Configure parameters
 
 # Lists for each parameter
-BATCHSIZE_LIST = [16,32]
+BATCHSIZE_LIST = [16]
 MAX_EPOC_LIST = [100]
 LR_LIST = [8e-5]
-WEIGHT_DECAY_LIST = [1e-4,5e-5]
+WEIGHT_DECAY_LIST = [0.0001]
 EPS_LIST = [1.0e-08]
 T_0_LIST = [10]
 T_MULT_LIST = [2]
@@ -235,7 +236,7 @@ for i, p in enumerate(config_list):
         config=p
     )
 
-    loss_epoch  = train(**p,VERSION= 2000 + i,save=False)
+    loss_epoch  = train(**p,VERSION= 2000 + i,save=True)
     # save local results
     # Specify the CSV file name
 

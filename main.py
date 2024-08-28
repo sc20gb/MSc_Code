@@ -162,9 +162,6 @@ for n in range(30):
 
 
 
-
-
-
 def load_vicuna(model_dir):
     # LOADING VICUNA
     from transformers import LlamaForCausalLM, AutoTokenizer
