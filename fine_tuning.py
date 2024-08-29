@@ -260,7 +260,7 @@ def feature_aliginment_training_step_1(clip_parameters,optim_parameters,connecto
 
             #SAVE RESULTS
         if save:
-                if not os.path.exists(os.path.join(os.getcwd(),"SavedModels", "C_V_" + str(VERSION))):
+                if not os.path.exists(os.path.join("nobackup","sc20gwb","Models","SavedModels", "C_V_" + str(VERSION))):
                     os.makedirs(os.path.join(os.getcwd(),"SavedModels", "C_V_" + str(VERSION)))
                 torch.save(connector_llm.connector.state_dict,os.path.join("nobackup","sc20gwb","Models","SavedModels", "C_V_" + str(VERSION),"connector_LLM_model" + str(n) + ".pth"))
             
