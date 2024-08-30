@@ -22,18 +22,6 @@ import csv
 
 import wandb
 
-
-#Load Loss
-
-# Trains
-    # ViT
-    # projection matrix
-    # Vicuna LLM
-
-#validate and record data
-
-#  test data on chosen epoc according to the validation data
-
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
     clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=MAX_LENGTH,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
@@ -307,7 +295,8 @@ def feature_aliginment_training_step_2(clip_parameters,optim_parameters,connecto
 
 
     # Load connector and vicuna model
-    connector_llm = Connector_LLM(**connector_llm_parameters,device=device)
+
+    connector_llm = Connector_LLM(**connector_llm_parameters,device=device,MAX_LENGTH=MAX_LENGTH)
 
     # LOAD ViT encoder from the CLIP model
     img_encoder,logit_scale = load_ViT_img_encoder(**clip_parameters,device=device,tokenizer=connector_llm.tokenizer,MAX_LENGTH=MAX_LENGTH)
@@ -318,7 +307,7 @@ def feature_aliginment_training_step_2(clip_parameters,optim_parameters,connecto
     img_encoder.eval()
 
     #Optimizer and learning rate scheduling
-    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
+    optim = torch.optim.AdamW(connector_llm.connector.parameters(), **optim_parameters)
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=MAX_EPOC // (100 * per_warm),num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
@@ -330,10 +319,10 @@ def feature_aliginment_training_step_2(clip_parameters,optim_parameters,connecto
         train_precision_avg = 0.0
         train_recall_avg = 0.0
         train_f1_avg = 0.0
+        train_bleu_score_avg = 0.0
         count_t = 0
+        count_q = 0
         for image_tensor, mask_tensor, question, answer in train_loader:
-
-            print(train_loader.__len__())
 
             optim.zero_grad()
             
@@ -341,20 +330,24 @@ def feature_aliginment_training_step_2(clip_parameters,optim_parameters,connecto
             image_features = img_encoder(image_tensor.to(device))
             
             #Format data and "tokenize" inputs for the LLM, combine them in the form <s> image_encoder_tokenized question </s>
-            question = torch.cat([connector_llm.tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in question],0)[:, 1:].to(device)
-            answer = torch.cat([connector_llm.tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in answer],0).to(device)
+            answer_ = [connector_llm.tokenizer(a + "</s>",return_tensors="pt", max_length = MAX_LENGTH).input_ids for a in answer]
             
-            print("Passing values to the connector")
+            for i, a in enumerate(answer_):
+                if len(a) < MAX_LENGTH:
+                    answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-            output = connector_llm(image_features,question)
+            #answer_ = torch.cat(answer_,0)[:, 1:].to(device)
 
-            print("Calculating loss")
+            answer_ = torch.cat(answer_,dim=0)[:,1:].to(device)
 
-            loss, accuracy,precision,recall,f1 = calc_loss_and_metrics(output.logits,answer)
+            output, loss = connector_llm(image_features,question,answer_,15)
 
-
-            print("GD")
-
+            accuracy,bleu_score,precision,recall,f1 = calc_loss_and_metrics(
+                output,
+                [connector_llm.tokenizer(a + "</s>",return_tensors="pt").input_ids[:,1:].flatten() for a in answer],
+                tokenizer=connector_llm.tokenizer,
+                max_length=MAX_LENGTH)
+            
             loss.backward()
 
             optim.step()
@@ -367,10 +360,10 @@ def feature_aliginment_training_step_2(clip_parameters,optim_parameters,connecto
             train_precision_avg += precision
             train_recall_avg += recall
             train_f1_avg += f1
-
+            train_bleu_score_avg += bleu_score
             count_t +=1
+            count_q += answer_.size(0)
 
-            print("Itr end")
 
         scheduler.step()
 
@@ -380,49 +373,60 @@ def feature_aliginment_training_step_2(clip_parameters,optim_parameters,connecto
         val_precision_avg = 0.0
         val_recall_avg = 0.0
         val_f1_avg = 0.0
-        val_count_t = 0
+        val_count_q = 0.0
+        val_bleu_score_avg = 0.0
         count=0
         connector_llm.eval()
         with torch.no_grad():
-            for image_tensor, mask_tensor, text in validate_loader:
-
-               #Get image features from the img encoder
+             for image_tensor, mask_tensor, question, answer in validate_loader:
+              #Get image features from the img encoder
                 image_features = img_encoder(image_tensor.to(device))
                 
                 #Format data and "tokenize" inputs for the LLM, combine them in the form <s> image_encoder_tokenized question </s>
-                question = torch.cat([connector_llm.tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in question],0)[:, 1:].to(device)
-                answer = torch.cat([connector_llm.tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in answer],0).to(device)
+                answer_ = [connector_llm.tokenizer(a + "</s>",return_tensors="pt", max_length = MAX_LENGTH).input_ids for a in answer]
                 
-                output = connector_llm(image_features,question)
+                for i, a in enumerate(answer_):
+                    if len(a) < MAX_LENGTH:
+                        answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-                loss, accuracy,precision,recall,f1 = calc_loss_and_metrics(output.logits,answer)
+                answer_ = torch.cat(answer_,dim=0)[:,1:].to(device)
 
+                output, loss = connector_llm(image_features,question,answer_,5)
+
+                accuracy,bleu_score,precision,recall,f1 = calc_loss_and_metrics(
+                    output,
+                    [connector_llm.tokenizer(a + "</s>",return_tensors="pt").input_ids[:,1:].flatten() for a in answer],
+                    tokenizer=connector_llm.tokenizer,
+                    max_length=MAX_LENGTH)
                 trainng_loss_avg += loss.to('cpu')
 
                 val_accuracy_avg += accuracy
                 val_precision_avg += precision
                 val_recall_avg += recall
                 val_f1_avg += f1
-
+                val_bleu_score_avg += bleu_score
                 count +=1
+                val_count_q += answer_.size(0)
 
             #SAVE RESULTS
-            if save:
-                if not os.path.exists(os.path.join(os.getcwd(),"SavedModels", "C_V_" + str(VERSION))):
+        if save:
+                if not os.path.exists(os.path.join("nobackup","sc20gwb","Models","SavedModels", "C_V_" + str(VERSION))):
                     os.makedirs(os.path.join(os.getcwd(),"SavedModels", "C_V_" + str(VERSION)))
-                torch.save(connector_llm.state_dict,os.path.join(os.getcwd(),"SavedModels", "C_V_" + str(VERSION),"connector_LLM_model" + str(n) + ".pth"))
+                torch.save(connector_llm.connector.state_dict,os.path.join("nobackup","sc20gwb","Models","SavedModels", "C_V_" + str(VERSION),"connector_LLM_model" + str(n) + ".pth"))
             
-            wandb.log({
+        wandb.log({
                 "loss_validate":validation_loss_avg.to('cpu').detach().numpy()[0]/count,
                 "loss_training":trainng_loss_avg.to('cpu').detach().numpy()[0]/count_t,
-                "val_accuracy_avg":val_accuracy_avg/count,
-                "train_accuracy_avg":train_accuracy_avg/count_t,
+                "val_accuracy_avg":val_accuracy_avg/val_count_q,
+                "train_accuracy_avg":train_accuracy_avg/count_q,
                 "val_precision_avg":val_precision_avg/count,
                 "train_precision_avg":train_precision_avg/count_t,
                 "val_recall_avg":val_recall_avg/count,
                 "train_recall_avg":train_recall_avg/count_t,
                 "val_f1_avg":val_f1_avg/count,
-                "train_f1_avg":train_f1_avg/count_t
+                "train_f1_avg":train_f1_avg/count_t,
+                "train_bleu_score_avg": train_bleu_score_avg/count_t,
+                "val_bleu_score_avg": val_bleu_score_avg/count
                   })
 
 
