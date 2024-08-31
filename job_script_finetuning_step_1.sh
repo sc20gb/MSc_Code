@@ -7,9 +7,10 @@
 #$ -l h_rt=03:00:00
 
 #Request some memory per core
-#$ -l h_vmem=10G
+#$ -l h_vmem=100G
 
 #$ -l coproc_v100=1
+
 
 #Get email at start and end of the job
 #$ -m be
