@@ -457,13 +457,12 @@ optim_parameters = {
 }
 
 connector_llm_parameters = {
-"vicuna_path":os.path.join("nobackup","sc20gwb","Models", "vicuna-7b-v1.5"),
+"vicuna_path":os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5"),
 "embed_dim": 512,
 "connector_width":512,
 "connector_layers":2,
 "connector_output":36
 }
-
 
 wandb.init(
         # set the wandb project where this run will be logged
