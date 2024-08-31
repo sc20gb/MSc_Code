@@ -442,7 +442,7 @@ clip_parameters  =  {
 "image_resolution":224,
 "vision_patch_size":8,
 "vision_layers":12,
-"clip_model_path": os.path.join(os.getcwd(), "Models_to_upload", "V_2000", "clip_model_45.pth")
+"clip_model_path": os.path.join(os.getcwd(), "Models_to_upload", "clip_model_45.pth")
 
 }
 
