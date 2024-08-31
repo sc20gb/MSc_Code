@@ -4,10 +4,10 @@
 #$ -V -cwd
 
 #Request some time- min 15 mins - max 48 hours
-#$ -l h_rt=10:00:00
+#$ -l h_rt=00:15:00
 
 #Request some memory per core
-#$ -l h_vmem=100G
+#$ -l h_vmem=10G
 
 #$ -l coproc_v100=1
 
