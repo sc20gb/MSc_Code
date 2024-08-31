@@ -468,6 +468,7 @@ connector_llm_parameters = {
 wandb.init(
         # set the wandb project where this run will be logged
         project="MSc",
+        dir="/nobackup/sc20gwb",
         # track hyperparameters and run metadata
         config= {**connector_llm_parameters,**optim_parameters, **clip_parameters}
     )
