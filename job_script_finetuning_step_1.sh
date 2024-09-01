@@ -6,11 +6,10 @@
 #Request some time- min 15 mins - max 48 hours
 #$ -l h_rt=03:00:00
 
-#$ -l node_type=40core-768G
-
 #Request some memory per core
 #$ -l h_vmem=100G
 
+#$ -l coproc_v100=1
 
 #Get email at start and end of the job
 #$ -m be
