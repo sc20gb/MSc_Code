@@ -35,7 +35,7 @@ class Connector_LLM(nn.Module):
         layers.append(nn.Linear(connector_width, connector_output))
 
         # Build the Sequential model
-        self.connector = nn.Sequential(*layers)
+        self.connector = nn.Sequential(*layers).to(device)
 
         self._initialize_weights()
 
