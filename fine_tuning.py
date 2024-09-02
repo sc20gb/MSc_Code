@@ -370,7 +370,7 @@ additional_parameters = {
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
     "save": True,
-    "cpu_only": True
+    "cpu_only": False
 }
 
 
