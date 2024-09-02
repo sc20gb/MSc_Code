@@ -58,8 +58,6 @@ class JsonDataset(Dataset):
         # Get the image path for the current index
         img_path = os.path.normpath(os.path.join(self.img_dir, *self.data_frame.iloc[idx]['img_name'].split('/')))
 
-        print(img_path)
-
         # Load the image and convert it to a tensor
         image_tensor = self.load_image_as_tensor(img_path, self.transform)
         
@@ -137,23 +135,34 @@ def display_sample(image_tensor, mask_tensor, question, answer, batchsize=1, sav
 
 
 def load_data(transform,batchSize,seed, dataDir):
-
-    test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
     train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
     validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
 
-
     # Create Dataset objects
-    test_dataset = JsonDataset(test_json_path, transform)
     train_dataset = JsonDataset(train_json_path, transform)
     validate_dataset = JsonDataset(validate_json_path, transform)
 
     # Create DataLoader objects
-    test_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
     train_loader = DataLoader(train_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
     validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
-    return test_loader, train_loader, validate_loader
+    return train_loader, validate_loader
+
+
+
+def load_test_data(transform,batchSize,seed, dataDir):
+
+    test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
+
+
+    # Create Dataset objects
+    test_dataset = JsonDataset(test_json_path, transform)
+
+
+    # Create DataLoader objects
+    test_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+
+    return test_loader
 
 
 class CLIPTrainJsonDataset(JsonDataset):
