@@ -105,6 +105,8 @@ class Connector_LLM(nn.Module):
 
         loss_sum  = 0.0
 
+        count = 0
+
         # Autoregressive generation loop
         for i in range(max_length):
 
@@ -124,6 +126,7 @@ class Connector_LLM(nn.Module):
                 selected_values = target[torch.arange(target.size(0)), index].unsqueeze(1)
 
                 loss_sum += F.cross_entropy(new_tokens.clone(),selected_values.flatten()).item()
+                count += 1
 
             # Get the logits of the last token and apply temperature scaling
             logits = new_tokens  / temperature
@@ -144,7 +147,7 @@ class Connector_LLM(nn.Module):
                 if next_token_ids[0] == self.tokenizer.eos_token_id:
                     break
 
-        return generated_ids, torch.tensor(loss_sum/(float(max_length)), requires_grad=True)
+        return generated_ids, torch.tensor(loss_sum/(float(count)), requires_grad=True)
 
     def forward(self, image_features,question,answer,max_length):
         
@@ -154,7 +157,7 @@ class Connector_LLM(nn.Module):
         #tokenization of the embedding sapce means < 0 is not allowed
         image_embedding_tokenized = torch.where(image_embedding_tokenized < 0, torch.tensor(0), image_embedding_tokenized)
 
-        
+
 
         # decode from joint space
         image_prompt = self.tokenizer.batch_decode(image_embedding_tokenized.long())
