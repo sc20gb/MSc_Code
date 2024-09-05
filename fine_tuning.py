@@ -315,9 +315,8 @@ def feature_aliginment_training_step_1_GPU_SPLIT(clip_parameters,optim_parameter
 
     return loss_epoch
 
-
-
-path1 = os.path.join(os.getcwd(), "Models_to_upload", "clip_model_45.pth")
+#/nobackup/sc20gwb/Models/Models_to_upload
+path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_45.pth")
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_45.pth")
 clip_parameters  =  {
 "transformer_width":512,
