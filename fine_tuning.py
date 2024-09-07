@@ -296,7 +296,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(clip_parameters,optim_parameter
         if save:
             if not os.path.exists(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION))):
                 os.makedirs(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION)))
-            torch.save(connector_llm.connector.state_dict, os.path.join("nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION), "connector_LLM_model" + str(n) + ".pth"))
+            torch.save(connector_llm.connector.state_dict, os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION)), "connector_LLM_model" + str(n) + ".pth"))
 
         wandb.log({
             "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
@@ -334,7 +334,10 @@ clip_parameters  =  {
 
 
 LR_LIST = [0.001,0.0001, 0.00001]
+#WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
+
+
 
 optim_list = [{
 
