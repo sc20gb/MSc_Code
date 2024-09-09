@@ -70,7 +70,7 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     ans = [[tokenizer.decode(target,skip_special_tokens=True)]]
 
-    if pred[0].isspace():
+    if not pred[0] or pred[0].isspace():
         bleu_score_ = 0.0
     else:
         bleu_score_ = bleu_score(
@@ -305,7 +305,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
         if save:
             if not os.path.exists(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION))):
                 os.makedirs(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION)))
-            torch.save(connector_llm.connector.state_dict, os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION), "connector_LLM_model" + str(n) + ".pth"))
+            torch.save(connector_llm.connector.state_dict(), os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION), "connector_LLM_model" + str(n) + ".pth"))
 
         wandb.log({
             "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
