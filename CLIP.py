@@ -93,7 +93,7 @@ class VisionTransformer(nn.Module):
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
-    def forward(self, x: torch.Tensor,with_LLM=False, return_hidden_states=False):
+    def forward(self, x: torch.Tensor, return_hidden_states=False):
         x = self.conv1(x)  # shape = [*, width, grid, grid]
 
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2] # 64
@@ -121,9 +121,8 @@ class VisionTransformer(nn.Module):
         x = self.ln_post(x[:, 0, :])
 
 
-        if not with_LLM:
-            if self.proj is not None:
-                x = x @ self.proj
+        if self.proj is not None:
+            x = x @ self.proj
         
 
         if return_hidden_states:
