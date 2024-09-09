@@ -378,7 +378,7 @@ additional_parameters = {
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
-    "save": True,
+    "save": False,
     "cpu_only": False,
     "hidden_layer_from_end": 1
 }
