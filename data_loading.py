@@ -6,6 +6,7 @@ from PIL import Image
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
+import re
 
 class CustomMaskTransform(transforms.Compose):
     def __init__(self, transforms_list):
@@ -21,6 +22,16 @@ class CustomMaskTransform(transforms.Compose):
     
 # Custom Dataset class
 class JsonDataset(Dataset):
+
+    def process_string(self,s):
+        # Convert to lowercase
+        s = s.lower()
+        # Remove all whitespace characters except spaces
+        s = re.sub(r'[^\S ]+', '', s)
+        # Replace multiple spaces with a single space
+        s = re.sub(r' +', ' ', s)
+        return s.strip()  # Optionally, remove leading/trailing spaces
+
 
     def __init__(self, json_file, transform=transforms.ToTensor()):
         self.data = self.load_json(json_file)
@@ -65,9 +76,9 @@ class JsonDataset(Dataset):
         df_row_dict = self.data_frame.iloc[idx].to_dict()
 
         # word tokenization
-        question_tensor = df_row_dict['question']
+        question_tensor = self.process_string(df_row_dict['question'])
 
-        answer_tensor = df_row_dict['answer']
+        answer_tensor = self.process_string(df_row_dict['answer'])
 
         # Get the img
         img_directory = os.path.dirname(img_path)
@@ -211,7 +222,7 @@ class CLIPTrainJsonDataset(JsonDataset):
         df_row_dict = self.data_frame.iloc[idx].to_dict()
 
         # word tokenization
-        text = df_row_dict['text']
+        text = self.process_string(df_row_dict['text'])
 
         # Get the img
         img_directory = os.path.dirname(img_path)
