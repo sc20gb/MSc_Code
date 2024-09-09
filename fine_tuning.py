@@ -8,7 +8,7 @@ import numpy as np
 from CLIP import VisionTransformer
 
 
-from transformers import LlamaForCausalLM, AutoTokenizer, get_cosine_schedule_with_warmup
+from transformers import LlamaForCausalLM, AutoTokenizer, get_cosine_schedule_with_warmup, CLIPVisionModel
 
 
 from connector_LLM import Connector_LLM
@@ -51,35 +51,38 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     # We need it to be a list of tensors instead 
     # Pad the predicted tensors after the </s> to the unk token [....,answer,2,44235,3153,...] -> [answer,2]
-    predicted_text  = []
-    for i in range(predicted.size(0)):
-        
-        # Find the index of the first occurrence of 2 in the current batch
-        index_of_two = (predicted[i,max_length -  1:] == 2).nonzero(as_tuple=True)[0] if (predicted[i,max_length -  1:] == 2).any() else None
-        if index_of_two is not None:
-            # Replace all preceding values with unk_token
-            #predicted[i, index_of_two[0]+ 1:] = tokenizer.unk_token_id
 
-            predicted_text.append(predicted[i, max_length - 1 + index_of_two[0]:].flatten())
-        else:
-            predicted_text.append(predicted[i, max_length - 1:].flatten())
+    print("Predicted:", predicted)
 
+    print("Target:", target[0])
+    target = target[0]
 
     # Calc accuracy
     accuracy = 0
-    for i in range(len(target)):
-            # This here is the same as EM see the link below
-            if predicted_text[i].size(0) == target[i].size(0):
-                accuracy += (predicted_text[i] == target[i]).all()
+    # This here is the same as EM see the link below
+    if predicted.size(0) == target.size(0):
+        accuracy += (predicted == target).all()
+
+
+    print(tokenizer.decode(predicted,skip_special_tokens=True))
+
+    print(tokenizer.decode(target,skip_special_tokens=True))
 
     # this score is calculated from the plain english sentences
-    bleu_score_ = bleu_score(
-        tokenizer.batch_decode(torch.stack(predicted_text),add_special_tokens=True),
-        tokenizer.batch_decode(torch.stack(target),add_special_tokens=True),
-        n_gram=1)
+    pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
+
+    ans = [[tokenizer.decode(target,skip_special_tokens=True)]]
+
+    print(len(pred[0]))
+
+    if pred[0].isspace():
+        bleu_score_ = 0.0
+    else:
+        bleu_score_ = bleu_score(
+            pred,
+            ans,
+            n_gram=1)
     
-
-
     # https://qa.fastforwardlabs.com/no%20answer/null%20threshold/bert/distilbert/exact%20match/f1/robust%20predictions/2020/06/09/Evaluating_BERT_on_SQuAD.html#F1
     # precision here is the number of shared words / len(predict)
     #recall is the number of shared words / len(target)
@@ -87,10 +90,9 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     prec = 0.0
     rec = 0.0
 
-    for i in range(len(target)):
-            common_tokens = set(predicted_text[i]) & set(target[i])
-            prec = len(common_tokens) / predicted_text[i].size(0)
-            rec = len(common_tokens) /  target[i].size(0)
+    common_tokens = set(predicted) & set(target)
+    prec = len(common_tokens) / predicted.size(0)
+    rec = len(common_tokens) /  target.size(0)
 
     if prec + rec == 0.0:
         f1 = 0.0
@@ -100,7 +102,22 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     return accuracy, bleu_score_,prec,rec,f1
 
 # This trains the MLP between the visual encoder and LLM. It can be seen as traing a compatible visual tokenizer for the for the frosen LLM
-def feature_aliginment_training_step_1_GPU_SPLIT(clip_parameters,optim_parameters,connector_llm_parameters,per_warm,image_size,batch_size,vir_batch_size,rand_seed,MAX_EPOC,MAX_LENGTH, MAX_LENGTH_LLM,VERSION,save=False,cpu_only=False):
+def feature_aliginment_training_step_1_GPU_SPLIT(
+        clip_parameters,
+        optim_parameters,
+        connector_llm_parameters,
+        per_warm,image_size,
+        batch_size,
+        vir_batch_size,
+        rand_seed,
+        MAX_EPOC,
+        MAX_LENGTH,
+        MAX_LENGTH_LLM,
+        VERSION,
+        save=False,
+        cpu_only=False,
+        hidden_layer_from_end=0
+        ):
     # CHECK GPU SUPPORT AND ASSIGN DEVICES
     if torch.cuda.is_available() and not cpu_only:
         gpu_count = torch.cuda.device_count()
@@ -169,8 +186,12 @@ def feature_aliginment_training_step_1_GPU_SPLIT(clip_parameters,optim_parameter
             try:
 
                 # Get image features from the img encoder (on GPU 0)
-                image_features = img_encoder(image_tensor.to(device_vit))
+                image_features, hidden_states = img_encoder(image_tensor.to(device_vit),with_LLM=True,return_hidden_states=True)
 
+                print(image_features.size())
+
+                #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
+                image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
 
                 # Move image features to the second GPU for LLM processing
                 image_features = image_features.to(device_llm)
@@ -316,8 +337,8 @@ def feature_aliginment_training_step_1_GPU_SPLIT(clip_parameters,optim_parameter
     return loss_epoch
 
 #/nobackup/sc20gwb/Models/Models_to_upload
-path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_45.pth")
-#path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_45.pth")
+#path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_45.pth")
+path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
 clip_parameters  =  {
 "transformer_width":512,
 "transformer_layers":12,
@@ -325,7 +346,7 @@ clip_parameters  =  {
 "embed_dim":512,
 "vision_width":768,
 "image_resolution":224,
-"vision_patch_size":8,
+"vision_patch_size":56,
 "vision_layers":12,
 "clip_model_path": path1
 
@@ -337,8 +358,6 @@ LR_LIST = [0.001,0.0001, 0.00001]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
-
-
 optim_list = [{
 
 "lr":  lr,
@@ -349,15 +368,15 @@ optim_list = [{
 
 } for lr in LR_LIST
 for wd in WEIGHT_DECAY_LIST ]
+
+
 #Vicuna Path os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-#path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
+path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+#path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 connector_llm_parameters = {
 "vicuna_path":path,
-"embed_dim": 512,
-"connector_width":512,
-"connector_layers":2,
-"connector_output":16
+"embed_dim": 768, # this is the width of the CLIP ViT
+"connector_layers":2
 }
 
 # Additional parameters from the function call
@@ -372,17 +391,18 @@ additional_parameters = {
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
     "save": True,
-    "cpu_only": False
+    "cpu_only": True,
+    "hidden_layer_from_end": 1
 }
 
 
 for i, para in enumerate(optim_list):
     p = {**connector_llm_parameters,**para,**clip_parameters,**additional_parameters}
     wandb.init(
-        # set the wandb project where this run will be logged
         project="MSc",
-        # track hyperparameters and run metadata
-        config= p
+        config=p,
+        name=f"run_{i}",
+        resume=False  # Ensure it starts a new run
     )
     feature_aliginment_training_step_1_GPU_SPLIT(
         clip_parameters=clip_parameters,

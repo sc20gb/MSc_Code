@@ -26,7 +26,7 @@ def print_memory_usage():
 
 
 class Connector_LLM(nn.Module):
-    def __init__(self, embed_dim, connector_width, connector_output, connector_layers,vicuna_path,device, MAX_LENGTH):
+    def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH):
         super(Connector_LLM, self).__init__()
         layers = []
         input_dim = embed_dim
@@ -35,21 +35,27 @@ class Connector_LLM(nn.Module):
 
         self.MAX_LENGTH = MAX_LENGTH
 
+        self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
+
+        self.vicuna.eval()
+        with torch.no_grad():
+            embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64)).size(1)
+        self.vicuna.train()
+
+
         # Create the specified number of layers
         for _ in range(connector_layers - 1):
-            layers.append(nn.Linear(input_dim, connector_width))
+            layers.append(nn.Linear(input_dim, embedding_size))
             layers.append(nn.GELU())
-            input_dim = connector_width
+            input_dim = embedding_size
 
         # Add the final output layer
-        layers.append(nn.Linear(connector_width, connector_output))
+        layers.append(nn.Linear(embedding_size, embedding_size))
 
         # Build the Sequential model
         self.connector = nn.Sequential(*layers).to(device)
 
         self._initialize_weights()
-
-        self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
         self.vicuna_path = vicuna_path
 
@@ -94,27 +100,34 @@ class Connector_LLM(nn.Module):
             filtered_prompt = torch.empty((prompt.size(0), 0), dtype=torch.long, device=prompt.device)
         
         return filtered_prompt
-        
-    def generate_using_forward_method(self, filtered_prompt, max_length=50, temperature=1.0, target=None):
-        batch_size = filtered_prompt.size(0)
-        seq_len = filtered_prompt.size(1)
+    
+    def generate_attention(self,embeddings,text_list):
+        causal_mask = torch.tril(torch.ones((embeddings.size(0), embeddings.size(0)))).bool().unsqueeze(0)
+        return causal_mask
 
-        # Preallocate tensors with the maximum possible size
-        generated_ids = filtered_prompt#torch.zeros((batch_size, seq_len + max_length), dtype=torch.long, device=filtered_prompt.device)
-        #generated_ids[:, :seq_len] = filtered_prompt
+    def update_attention(self,attention,size):
+        return torch.tril(torch.ones((size, size))).bool().unsqueeze(0)
+
+    def generate_using_forward_method(self, embeddings,attention_mask, max_length=50, temperature=1.0, target=None):
 
         loss_sum  = 0.0
 
         count = 0
 
+        gen_embeddings = embeddings
+
+        gen_tokens = []
+
         # Autoregressive generation loop
         for i in range(max_length):
 
+            # if vicuna does not need traning save mem
+
             if not self.vicuna.training:
                 with torch.no_grad():
-                    outputs = self.vicuna(generated_ids)
+                    outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
             else:
-                outputs = self.vicuna(generated_ids)
+                outputs = self.vicuna(input_embeds=gen_embeddings,attention_mask=attention_mask)
 
             new_tokens = outputs.logits[:, -1, :]
 
@@ -130,45 +143,104 @@ class Connector_LLM(nn.Module):
 
             # Get the logits of the last token and apply temperature scaling
             logits = new_tokens  / temperature
-            logits = torch.nn.functional.softmax(logits, dim=1)
+
+            prob_logits = torch.nn.functional.softmax(logits, dim=1)
 
             # Sample from the distribution to get the next token
-            next_token_ids = torch.argmax(logits, dim=-1)
+            next_token_ids = torch.argmax(prob_logits, dim=1)
 
-            # Append the generated token to the input IDs
-            if generated_ids.size()[0] < 2:
-                generated_ids = torch.cat([generated_ids, next_token_ids.unsqueeze(0)], dim=1)
-            else:
-                generated_ids = torch.cat([generated_ids, next_token_ids.unsqueeze(1)], dim=1)
+            gen_tokens.append(next_token_ids)
+            
+            next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
+
+            gen_embeddings = torch.cat((gen_embeddings,next_embedding.unsqueeze(1)),dim=1)
 
             # check output token for eos if batch size is just one
-
-            if (generated_ids.size()[0] < 2):
+            if (next_embedding.size()[0] < 2):
                 if next_token_ids[0] == self.tokenizer.eos_token_id:
                     break
+        
+            attention_mask = self.update_attention(attention_mask,gen_embeddings.size(1))
 
-        return generated_ids, torch.tensor(loss_sum/(float(count)), requires_grad=True)
+        #return the generated tokens and the loss
+        return torch.cat(gen_tokens), torch.tensor(loss_sum/(float(count)), requires_grad=True)
+
+    #This function takes the feature and question embeddings and combines them in the correct embedding format
+    #It also embeds the text
+    def encode_text_and_image(self, question,image_features):
+
+        #So we know where to put the img
+        split_ids = []
+
+        # so we know which are which embedding
+        text_list = []
+
+        #tokenise all text segments across the batch
+
+        tokenised_list = []
+        for i, q in enumerate(question):
+            tokenised_list.append([])
+            tokenised_list[i].extend(self.tokenizer("Image: ").input_ids)
+            split_ids.append(len(tokenised_list[i]))
+            tokenised_list[i].extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
+            tokenised_list[i] = torch.tensor(tokenised_list[i],dtype=torch.int64)
+            
+        embedded_text = []
+        #Embed all of the text tokens
+        for b in tokenised_list:
+                embedded_text.append(self.vicuna.get_input_embeddings()(b))
+
+        # adding image embeddings
+
+        for i in range(image_features.size(0)):
+            # insert the image feature at the point shown in split_ids
+
+            text_list.append([])
+            embedded_text[i]
+            s1 = embedded_text[i][:split_ids[i],:]
+            s2 = embedded_text[i][split_ids[i]:,:]
+
+            for token in s1: text_list[i].append(1)
+
+            for token in image_features[0]: text_list.append(0)
+
+            for token in s2: text_list[i].append(1)
+
+            embedded_text[i] = torch.cat((s1,image_features.squeeze(),s2), dim=0)
+
+
+        embeddings = torch.cat(embedded_text, dim=-1)
+
+        return embeddings, text_list
+
 
     def forward(self, image_features,question,answer,max_length):
+
+        batch_size, n_patches, *feature_dims = image_features.shape
+
+         # Reshape image features to merge the batch and 17 dimensions
+        image_features = image_features.view(batch_size * n_patches, *feature_dims)
+
+        # project to LLM embedding space
+        image_features = self.connector(image_features)
+
+        # Reshape back to original dimensions after projection
+        image_features = image_features.view(batch_size, n_patches, -1)
+
+        # Encode text and images into the embedding expected by the LLM
+        embeddings, text_list = self.encode_text_and_image(question,image_features)
+
+        # Generate the attention mask
+        attention_mask = self.generate_attention(embeddings,text_list)
+
+        #This passes the embeddings to the LLM, and autogressivly evaluates the output
+        embeddings =  embeddings.to(self.device)
+
+        if embeddings.dim() == 2:
+            embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
+
         
-        # prject to joint space
-        image_embedding_tokenized = self.connector(image_features)
-
-        #tokenization of the embedding sapce means < 0 is not allowed
-        image_embedding_tokenized = torch.where(image_embedding_tokenized < 0, torch.tensor(0), image_embedding_tokenized)
-
-
-
-        # decode from joint space
-        image_prompt = self.tokenizer.batch_decode(image_embedding_tokenized.long())
-
-        #image_prompt = torch.tensor(image_prompt, dtype=torch.long)
-        #if image_features.size(0) < 2:
-                    #prompt = torch.cat([self.tokenizer( "<s>" + image_prompt[i] + " " + a,return_tensors="pt").input_ids for i, a in enumerate(question)],0)[:, 1:].to(self.device)
-        #else:
-        prompt = torch.cat([self.tokenizer( "<s>" + image_prompt[i] + " " + a,return_tensors="pt",padding='max_length', max_length = self.MAX_LENGTH).input_ids for i, a in enumerate(question)],0)[:, 1:].to(self.device)
-
-
-        gen,loss = self.generate_using_forward_method(prompt,target=answer,max_length=max_length,temperature=0.9)
+        #Autoregressive prediction
+        gen,loss = self.generate_using_forward_method(embeddings,attention_mask,target=answer,max_length=max_length,temperature=0.9)
       
         return gen, loss
