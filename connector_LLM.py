@@ -182,7 +182,6 @@ class Connector_LLM(nn.Module):
                 embedded_text.append(self.vicuna.get_input_embeddings()(b))
 
         # adding image embeddings
-
         for i in range(image_features.size(0)):
             # insert the image feature at the point shown in split_ids
 
@@ -203,7 +202,6 @@ class Connector_LLM(nn.Module):
         embeddings = torch.cat(embedded_text, dim=-1)
 
         return embeddings, text_list
-
 
     def forward(self, image_features,question,answer,max_length):
 
