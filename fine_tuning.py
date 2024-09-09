@@ -52,9 +52,6 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     # We need it to be a list of tensors instead 
     # Pad the predicted tensors after the </s> to the unk token [....,answer,2,44235,3153,...] -> [answer,2]
 
-    print("Predicted:", predicted)
-
-    print("Target:", target[0])
     target = target[0]
 
     # Calc accuracy
@@ -72,8 +69,6 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
 
     ans = [[tokenizer.decode(target,skip_special_tokens=True)]]
-
-    print(len(pred[0]))
 
     if pred[0].isspace():
         bleu_score_ = 0.0
@@ -101,7 +96,7 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     return accuracy, bleu_score_,prec,rec,f1
 
-# This trains the MLP between the visual encoder and LLM. It can be seen as traing a compatible visual tokenizer for the for the frosen LLM
+# This trains the MLP between the visual encoder and LLM. It can be seen as traing a compatible visual tokenizer for the for the frozen LLM
 def feature_aliginment_training_step_1_GPU_SPLIT(
         clip_parameters,
         optim_parameters,
@@ -166,8 +161,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
     optim = torch.optim.AdamW(connector_llm.connector.parameters(), **optim_parameters)
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
-    #torch.autograd.set_detect_anomaly(True)
-
     # Record the loss at the epoch
     loss_epoch = []
     for n in range(1, MAX_EPOC + 1):
@@ -186,9 +179,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
             try:
 
                 # Get image features from the img encoder (on GPU 0)
-                image_features, hidden_states = img_encoder(image_tensor.to(device_vit),with_LLM=True,return_hidden_states=True)
-
-                print(image_features.size())
+                image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
 
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
@@ -292,9 +283,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                         max_length=MAX_LENGTH_LLM
                     )
 
-                    print(connector_llm.tokenizer.batch_decode(output,add_special_tokens=True))
-
-
                 except RuntimeError as e:
                     if "out of memory" in str(e):
                         print('Skipping batch due to OOM')
@@ -337,8 +325,8 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
     return loss_epoch
 
 #/nobackup/sc20gwb/Models/Models_to_upload
-#path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_45.pth")
-path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
+path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
+#path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
 clip_parameters  =  {
 "transformer_width":512,
 "transformer_layers":12,
@@ -371,8 +359,8 @@ for wd in WEIGHT_DECAY_LIST ]
 
 
 #Vicuna Path os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-#path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
+#path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 connector_llm_parameters = {
 "vicuna_path":path,
 "embed_dim": 768, # this is the width of the CLIP ViT
@@ -391,7 +379,7 @@ additional_parameters = {
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
     "save": True,
-    "cpu_only": True,
+    "cpu_only": False,
     "hidden_layer_from_end": 1
 }
 
@@ -399,9 +387,8 @@ additional_parameters = {
 for i, para in enumerate(optim_list):
     p = {**connector_llm_parameters,**para,**clip_parameters,**additional_parameters}
     wandb.init(
-        project="MSc",
+        project="MSc_fine_tuning_step_1",
         config=p,
-        name=f"run_{i}",
         resume=False  # Ensure it starts a new run
     )
     feature_aliginment_training_step_1_GPU_SPLIT(
