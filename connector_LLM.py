@@ -1,11 +1,3 @@
-
-
-# TODO: combine validationand train set
-
-#TODO: add short question request as well
-
-#TODO: we need to create the function that gets the final model results
-
 import torch
 import torch.nn as nn
 import os
@@ -39,7 +31,7 @@ class Connector_LLM(nn.Module):
 
         self.vicuna.eval()
         with torch.no_grad():
-            embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64)).size(1)
+            embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
         self.vicuna.train()
 
 
