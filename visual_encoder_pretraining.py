@@ -19,7 +19,7 @@ import wandb
 # TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
 
 
-def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX_EPOC = 100, VERSION = 2, transformer_width=512, transformer_layers=12,transformer_heads=8,embed_dim=512,vision_width=768, image_resolution=224, vision_patch_size=8, vision_layers=12,lr=1e-4, weight_decay=1e-4, eps=1.0e-08,T_0=10, T_mult=2,save=False):
+def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX_EPOC = 100, VERSION = 2, transformer_width=512, transformer_layers=12,transformer_heads=8,embed_dim=512,vision_width=768, image_resolution=224, vision_patch_size=56, vision_layers=12,lr=1e-4, weight_decay=1e-4, eps=1.0e-08,T_0=10, T_mult=2,save=False):
     # CHECK GPU SUPPORT AND ASSIGN DEVICE
     if torch.cuda.is_available():
         # Get the number of GPUs available
@@ -173,8 +173,6 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
 
     return loss_epoch
 
-
-
 def saveResults(VERSION,loss_epoch_):
 
     if not os.path.exists(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
@@ -199,9 +197,9 @@ def saveResults(VERSION,loss_epoch_):
 # Configure parameters
 
 # Lists for each parameter
-BATCHSIZE_LIST = [16]
-MAX_EPOC_LIST = [100]
-LR_LIST = [8e-5]
+BATCHSIZE_LIST = [32]
+MAX_EPOC_LIST = [50]
+LR_LIST = [0.0001]
 WEIGHT_DECAY_LIST = [0.0001]
 EPS_LIST = [1.0e-08]
 T_0_LIST = [10]
@@ -231,16 +229,16 @@ for i, p in enumerate(config_list):
 
     wandb.init(
         # set the wandb project where this run will be logged
-        project="MSc",
+        project="MSC_Final",
         # track hyperparameters and run metadata
         config=p
     )
 
-    loss_epoch  = train(**p,VERSION= 2000 + i,save=True)
+    loss_epoch  = train(**p,VERSION= 9320100 + i,save=True)
     # save local results
     # Specify the CSV file name
 
     wandb.finish()
 
-    saveResults(2000 + i,loss_epoch)
+    saveResults(9320100 + i,loss_epoch)
 
