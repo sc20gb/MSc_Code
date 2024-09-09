@@ -34,7 +34,6 @@ class Connector_LLM(nn.Module):
             embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
         self.vicuna.train()
 
-
         # Create the specified number of layers
         for _ in range(connector_layers - 1):
             layers.append(nn.Linear(input_dim, embedding_size))
@@ -119,7 +118,7 @@ class Connector_LLM(nn.Module):
                 with torch.no_grad():
                     outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
             else:
-                outputs = self.vicuna(input_embeds=gen_embeddings,attention_mask=attention_mask)
+                outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
 
             new_tokens = outputs.logits[:, -1, :]
 
