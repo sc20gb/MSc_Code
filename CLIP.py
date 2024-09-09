@@ -93,24 +93,43 @@ class VisionTransformer(nn.Module):
         self.ln_post = LayerNorm(width)
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor,with_LLM=False, return_hidden_states=False):
         x = self.conv1(x)  # shape = [*, width, grid, grid]
-        x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2]
+
+        x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2] # 64
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
-        x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width]
+        x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width] #  65
 
         x = self.positional_embedding(x).to(x.dtype)
         x = self.ln_pre(x)
 
         x = x.permute(1, 0, 2)  # NLD -> LND
-        x = self.transformer(x)
+
+        hidden_states = []  # List to store hidden states
+
+        # Passing through transformer layers
+        for layer in self.transformer.resblocks:
+            x = layer(x)
+            if return_hidden_states:
+                hidden_states.append(x.permute(1, 0, 2))  # Store the hidden state after each layer (LND -> NLD)
+
+
+        #x = self.transformer(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
+
+
         x = self.ln_post(x[:, 0, :])
 
-        if self.proj is not None:
-            x = x @ self.proj
 
-        return x
+        if not with_LLM:
+            if self.proj is not None:
+                x = x @ self.proj
+        
+
+        if return_hidden_states:
+            return x, hidden_states  # Return final output and hidden states
+        else:
+            return x
 
 #  Modified from https://github.com/openai/CLIP/blob/main/clip/model.py#L166
 class CLIP(nn.Module):
