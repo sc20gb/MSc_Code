@@ -331,8 +331,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     return loss_epoch
 
 #/nobackup/sc20gwb/Models/Models_to_upload
-#path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
-path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
+path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
+#path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
 clip_parameters  =  {
 "transformer_width":512,
 "transformer_layers":12,
@@ -365,8 +365,8 @@ for wd in WEIGHT_DECAY_LIST ]
 
 
 #Vicuna Path os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-#path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
+#path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 connector_llm_parameters = {
 "vicuna_path":path,
 "embed_dim": 768, # this is the width of the CLIP ViT
@@ -385,7 +385,7 @@ additional_parameters = {
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
     "save": False,
-    "cpu_only": True,
+    "cpu_only": False,
     "hidden_layer_from_end": 1
 }
 
@@ -409,7 +409,7 @@ for i, para in enumerate(optim_list):
         MAX_EPOC=p['MAX_EPOC'],
         MAX_LENGTH=p['MAX_LENGTH'],
         VERSION=(i + 1)*1000,
-        pre_trained_connector_path=os.path.join("C:\\Users\\George\\Desktop\\MSc_Code\\SavedModels\\MLLM_V_" + "Test" + ".pth"),
+        pre_trained_connector_path=os.path.join("C:\\Users\\George\\Desktop\\MSc_Code\\SavedModels\\MLLM_V_" + "Test" + ".pth"),  #TODO set this to the value when obtained
         MAX_LENGTH_LLM=p['MAX_LENGTH_LLM'],
         save=p['save'],
         cpu_only=p['cpu_only']
