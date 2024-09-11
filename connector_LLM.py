@@ -168,7 +168,6 @@ class Connector_LLM(nn.Module):
         text_list = []
 
         #tokenise all text segments across the batch
-
         tokenised_list = []
         for i, q in enumerate(question):
             tokenised_list.append([])
@@ -197,7 +196,11 @@ class Connector_LLM(nn.Module):
 
             for token in s2: text_list[i].append(1)
 
-            embedded_text[i] = torch.cat((s1,image_features.squeeze(),s2), dim=0)
+            print("image features ", image_features.size())
+
+            print(image_features.squeeze().size(), s1.size(),s2.size(), image_features.squeeze(0).size())
+
+            embedded_text[i] = torch.cat((s1,image_features.squeeze(0),s2), dim=0)
 
 
         embeddings = torch.cat(embedded_text, dim=-1)
