@@ -219,6 +219,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
 
 
              # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
+            
             if (count_t + 1) % accumulation_steps == 0:
                 optim.step()
                 optim.zero_grad()
@@ -232,7 +233,10 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
             train_recall_avg += recall
             train_f1_avg += f1
             train_bleu_score_avg += bleu_score
-            count_t += 1
+
+            print("Count_t=",count_t)
+
+            count_t = count_t + 1
             count_q += answer_.size(0)
 
             # Ensure to perform a step if we have leftover gradients
@@ -297,7 +301,9 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 val_recall_avg += recall
                 val_f1_avg += f1
                 val_bleu_score_avg += bleu_score
-                count += 1
+                count = count + 1
+
+                print("Count=",count)
 
         # SAVE RESULTS
         if save:
