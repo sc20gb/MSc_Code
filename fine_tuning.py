@@ -177,10 +177,10 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             
             try:
-
+                print("Before image_features")
                 # Get image features from the img encoder (on GPU 0)
                 image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
-
+                print("after image features")
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
 
