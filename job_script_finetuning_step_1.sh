@@ -6,7 +6,7 @@
 #Request some time- min 15 mins - max 48 hours
 #$ -l h_rt=00:30:00
 
-#$ -l coproc_v100=2
+#$ -l coproc_v100=1
 
 #Get email at start and end of the job
 #$ -m be

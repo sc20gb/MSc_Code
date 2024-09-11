@@ -307,25 +307,41 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 os.makedirs(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION)))
             torch.save(connector_llm.connector.state_dict(), os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION), "connector_LLM_model" + str(n) + ".pth"))
 
-        wandb.log({
-            "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
-            "loss_training": trainng_loss_avg.to('cpu').detach().numpy()[0] / count_t,
-            "val_accuracy_avg": val_accuracy_avg / val_count_q,
-            "train_accuracy_avg": train_accuracy_avg / count_q,
-            "val_precision_avg": val_precision_avg / count,
-            "train_precision_avg": train_precision_avg / count_t,
-            "val_recall_avg": val_recall_avg / count,
-            "train_recall_avg": train_recall_avg / count_t,
-            "val_f1_avg": val_f1_avg / count,
-            "train_f1_avg": train_f1_avg / count_t,
-            "train_bleu_score_avg": train_bleu_score_avg / count_t,
-            "val_bleu_score_avg": val_bleu_score_avg / count
-        })
+        if count and count_t and val_count_q!= 0:
+            wandb.log({
+                "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
+                "loss_training": trainng_loss_avg.to('cpu').detach().numpy()[0] / count_t,
+                "val_accuracy_avg": val_accuracy_avg / val_count_q,
+                "train_accuracy_avg": train_accuracy_avg / count_q,
+                "val_precision_avg": val_precision_avg / count,
+                "train_precision_avg": train_precision_avg / count_t,
+                "val_recall_avg": val_recall_avg / count,
+                "train_recall_avg": train_recall_avg / count_t,
+                "val_f1_avg": val_f1_avg / count,
+                "train_f1_avg": train_f1_avg / count_t,
+                "train_bleu_score_avg": train_bleu_score_avg / count_t,
+                "val_bleu_score_avg": val_bleu_score_avg / count
+            })
+        else:
+             wandb.log({
+                "loss_validate": -1,
+                "loss_training": -1,
+                "val_accuracy_avg": -1,
+                "train_accuracy_avg": -1,
+                "val_precision_avg": -1,
+                "train_precision_avg": -1,
+                "val_recall_avg": -1,
+                "train_recall_avg": -1,
+                "val_f1_avg": -1,
+                "train_f1_avg": -1,
+                "train_bleu_score_avg": -1,
+                "val_bleu_score_avg": -1
+            })
 
     return loss_epoch
 
 #/nobackup/sc20gwb/Models/Models_to_upload
-path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
+path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_45.pth")
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
 clip_parameters  =  {
 "transformer_width":512,

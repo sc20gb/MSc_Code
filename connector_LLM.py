@@ -174,7 +174,7 @@ class Connector_LLM(nn.Module):
             tokenised_list[i].extend(self.tokenizer("Image: ").input_ids)
             split_ids.append(len(tokenised_list[i]))
             tokenised_list[i].extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
-            tokenised_list[i] = torch.tensor(tokenised_list[i],dtype=torch.int64)
+            tokenised_list[i] = torch.tensor(tokenised_list[i],dtype=torch.int64).to(self.device)
             
         embedded_text = []
         #Embed all of the text tokens
@@ -217,7 +217,9 @@ class Connector_LLM(nn.Module):
         image_features = image_features.view(batch_size, n_patches, -1)
 
         # Encode text and images into the embedding expected by the LLM
+        print("enocding text and img")
         embeddings, text_list = self.encode_text_and_image(question,image_features)
+        print(embeddings.device, image_features.device,question.device)
 
         # Generate the attention mask
         attention_mask = self.generate_attention(embeddings,text_list)
