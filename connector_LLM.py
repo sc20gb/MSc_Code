@@ -97,7 +97,7 @@ class Connector_LLM(nn.Module):
         return causal_mask
 
     def update_attention(self,attention,size):
-        return torch.tril(torch.ones((size, size))).bool().unsqueeze(0)
+        return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
 
     def generate_using_forward_method(self, embeddings,attention_mask, max_length=50, temperature=1.0, target=None):
 
@@ -123,14 +123,17 @@ class Connector_LLM(nn.Module):
             new_tokens = outputs.logits[:, -1, :]
 
             # Generate the loss for the model based on the answer
+
+            print("Generating the loss")
             if target  !=  None:
-                index = torch.tensor([i for _ in range(target.size(0))], device=target.device)
+                index = torch.tensor([i for _ in range(target.size(0))], device=self.device)
 
                 # Use advanced indexing to select values from A
-                selected_values = target[torch.arange(target.size(0)), index].unsqueeze(1)
+                selected_values = target[torch.arange(target.size(0),device=self.device), index].unsqueeze(1)
 
                 loss_sum += F.cross_entropy(new_tokens.clone(),selected_values.flatten()).item()
                 count += 1
+            print("Finished generating the loss")
 
             # Get the logits of the last token and apply temperature scaling
             logits = new_tokens  / temperature

@@ -174,6 +174,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
         count_t = 0
         count_q = 0
         optim.zero_grad()
+        print("\n STARTING TRANING LOOP \n")
         for image_tensor, mask_tensor, question, answer in train_loader:
             
             try:
@@ -253,6 +254,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
         connector_llm.connector.eval()
 
         with torch.no_grad():
+            print("\n STARTING VALIDATION LOOP \n")
             for image_tensor, mask_tensor, question, answer in validate_loader:
 
                 try:
@@ -339,7 +341,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
     return loss_epoch
 
 #/nobackup/sc20gwb/Models/Models_to_upload
-path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_45.pth")
+path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
 clip_parameters  =  {
 "transformer_width":512,
