@@ -208,26 +208,34 @@ class Connector_LLM(nn.Module):
 
         print("In forward: ", image_features.size())
 
-        batch_size, n_patches, *feature_dims = image_features.shape
+        batch_size, n_patches, *feature_dims = image_features.shape # 1,1,*
 
         print(batch_size,n_patches,*feature_dims)
 
         # Reshape image features to merge the batch and 17 dimensions
-        image_features = image_features.view(batch_size * n_patches, *feature_dims)
+        image_features = image_features.view(batch_size * n_patches, *feature_dims) # 1, *
 
         print("In forward 2: ", image_features.size())
 
         # project to LLM embedding space
         image_features = self.connector(image_features)
 
+        print("after connector")
+
         # Reshape back to original dimensions after projection
         image_features = image_features.view(batch_size, n_patches, -1)
+
+        print("after rearranging : ", image_features.size())
 
         # Encode text and images into the embedding expected by the LLM
         embeddings, text_list = self.encode_text_and_image(question,image_features)
 
+        print("after combining: ", embeddings.size())
+
         # Generate the attention mask
         attention_mask = self.generate_attention(embeddings,text_list)
+
+        print("after attention:", attention_mask.size())
 
         #This passes the embeddings to the LLM
         embeddings =  embeddings.to(self.device)
@@ -237,6 +245,8 @@ class Connector_LLM(nn.Module):
 
         #Autoregressive prediction
         gen,loss = self.generate_using_forward_method(embeddings,attention_mask,target=answer,max_length=max_length,temperature=0.9)
+
+        print("after gen")
 
 
       
