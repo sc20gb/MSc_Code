@@ -124,7 +124,6 @@ class Connector_LLM(nn.Module):
 
             # Generate the loss for the model based on the answer
 
-            print("Generating the loss")
             if target  !=  None:
                 index = torch.tensor([i for _ in range(target.size(0))], device=self.device)
 
@@ -133,7 +132,6 @@ class Connector_LLM(nn.Module):
 
                 loss_sum += F.cross_entropy(new_tokens.clone(),selected_values.flatten()).item()
                 count += 1
-            print("Finished generating the loss")
 
             # Get the logits of the last token and apply temperature scaling
             logits = new_tokens  / temperature
@@ -178,7 +176,6 @@ class Connector_LLM(nn.Module):
             split_ids.append(len(tokenised_list[i]))
             tokenised_list[i].extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
             tokenised_list[i] = torch.tensor(tokenised_list[i],dtype=torch.int64).to(self.device)
-            print(tokenised_list[i].device)
             
         embedded_text = []
         #Embed all of the text tokens
@@ -221,11 +218,8 @@ class Connector_LLM(nn.Module):
         image_features = image_features.view(batch_size, n_patches, -1)
 
         # Encode text and images into the embedding expected by the LLM
-        print("enocding text and img")
         embeddings, text_list = self.encode_text_and_image(question,image_features)
-        print(embeddings.device, image_features.device)
 
-        print("Generating the attention mask")
         # Generate the attention mask
         attention_mask = self.generate_attention(embeddings,text_list)
 
@@ -235,11 +229,9 @@ class Connector_LLM(nn.Module):
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
-        print("Auto Regressive prediction")
         #Autoregressive prediction
         gen,loss = self.generate_using_forward_method(embeddings,attention_mask,target=answer,max_length=max_length,temperature=0.9)
 
 
-        print("Finished forward")
       
         return gen, loss
