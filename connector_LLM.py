@@ -206,11 +206,7 @@ class Connector_LLM(nn.Module):
 
     def forward(self, image_features,question,answer,max_length):
 
-        print("In forward: ", image_features.size())
-
         batch_size, n_patches, *feature_dims = image_features.shape
-
-        print(batch_size,n_patches,*feature_dims)
 
         # Reshape image features to merge the batch and 17 dimensions
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
