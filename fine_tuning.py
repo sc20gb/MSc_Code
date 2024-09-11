@@ -234,8 +234,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
             train_f1_avg += f1
             train_bleu_score_avg += bleu_score
 
-            print("Count_t=",count_t)
-
             count_t = count_t + 1
             count_q += answer_.size(0)
 
@@ -304,8 +302,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 val_f1_avg += f1
                 val_bleu_score_avg += bleu_score
                 count = count + 1
-
-                print("Count=",count)
 
         # SAVE RESULTS
         if save:
