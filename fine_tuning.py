@@ -184,6 +184,8 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
 
+                print("The image feature size is : ", image_features.size())
+
                 # Move image features to the second GPU for LLM processing
                 image_features = image_features.to(device_llm)
 
