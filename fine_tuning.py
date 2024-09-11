@@ -248,7 +248,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
         val_precision_avg = 0.0
         val_recall_avg = 0.0
         val_f1_avg = 0.0
-        val_count_q = 0.0
         val_bleu_score_avg = 0.0
         count = 0
         connector_llm.connector.eval()
@@ -299,7 +298,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 val_f1_avg += f1
                 val_bleu_score_avg += bleu_score
                 count += 1
-                val_count_q += answer_.size(0)
 
         # SAVE RESULTS
         if save:
@@ -307,11 +305,11 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 os.makedirs(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION)))
             torch.save(connector_llm.connector.state_dict(), os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION), "connector_LLM_model" + str(n) + ".pth"))
 
-        if count and count_t and val_count_q!= 0:
+        if count != 0 and count_t != 0:
             wandb.log({
                 "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
                 "loss_training": trainng_loss_avg.to('cpu').detach().numpy()[0] / count_t,
-                "val_accuracy_avg": val_accuracy_avg / val_count_q,
+                "val_accuracy_avg": val_accuracy_avg / count,
                 "train_accuracy_avg": train_accuracy_avg / count_q,
                 "val_precision_avg": val_precision_avg / count,
                 "train_precision_avg": train_precision_avg / count_t,

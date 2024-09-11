@@ -93,7 +93,7 @@ class Connector_LLM(nn.Module):
         return filtered_prompt
     
     def generate_attention(self,embeddings,text_list):
-        causal_mask = torch.tril(torch.ones((embeddings.size(0), embeddings.size(0)))).bool().unsqueeze(0)
+        causal_mask = torch.tril(torch.ones((embeddings.size(0), embeddings.size(0)))).bool().unsqueeze(0).to(self.device)
         return causal_mask
 
     def update_attention(self,attention,size):
@@ -222,17 +222,21 @@ class Connector_LLM(nn.Module):
         embeddings, text_list = self.encode_text_and_image(question,image_features)
         print(embeddings.device, image_features.device)
 
+        print("Generating the attention mask")
         # Generate the attention mask
         attention_mask = self.generate_attention(embeddings,text_list)
 
-        #This passes the embeddings to the LLM, and autogressivly evaluates the output
+        #This passes the embeddings to the LLM
         embeddings =  embeddings.to(self.device)
 
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
-        
+        print("Auto Regressive prediction")
         #Autoregressive prediction
         gen,loss = self.generate_using_forward_method(embeddings,attention_mask,target=answer,max_length=max_length,temperature=0.9)
+
+
+        print("Finished forward")
       
         return gen, loss
