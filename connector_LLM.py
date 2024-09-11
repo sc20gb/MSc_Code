@@ -124,7 +124,7 @@ class Connector_LLM(nn.Module):
 
             # Generate the loss for the model based on the answer
             if target  !=  None:
-                index = torch.tensor([i for _ in range(target.size(0))])  # Example indices to extract
+                index = torch.tensor([i for _ in range(target.size(0))], device=target.device)
 
                 # Use advanced indexing to select values from A
                 selected_values = target[torch.arange(target.size(0)), index].unsqueeze(1)
