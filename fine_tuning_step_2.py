@@ -439,4 +439,6 @@ for i, para in enumerate(optim_list):
         cpu_only=p['cpu_only']
     )
 
+    wandb.finish()
+
 
