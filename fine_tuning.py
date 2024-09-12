@@ -358,7 +358,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.01,0.001,0.0001]
+LR_LIST = [0.01,0.05,0.005]#[0.001,0.0001, 0.00001]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -425,6 +425,5 @@ for i, para in enumerate(optim_list):
     )
 
     wandb.finish()
-
 
 
