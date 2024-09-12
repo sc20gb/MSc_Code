@@ -5,7 +5,7 @@ import torch
 
 import numpy as np
 
-from CLIP import VisionTransformer
+from CLIP import CLIP,VisionTransformer
 
 
 from transformers import LlamaForCausalLM, AutoTokenizer, get_cosine_schedule_with_warmup, CLIPVisionModel
@@ -24,34 +24,36 @@ import math
 
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
-    # clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=MAX_LENGTH,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
+    clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=MAX_LENGTH,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
     # clip.load_state_dict(torch.load(clip_model_path))
-
     #LOAD just the parameters for the vit to save mem
     # Step 1: Load the full state dict
     state_dict = torch.load(clip_model_path)
+    clip.load_state_dict(state_dict,strict=True)
     # Step 2: Filter out only the 'visual' (VisionTransformer) parameters
-    vision_state_dict = {k: v for k, v in state_dict.items() if k.startswith('visual')}
+    #vision_state_dict = {k: v for k, v in state_dict.items() if k.startswith('visual')}
 
-    for k in state_dict.items():
-        print(k)
+    visual = clip.visual
 
-    print(vision_state_dict)
+    # for k in state_dict.items():
+    #     print(k)
+
+    # print(vision_state_dict)
 
 
-    vision_heads = vision_width // 64
-    visual = VisionTransformer(
-            input_resolution=image_resolution,
-            patch_size=vision_patch_size,
-            width=vision_width,
-            layers=vision_layers,
-            heads=vision_heads,
-            output_dim=embed_dim
-        )
+    # vision_heads = vision_width // 64
+    # visual = VisionTransformer(
+    #         input_resolution=image_resolution,
+    #         patch_size=vision_patch_size,
+    #         width=vision_width,
+    #         layers=vision_layers,
+    #         heads=vision_heads,
+    #         output_dim=embed_dim
+    #     )
 
-    # Step 3: Load the filtered state dict into the 'visual' part of your CLIP model
-    # Assuming 'model' is your CLIP model instance
-    visual.load_state_dict(vision_state_dict, strict=True)
+    # # Step 3: Load the filtered state dict into the 'visual' part of your CLIP model
+    # # Assuming 'model' is your CLIP model instance
+    # visual.load_state_dict(vision_state_dict, strict=True)
     return visual.to(device)#clip.visual.to(device)
 
 def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
