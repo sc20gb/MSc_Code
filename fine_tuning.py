@@ -224,7 +224,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 2)
+                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 4)
                 
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
