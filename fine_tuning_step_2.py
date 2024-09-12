@@ -412,7 +412,7 @@ for i, para in enumerate(optim_list):
         MAX_EPOC=p['MAX_EPOC'],
         MAX_LENGTH=p['MAX_LENGTH'],
         VERSION=(i + 1)*1000,
-        pre_trained_connector_path=os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(2) + ".pth")
+        pre_trained_connector_path=os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(2) + ".pth"),
         MAX_LENGTH_LLM=p['MAX_LENGTH_LLM'],
         save=p['save'],
         cpu_only=p['cpu_only']
