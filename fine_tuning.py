@@ -113,10 +113,10 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     prec = 0.0
     rec = 0.0
-
-    common_tokens = set(predicted) & set(target)
-    prec = len(common_tokens) / predicted.size(0)
-    rec = len(common_tokens) /  target.size(0)
+    if predicted.size(0) != 0:
+        common_tokens = set(predicted) & set(target)
+        prec = len(common_tokens) / predicted.size(0)
+        rec = len(common_tokens) /  target.size(0)
 
     if prec + rec == 0.0:
         f1 = 0.0
