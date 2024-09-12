@@ -111,24 +111,18 @@ class VisionTransformer(nn.Module):
 
         hidden_states = []  # List to store hidden states
 
-        print("New transformer")
         # Passing through transformer layers
         for layer in self.transformer.resblocks:
             x = layer(x)
             if return_hidden_states:
                 hidden_states.append(self.ln_post(x.permute(1, 0, 2)[:,0,:]).unsqueeze(1))  # Store the hidden state after each layer (LND -> NLD)
 
-        print("Old transformer")
-        x = self.transformer(x2)
+        #x = self.transformer(x2)
 
         x = x.permute(1, 0, 2)  # LND -> NLD
 
 
         x = self.ln_post(x[:, 0, :])
-
-        if return_hidden_states:
-            hidden_states.append(x.unsqueeze(1))
-
 
         if self.proj is not None:
             x = x @ self.proj
