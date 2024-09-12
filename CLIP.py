@@ -94,6 +94,8 @@ class VisionTransformer(nn.Module):
         self.proj = nn.Parameter(scale * torch.randn(width, output_dim))
 
     def forward(self, x: torch.Tensor, return_hidden_states=False):
+
+        print("In forward ViT")
         x = self.conv1(x)  # shape = [*, width, grid, grid]
 
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2] # 64
@@ -109,13 +111,14 @@ class VisionTransformer(nn.Module):
 
         hidden_states = []  # List to store hidden states
 
+        print("New transformer")
         # Passing through transformer layers
         for layer in self.transformer.resblocks:
             x = layer(x)
             if return_hidden_states:
                 hidden_states.append(self.ln_post(x.permute(1, 0, 2)[:,0,:]).unsqueeze(1))  # Store the hidden state after each layer (LND -> NLD)
 
-
+        print("Old transformer")
         x = self.transformer(x2)
 
         x = x.permute(1, 0, 2)  # LND -> NLD
@@ -124,7 +127,7 @@ class VisionTransformer(nn.Module):
         x = self.ln_post(x[:, 0, :])
 
         if return_hidden_states:
-            hidden_states.append(x)
+            hidden_states.append(x.unsqueeze(1))
 
 
         if self.proj is not None:
