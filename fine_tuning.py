@@ -58,7 +58,7 @@ def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_laye
     # visual.load_state_dict(vision_state_dict, strict=True)
     return visual.to(device)#clip.visual.to(device)
 
-def process_string(self,s):
+def process_string(s):
         # Convert to lowercase
         s = s.lower()
         # Remove all whitespace characters except spaces
