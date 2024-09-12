@@ -32,6 +32,13 @@ def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_laye
     state_dict = torch.load(clip_model_path)
     # Step 2: Filter out only the 'visual' (VisionTransformer) parameters
     vision_state_dict = {k: v for k, v in state_dict.items() if k.startswith('visual')}
+
+    for k in state_dict.items():
+        print(k)
+
+    print(vision_state_dict)
+
+
     vision_heads = vision_width // 64
     visual = VisionTransformer(
             input_resolution=image_resolution,
@@ -44,7 +51,7 @@ def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_laye
 
     # Step 3: Load the filtered state dict into the 'visual' part of your CLIP model
     # Assuming 'model' is your CLIP model instance
-    visual.load_state_dict(vision_state_dict, strict=False)
+    visual.load_state_dict(vision_state_dict, strict=True)
     return visual.to(device)#clip.visual.to(device)
 
 def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
@@ -219,6 +226,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
              # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
             
             if (count_t + 1) % accumulation_steps == 0:
+                print("Optim.step()1")
                 optim.step()
                 optim.zero_grad()
 
@@ -237,6 +245,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
 
             # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
+            print("Optim.step()2")
             optim.step()
             optim.zero_grad()
 
@@ -358,7 +367,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.01,0.05,0.005]#[0.001,0.0001, 0.00001]
+LR_LIST = [0.1,0.5]#[0.01,0.05]#[0.001,0.0001, 0.00001]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -394,7 +403,7 @@ additional_parameters = {
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
-    "save": False,
+    "save": True,
     "cpu_only": False,
     "hidden_layer_from_end": 1
 }
