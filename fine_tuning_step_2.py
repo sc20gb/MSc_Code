@@ -78,7 +78,7 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     # Now we convert it back to its tokens to be used with the rest of the program
     # The <s> token is removed also
-    predicted = tokenizer.decode(predcted_string, return_tensors="pt").input_ids[:, 1:]
+    predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:]
 
     print("Predicted", predicted.size())
     
