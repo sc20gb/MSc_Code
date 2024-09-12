@@ -372,7 +372,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.1,0.5]
+LR_LIST = [0.1]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -404,7 +404,7 @@ additional_parameters = {
     "batch_size": 1,
     "vir_batch_size": 16,
     "rand_seed": 42,
-    "MAX_EPOC": 3,
+    "MAX_EPOC": 15,
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
