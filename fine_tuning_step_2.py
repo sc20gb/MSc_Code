@@ -238,7 +238,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_recall_avg += recall
             train_f1_avg += f1
             train_bleu_score_avg += bleu_score
-            count_t += 1
+            count_t = count_t + 1
             count_q += answer_.size(0)
 
             # Ensure to perform a step if we have leftover gradients
@@ -263,31 +263,34 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             for image_tensor, mask_tensor, question, answer in validate_loader:
 
                 try:
-                    # Get image features from the img encoder (on GPU 0)
-                    image_features = img_encoder(image_tensor.to(device_vit))
+                   # Get image features from the img encoder (on GPU 0)
+                        image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
 
+                        #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
+                        image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
 
-                    # Move image features to the second GPU for LLM processing
-                    image_features = image_features.to(device_llm)
+                        # Move image features to the second GPU for LLM processing
+                        image_features = image_features.to(device_llm)
 
-                    # Format data and "tokenize" inputs for the LLM
-                    answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
+                        # Format data and "tokenize" inputs for the LLM
+                        answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
 
-                    for i, a in enumerate(answer_):
-                        if len(a) < MAX_LENGTH:
-                            answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
+                        for i, a in enumerate(answer_):
+                            if len(a) < MAX_LENGTH:
+                                answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-                    answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
+                        answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
-                    # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                    output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 2)
-                    
-                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
-                        output,
-                        [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten() for a in answer],
-                        tokenizer=connector_llm.tokenizer,
-                        max_length=MAX_LENGTH_LLM
-                    )
+                        # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
+                        output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 2)
+                        
+                        accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
+                            output,
+                            [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten() for a in answer],
+                            tokenizer=connector_llm.tokenizer,
+                            max_length=MAX_LENGTH_LLM
+                        )
+
 
                 except RuntimeError as e:
                     if "out of memory" in str(e):
@@ -304,7 +307,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 val_recall_avg += recall
                 val_f1_avg += f1
                 val_bleu_score_avg += bleu_score
-                count += 1
+                count = count + 1
                 val_count_q += answer_.size(0)
 
         # SAVE RESULTS
@@ -348,7 +351,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.001,0.0001, 0.00001]
+LR_LIST = [0.1,0.5]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -409,7 +412,7 @@ for i, para in enumerate(optim_list):
         MAX_EPOC=p['MAX_EPOC'],
         MAX_LENGTH=p['MAX_LENGTH'],
         VERSION=(i + 1)*1000,
-        pre_trained_connector_path=os.path.join("C:\\Users\\George\\Desktop\\MSc_Code\\SavedModels\\MLLM_V_" + "Test" + ".pth"),  #TODO set this to the value when obtained
+        pre_trained_connector_path=os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(2) + ".pth")
         MAX_LENGTH_LLM=p['MAX_LENGTH_LLM'],
         save=p['save'],
         cpu_only=p['cpu_only']
