@@ -18,6 +18,8 @@ import torch.nn.functional as F
 
 from torcheval.metrics.functional import bleu_score
 
+import re
+
 import wandb
 
 import math
@@ -56,6 +58,16 @@ def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_laye
     # visual.load_state_dict(vision_state_dict, strict=True)
     return visual.to(device)#clip.visual.to(device)
 
+def process_string(self,s):
+        # Convert to lowercase
+        s = s.lower()
+        # Remove all whitespace characters except spaces
+        s = re.sub(r'[^\S ]+', '', s)
+        # Replace multiple spaces with a single space
+        s = re.sub(r' +', ' ', s)
+        return s.strip()  # Optionally, remove leading/trailing spaces
+
+
 def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     # We need it to be a list of tensors instead 
@@ -69,10 +81,18 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     if predicted.size(0) == target.size(0):
         accuracy += (predicted == target).all()
 
+    # we need to ensure that the answer has its captials and its whitespace removed
+    predcted_string = process_string(tokenizer.decode(predicted,skip_special_tokens=True))
 
+    # Now we convert it back to its tokens to be used with the rest of the program
+    # The <s> token is removed also
+    predicted = tokenizer(predicted)[1:]
+
+    
     print(tokenizer.decode(predicted,skip_special_tokens=True))
 
     print(tokenizer.decode(target,skip_special_tokens=True))
+
 
     # this score is calculated from the plain english sentences
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
