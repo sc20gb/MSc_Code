@@ -196,10 +196,6 @@ class Connector_LLM(nn.Module):
 
             for token in s2: text_list[i].append(1)
 
-            print("image features ", image_features.size())
-
-            print(image_features.squeeze().size(), s1.size(),s2.size(), image_features.squeeze(0).size())
-
             embedded_text[i] = torch.cat((s1,image_features.squeeze(0),s2), dim=0)
 
 
@@ -211,8 +207,6 @@ class Connector_LLM(nn.Module):
 
 
         batch_size, n_patches, *feature_dims = image_features.shape # 1,1,*
-
-        print(batch_size,n_patches,*feature_dims)
 
         # Reshape image features to merge the batch and 17 dimensions
         image_features = image_features.view(batch_size * n_patches, *feature_dims) # 1, *

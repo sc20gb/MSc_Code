@@ -95,7 +95,6 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x: torch.Tensor, return_hidden_states=False):
 
-        print("In forward ViT")
         x = self.conv1(x)  # shape = [*, width, grid, grid]
 
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2] # 64
@@ -128,7 +127,6 @@ class VisionTransformer(nn.Module):
             x = x @ self.proj
 
         if return_hidden_states:
-            print(len(hidden_states))
             return x, hidden_states  # Return final output and hidden states
         else:
             return x
@@ -201,14 +199,14 @@ class CLIP(nn.Module):
 
     def encode_text(self,text):
 
-        x = self.token_embedding(text).type(self.dtype)
+        x = self.token_embedding(text).type(self.dtype) # b,n,width
 
         x = self.positional_embedding(x).type(self.dtype)
 
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
         x = x.permute(1, 0, 2)  # LND -> NLD
-        x = self.ln_final(x).type(self.dtype)
+        x = self.ln_final(x).type(self.dtype) # b,n,transformer width
 
 
         # x2 = x.clone()
@@ -229,8 +227,6 @@ class CLIP(nn.Module):
         # print("x2 size = ", x2.size() )
         
         
-        print("x size after transformer = ", x.size())
-
         #TODO: TEMP CODE FOR USE WITH CURRENT TOKENIZER, CHNAGE BACK when OTHER is USED
         token_id = 2 # REMOVE
 
@@ -240,17 +236,8 @@ class CLIP(nn.Module):
 
         selected_features = x[torch.arange(x.shape[0]), indices[:,1]] # REMOVE
 
-        print("Size of selected features from x = ", selected_features.size())
-
         x = selected_features @ self.text_projection # REMOVE
 
-        print("Size after projection = ", x.size())
-
-
-        # x.shape = [batch_size, n_ctx, transformer.width]
-        # take features from the eot embedding (eot_token is the highest number in each sequence)
-        #TODO: Retore this when using correct tokenizer: x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection # RESTORE
-        
         return x
     
     def forward(self, image, text):
