@@ -211,19 +211,22 @@ class CLIP(nn.Module):
         x = self.ln_final(x).type(self.dtype)
 
 
-        x2 = x.clone()
+        # x2 = x.clone()
 
-        # Find the index where <unk> (0) starts in each sequence
-        pad_mask = (text != 0)
+        # # Find the index where <unk> (0) starts in each sequence
+        # pad_mask = (text != 0)
 
-        # Prepare a tensor to gather features
-        # Use the mask to gather features for non-padding tokens
-        # This will select features at valid token positions only
-        x_masked = x.masked_select(pad_mask.unsqueeze(-1).expand_as(x)).view(x.size(0), -1, x.size(-1))
+        # # Prepare a tensor to gather features
+        # # Use the mask to gather features for non-padding tokens
+        # # This will select features at valid token positions only
+        # batch_indices = torch.arange(x.size(0), device=x.device).unsqueeze(1)  # [batch_size, 1]
+        # token_indices = pad_mask.nonzero(as_tuple=True)  # Get indices of non-padding tokens
 
-        x2 = x_masked
-        
-        print("x2 size = ", x2.size() )
+        # x_masked = x[token_indices]
+
+        # x2 = x_masked
+
+        # print("x2 size = ", x2.size() )
         
         
         print("x size after transformer = ", x.size())
