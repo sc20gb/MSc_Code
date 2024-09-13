@@ -62,7 +62,7 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
 
             optim.zero_grad()
             
-            text_tensor = torch.cat([tokenizer(a + "<\s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+            text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
             
             image_tensor = image_tensor.to(device)
 
@@ -104,7 +104,7 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
         clip.eval()
         with torch.no_grad():
             for image_tensor, mask_tensor, text in validate_loader:
-                text_tensor = torch.cat([tokenizer(a + "<\s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+                text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
                 image_tensor = image_tensor.to(device)
 
                 image_features,text_features = clip(image_tensor,text_tensor)
