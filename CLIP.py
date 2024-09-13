@@ -211,6 +211,23 @@ class CLIP(nn.Module):
         x = self.ln_final(x).type(self.dtype)
 
 
+        x2 = x.clone()
+
+        # Find the index where <unk> (0) starts in each sequence
+        pad_mask = (text != 0)
+
+        # Prepare a tensor to gather features
+        # Use the mask to gather features for non-padding tokens
+        # This will select features at valid token positions only
+        x_masked = x.masked_select(pad_mask.unsqueeze(-1).expand_as(x)).view(x.size(0), -1, x.size(-1))
+
+        x2 = x_masked
+        
+        print("x2 size = ", x2.size() )
+        
+        
+        print("x size after transformer = ", x.size())
+
         #TODO: TEMP CODE FOR USE WITH CURRENT TOKENIZER, CHNAGE BACK when OTHER is USED
         token_id = 2 # REMOVE
 
@@ -220,7 +237,11 @@ class CLIP(nn.Module):
 
         selected_features = x[torch.arange(x.shape[0]), indices[:,1]] # REMOVE
 
+        print("Size of selected features from x = ", selected_features.size())
+
         x = selected_features @ self.text_projection # REMOVE
+
+        print("Size after projection = ", x.size())
 
 
         # x.shape = [batch_size, n_ctx, transformer.width]
