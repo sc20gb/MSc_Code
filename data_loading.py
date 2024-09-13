@@ -239,18 +239,15 @@ class CLIPTrainJsonDataset(JsonDataset):
 
 def load_combined_text_data(transform,batchSize,seed, dataDir):
 
-    test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
     train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
     validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
 
     # Create Dataset objects
-    test_dataset = CLIPTrainJsonDataset(test_json_path, transform)
     train_dataset = CLIPTrainJsonDataset(train_json_path, transform)
     validate_dataset = CLIPTrainJsonDataset(validate_json_path, transform)
 
     # Create DataLoader objects
-    test_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
     train_loader = DataLoader(train_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
     validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
-    return test_loader, train_loader, validate_loader
+    return train_loader, validate_loader
