@@ -14,11 +14,6 @@ import csv
 
 import wandb
 
-#V_1 uses torch.optim.AdamW(clip.parameters(), lr=1e-4, weight_decay=1e-4, eps=1.0e-08)
-
-# TODO: fix tokeniser, i.e make sure that we use one that has medical vocab
-
-
 def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX_EPOC = 100, VERSION = 2, transformer_width=512, transformer_layers=12,transformer_heads=8,embed_dim=512,vision_width=768, image_resolution=224, vision_patch_size=56, vision_layers=12,lr=1e-4, weight_decay=1e-4, eps=1.0e-08,T_0=10, T_mult=2,save=False):
     # CHECK GPU SUPPORT AND ASSIGN DEVICE
     if torch.cuda.is_available():
@@ -36,13 +31,13 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
         device = torch.device("cpu")
 
     #LOAD DATA
-    test_loader, train_loader, validate_loader = load_combined_text_data(transforms.Compose([
+    train_loader, validate_loader = load_combined_text_data(transforms.Compose([
         transforms.Resize((IMAGESIZE, IMAGESIZE)),
         transforms.ToTensor()
     ]), BATCHSIZE, RANDSEED, os.path.join(os.getcwd(), 'Slake1.0')
     )
 
-    model_path =  os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
+    model_path =  os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
     tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True)
 
     # LOAD CLIP model
@@ -67,7 +62,7 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
 
             optim.zero_grad()
             
-            text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+            text_tensor = torch.cat([tokenizer(a,return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
             
             image_tensor = image_tensor.to(device)
 
@@ -109,7 +104,7 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
         clip.eval()
         with torch.no_grad():
             for image_tensor, mask_tensor, text in validate_loader:
-                text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
+                text_tensor = torch.cat([tokenizer(a,return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
                 image_tensor = image_tensor.to(device)
 
                 image_features,text_features = clip(image_tensor,text_tensor)
@@ -135,14 +130,11 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
                 loss_avg += loss.to('cpu')
                 count  += 1
             
-
-            #print(loss_avg.to('cpu').detach().numpy()[0]/count,trainng_loss_avg.to('cpu').detach().numpy()[0]/count_t)
-
             #SAVE RESULTS
             if save:
-                if not os.path.exists(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION))):
-                    os.makedirs(os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION)))
-                torch.save(clip.state_dict(),os.path.join(os.getcwd(),"SavedModels", "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
+                if not os.path.exists(os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(VERSION))):
+                    os.makedirs(os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(VERSION)))
+                torch.save(clip.state_dict(),os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(VERSION),"clip_model_" + str(n) + ".pth"))
             
             loss_epoch.append([
                 n,
@@ -198,12 +190,20 @@ def saveResults(VERSION,loss_epoch_):
 
 # Lists for each parameter
 BATCHSIZE_LIST = [32]
-MAX_EPOC_LIST = [50]
+MAX_EPOC_LIST = [30] # 50 for final?
 LR_LIST = [0.0001]
 WEIGHT_DECAY_LIST = [0.0001]
 EPS_LIST = [1.0e-08]
 T_0_LIST = [10]
 T_MULT_LIST = [2]
+MAX_LENGTH_LIST = [256]
+TRANSFORMER_WIDTH_LIST=[512,256]
+TRANSFORMER_LAYERS_LIST=[12,6]
+TRANSFORMER_HEADS_LIST=[8,4]
+TRANSFORMER_EMED_DIM_LIST=[512,256]
+VISION_PATCH_SIZE=[56,45]
+VISION_WIDTH=[768,512]
+VISION_LAYERS=[12,6]
 
 # Generate the list of dictionaries with all combinations
 config_list = [
@@ -214,7 +214,15 @@ config_list = [
         'weight_decay': weight_decay,
         'eps': eps,
         'T_0': t_0,
-        'T_mult': t_mult
+        'T_mult': t_mult,
+        'MAX_LENGTH': max_length,
+        "transformer_width": transformer_width,
+        "transformer_layers":transformer_layers,
+        "transformer_heads":transformer_heads,
+        "embed_dim":embed_dim,
+        "vision_width":vision_width,
+        "vision_patch_size":vision_patch_size,
+        "vision_layers":vision_layers
     }
     for batchsize in BATCHSIZE_LIST
     for max_epoc in MAX_EPOC_LIST
@@ -223,6 +231,15 @@ config_list = [
     for eps in EPS_LIST
     for t_0 in T_0_LIST
     for t_mult in T_MULT_LIST
+    for max_length in MAX_LENGTH_LIST
+    for transformer_width in TRANSFORMER_WIDTH_LIST
+    for transformer_layers in TRANSFORMER_LAYERS_LIST
+    for transformer_heads in TRANSFORMER_HEADS_LIST
+    for embed_dim in TRANSFORMER_EMED_DIM_LIST
+    for vision_width in VISION_WIDTH
+    for vision_patch_size in VISION_PATCH_SIZE
+    for vision_layers in VISION_LAYERS
+
 ]
 
 for i, p in enumerate(config_list):
@@ -234,11 +251,9 @@ for i, p in enumerate(config_list):
         config=p
     )
 
-    loss_epoch  = train(**p,VERSION= 9320100 + i,save=True)
+    loss_epoch  = train(**p,VERSION= 10320000 + i,save=True)
     # save local results
     # Specify the CSV file name
 
     wandb.finish()
-
-    saveResults(9320100 + i,loss_epoch)
 
