@@ -192,7 +192,7 @@ def saveResults(VERSION,loss_epoch_):
 
 # Lists for each parameter
 BATCHSIZE_LIST = [32]
-MAX_EPOC_LIST = [20] # 50 for final?
+MAX_EPOC_LIST = [30] # 50 for final?
 LR_LIST = [0.0001]
 WEIGHT_DECAY_LIST = [0.0001]
 EPS_LIST = [1.0e-08]
