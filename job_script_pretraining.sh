@@ -4,7 +4,7 @@
 #$ -V -cwd
 
 #Request some time- min 15 mins - max 48 hours
-#$ -l h_rt=06:00:00
+#$ -l h_rt=10:00:00
 
 #Request some memory per core
 #$ -l h_vmem=1G
