@@ -60,6 +60,8 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
         count_t = 0
         for image_tensor, mask_tensor, text in train_loader:
 
+            print(text[0])
+
             optim.zero_grad()
             
             text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)
@@ -190,18 +192,18 @@ def saveResults(VERSION,loss_epoch_):
 
 # Lists for each parameter
 BATCHSIZE_LIST = [32]
-MAX_EPOC_LIST = [30] # 50 for final?
+MAX_EPOC_LIST = [20] # 50 for final?
 LR_LIST = [0.0001]
 WEIGHT_DECAY_LIST = [0.0001]
 EPS_LIST = [1.0e-08]
 T_0_LIST = [10]
 T_MULT_LIST = [2]
 MAX_LENGTH_LIST = [256]
-TRANSFORMER_WIDTH_LIST=[512,256]
+TRANSFORMER_WIDTH_LIST=[512]
 TRANSFORMER_LAYERS_LIST=[12,6]
-TRANSFORMER_HEADS_LIST=[8,4]
+TRANSFORMER_HEADS_LIST=[8]
 TRANSFORMER_EMED_DIM_LIST=[512,256]
-VISION_PATCH_SIZE=[56,45]
+VISION_PATCH_SIZE=[56]
 VISION_WIDTH=[768,512]
 VISION_LAYERS=[12,6]
 
