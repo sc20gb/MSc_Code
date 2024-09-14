@@ -113,9 +113,11 @@ class Connector_LLM(nn.Module):
             # if vicuna does not need traning save mem
 
             if not self.vicuna.training:
+                print("Using nograd()")
                 with torch.no_grad():
                     outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
             else:
+                print("Not using nograd()")
                 outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
 
 
@@ -137,7 +139,8 @@ class Connector_LLM(nn.Module):
 
                 # Select the correct target token for the current position
                 selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
-
+                
+                print("Selected values.size() = ", selected_values)
                 print("Selected values = ", selected_values)
 
                 # Calculate the log-likelihood for the selected token
@@ -181,7 +184,7 @@ class Connector_LLM(nn.Module):
             attention_mask = self.update_attention(attention_mask,gen_embeddings.size(1))
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)
-            nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
+            nll_loss = -log_probs_sum #/ float(count)  # Maximize likelihood by minimizing negative log-likelihood
 
         #return the generated tokens and the loss
 
