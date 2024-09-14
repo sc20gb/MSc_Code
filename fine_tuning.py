@@ -72,7 +72,7 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     # We need it to be a list of tensors instead 
     # Pad the predicted tensors after the </s> to the unk token [....,answer,2,44235,3153,...] -> [answer,2]
-
+    print("1")
     target = target[0]
 
     # Calc accuracy
@@ -81,23 +81,32 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     if predicted.size(0) == target.size(0):
         accuracy += (predicted == target).all()
 
+
+    print("2")
+
     # we need to ensure that the answer has its captials and its whitespace removed
     predcted_string = process_string(tokenizer.decode(predicted,skip_special_tokens=True))
+    print("3")
 
     # Now we convert it back to its tokens to be used with the rest of the program
     # The <s> token is removed also
     predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:][0]
+    print("4")
 
     
     print(tokenizer.decode(predicted,skip_special_tokens=True))
+    print("5")
 
     print(tokenizer.decode(target,skip_special_tokens=True))
+    print("6")
 
 
     # this score is calculated from the plain english sentences
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
+    print("7")
 
     ans = [[tokenizer.decode(target,skip_special_tokens=True)]]
+    print("8")
 
     if not pred[0] or pred[0].isspace():
         bleu_score_ = 0.0
@@ -106,7 +115,8 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
             pred,
             ans,
             n_gram=1)
-    
+    print("9")
+
     # https://qa.fastforwardlabs.com/no%20answer/null%20threshold/bert/distilbert/exact%20match/f1/robust%20predictions/2020/06/09/Evaluating_BERT_on_SQuAD.html#F1
     # precision here is the number of shared words / len(predict)
     #recall is the number of shared words / len(target)
@@ -122,6 +132,9 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
         f1 = 0.0
     else:
         f1 = 2 * (prec * rec) / (prec + rec)
+
+
+    print("10")
 
     return accuracy, bleu_score_,prec,rec,f1
 
