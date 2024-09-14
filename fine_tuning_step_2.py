@@ -64,14 +64,16 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     # We need it to be a list of tensors instead 
     # Pad the predicted tensors after the </s> to the unk token [....,answer,2,44235,3153,...] -> [answer,2]
-
     target = target[0]
 
     # Calc accuracy
     accuracy = 0
+
     # This here is the same as EM see the link below
     if predicted.size(0) == target.size(0):
         accuracy += (predicted == target).all()
+
+
 
     # we need to ensure that the answer has its captials and its whitespace removed
     predcted_string = process_string(tokenizer.decode(predicted,skip_special_tokens=True))
@@ -80,12 +82,10 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     # The <s> token is removed also
     predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:][0]
 
-    print("Predicted", predicted.size())
     
     print(tokenizer.decode(predicted,skip_special_tokens=True))
 
     print(tokenizer.decode(target,skip_special_tokens=True))
-
 
     # this score is calculated from the plain english sentences
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
@@ -99,7 +99,7 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
             pred,
             ans,
             n_gram=1)
-    
+        
     # https://qa.fastforwardlabs.com/no%20answer/null%20threshold/bert/distilbert/exact%20match/f1/robust%20predictions/2020/06/09/Evaluating_BERT_on_SQuAD.html#F1
     # precision here is the number of shared words / len(predict)
     #recall is the number of shared words / len(target)
@@ -115,6 +115,7 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
         f1 = 0.0
     else:
         f1 = 2 * (prec * rec) / (prec + rec)
+
 
     return accuracy, bleu_score_,prec,rec,f1
 
@@ -206,12 +207,11 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             
             try:
 
-                # Get image features from the img encoder (on GPU 0)
+               # Get image features from the img encoder (on GPU 0)
                 image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
-
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
-
+                
                 # Move image features to the second GPU for LLM processing
                 image_features = image_features.to(device_llm)
 
@@ -225,11 +225,12 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 4)
-                
+                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
+
+
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
-                    [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten() for a in answer],
+                    [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
                     tokenizer=connector_llm.tokenizer,
                     max_length=MAX_LENGTH_LLM
                 )
@@ -286,32 +287,33 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                 try:
                    # Get image features from the img encoder (on GPU 0)
-                        image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+                    image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+                    #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
+                    image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
+                    
+                    # Move image features to the second GPU for LLM processing
+                    image_features = image_features.to(device_llm)
 
-                        #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
-                        image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
+                    # Format data and "tokenize" inputs for the LLM
+                    answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
 
-                        # Move image features to the second GPU for LLM processing
-                        image_features = image_features.to(device_llm)
+                    for i, a in enumerate(answer_):
+                        if len(a) < MAX_LENGTH:
+                            answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-                        # Format data and "tokenize" inputs for the LLM
-                        answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
+                    answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
-                        for i, a in enumerate(answer_):
-                            if len(a) < MAX_LENGTH:
-                                answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
+                    # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
+                    output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
 
-                        answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
-                        # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                        output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 2)
-                        
-                        accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
-                            output,
-                            [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten() for a in answer],
-                            tokenizer=connector_llm.tokenizer,
-                            max_length=MAX_LENGTH_LLM
-                        )
+                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
+                        output,
+                        [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
+                        tokenizer=connector_llm.tokenizer,
+                        max_length=MAX_LENGTH_LLM
+                    )
+
 
 
                 except RuntimeError as e:
@@ -356,24 +358,25 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     return loss_epoch
 
 #/nobackup/sc20gwb/Models/Models_to_upload
-path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
+#path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
+path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 clip_parameters  =  {
 "transformer_width":512,
-"transformer_layers":12,
+"transformer_layers":6,
 "transformer_heads":8,
 "embed_dim":512,
-"vision_width":768,
+"vision_width":512,
 "image_resolution":224,
 "vision_patch_size":56,
-"vision_layers":12,
+"vision_layers":6,
 "clip_model_path": path1
 
 }
 
 
 
-LR_LIST = [0.1]
+LR_LIST = [0.01]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -394,7 +397,7 @@ for wd in WEIGHT_DECAY_LIST ]
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 connector_llm_parameters = {
 "vicuna_path":path,
-"embed_dim": 768, # this is the width of the CLIP ViT
+"embed_dim": 512, # this is the width of the CLIP ViT
 "connector_layers":2
 }
 
@@ -409,9 +412,9 @@ additional_parameters = {
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
-    "save": False,
+    "save": True,
     "cpu_only": False,
-    "hidden_layer_from_end": 1
+    "hidden_layer_from_end": 0
 }
 
 
@@ -434,7 +437,7 @@ for i, para in enumerate(optim_list):
         MAX_EPOC=p['MAX_EPOC'],
         MAX_LENGTH=p['MAX_LENGTH'],
         VERSION=(i + 1)*1000,
-        pre_trained_connector_path=os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(2) + ".pth"),
+        pre_trained_connector_path=os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(1) + ".pth"),
         MAX_LENGTH_LLM=p['MAX_LENGTH_LLM'],
         save=p['save'],
         cpu_only=p['cpu_only']
