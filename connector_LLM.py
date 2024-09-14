@@ -100,7 +100,7 @@ class Connector_LLM(nn.Module):
         return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
 
     def generate_using_forward_method(self, embeddings,attention_mask, max_length=50, temperature=1.0, target=None):
-
+        print("In forward gen")
         log_probs_sum = 0.0
 
         count = 0
@@ -171,6 +171,8 @@ class Connector_LLM(nn.Module):
             nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
 
         #return the generated tokens and the loss
+
+        print("at end of forward gen")
         return torch.cat(gen_tokens), torch.tensor(nll_loss, requires_grad=True,device=self.device)
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
