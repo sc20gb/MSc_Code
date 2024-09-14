@@ -240,7 +240,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             
             try:
-                
+                print("At itr: ", count_t)
                 # Check memory after loading the model
                 print(f"Memory allocated after first dataload: {torch.cuda.memory_allocated() / 1e6} MB ###########")
 
@@ -324,6 +324,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
              # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
             if (count_t + 1) % accumulation_steps == 0:
+                print("optim.step()")
                 optim.step()
                 optim.zero_grad()
 
