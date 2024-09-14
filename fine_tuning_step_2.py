@@ -13,6 +13,8 @@ from transformers import get_cosine_schedule_with_warmup
 
 from connector_LLM import Connector_LLM, print_memory_usage
 
+import sys
+
 import re
 
 
@@ -311,6 +313,10 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 if "out of memory" in str(e):
                     print('Skipping batch due to OOM')
                     print(e)
+                    sys.exit()
+
+
+
                     
                 else:
                     print(e)
