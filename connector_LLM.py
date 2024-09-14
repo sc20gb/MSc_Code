@@ -120,23 +120,36 @@ class Connector_LLM(nn.Module):
             else:
                 outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
 
-            new_tokens = outputs.logits[:, -1, :]
+
+            # Get the logits of the last token and apply temperature scaling
+            new_tokens = outputs.logits[:, -1, :] / temperature
 
             # Generate the loss for the model based on the answer
-
             if target  !=  None:
                 index = torch.tensor([i for _ in range(target.size(0))], device=self.device)
 
-                # Use advanced indexing to select values from A
-                selected_values = target[torch.arange(target.size(0),device=self.device), index].unsqueeze(1)
+                # # Use advanced indexing to select values from A
+                # selected_values = target[torch.arange(target.size(0),device=self.device), index].unsqueeze(1)
 
-                loss_sum += F.cross_entropy(new_tokens.clone(),selected_values.flatten()).item()
+                # loss_sum += F.cross_entropy(new_tokens.clone(),selected_values.flatten()).item()
+
+
+                # Select the correct target token for the current position
+                selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
+
+                # Calculate the log-likelihood for the selected token
+                log_probs = torch.nn.functional.log_softmax(new_tokens, dim=1)
+
+                #This will be correct as the ;pg_probs is taken from new tokens which is just the next generated probs
+                #It takes the log probabilities for the target
+                log_probs_for_target = log_probs.gather(1, selected_values)
+
+                # Accumulate the log likelihood
+                log_probs_sum += log_probs_for_target.sum().item()
                 count += 1
 
-            # Get the logits of the last token and apply temperature scaling
-            logits = new_tokens  / temperature
-
-            prob_logits = torch.nn.functional.softmax(logits, dim=1)
+            #Apply softmax
+            prob_logits = torch.nn.functional.softmax(new_tokens, dim=1)
 
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
@@ -154,8 +167,11 @@ class Connector_LLM(nn.Module):
         
             attention_mask = self.update_attention(attention_mask,gen_embeddings.size(1))
 
+            # Return the generated tokens and the averaged negative log-likelihood (NLL loss)
+            nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
+
         #return the generated tokens and the loss
-        return torch.cat(gen_tokens), torch.tensor(loss_sum/(float(count)), requires_grad=True)
+        return torch.cat(gen_tokens), torch.tensor(nll_loss, requires_grad=True)
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
