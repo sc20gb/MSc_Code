@@ -483,7 +483,7 @@ additional_parameters = {
     "per_warm": 0.2,
     "image_size": 224,
     "batch_size": 1,
-    "vir_batch_size": 16,
+    "vir_batch_size": 1,
     "rand_seed": 42,
     "MAX_EPOC": 15,
     "MAX_LENGTH": 256,
