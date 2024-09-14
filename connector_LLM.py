@@ -107,10 +107,9 @@ class Connector_LLM(nn.Module):
         gen_embeddings = embeddings
 
         gen_tokens = []
-
+        print("generating prob:")
         # Autoregressive generation loop
         for i in range(max_length):
-
             # if vicuna does not need traning save mem
 
             if not self.vicuna.training:
@@ -132,19 +131,34 @@ class Connector_LLM(nn.Module):
 
                 # loss_sum += F.cross_entropy(new_tokens.clone(),selected_values.flatten()).item()
 
+                print("itr ", count)
+
+                print("Index.size()", index.size(), "Index = ", index)
 
                 # Select the correct target token for the current position
                 selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
 
+                print("Selected values = ", selected_values)
+
                 # Calculate the log-likelihood for the selected token
                 log_probs = torch.nn.functional.log_softmax(new_tokens, dim=1)
+
+                print("log_probs.size() = ", log_probs.size())
 
                 #This will be correct as the ;pg_probs is taken from new tokens which is just the next generated probs
                 #It takes the log probabilities for the target
                 log_probs_for_target = log_probs.gather(1, selected_values)
 
+                print("log_probs_for_target.size() = ", log_probs_for_target.size())
+
+                print("log_probs_for_target = ", log_probs_for_target.sum())
+
+                print("log_probs_for_target = ", log_probs_for_target.sum().item())
+
                 # Accumulate the log likelihood
                 log_probs_sum += log_probs_for_target.sum().item()
+
+                print("log_probs_sum = ", log_probs_sum)
                 count += 1
 
             #Apply softmax
@@ -171,7 +185,7 @@ class Connector_LLM(nn.Module):
 
         #return the generated tokens and the loss
 
-        return torch.cat(gen_tokens), torch.tensor(nll_loss, requires_grad=True,device=self.device)
+        return torch.cat(gen_tokens), nll_loss
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text

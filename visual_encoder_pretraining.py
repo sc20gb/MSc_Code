@@ -60,8 +60,6 @@ def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX
         count_t = 0
         for image_tensor, mask_tensor, text in train_loader:
 
-            print(text[0])
-
             optim.zero_grad()
             
             text_tensor = torch.cat([tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = MAX_LENGTH).input_ids for a in text],0).to(device)

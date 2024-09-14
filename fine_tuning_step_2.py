@@ -69,6 +69,8 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     # Calc accuracy
     accuracy = 0
 
+    print("if ", predicted.size(), " == ", target.size(), "then: acc calc")
+
     # This here is the same as EM see the link below
     if predicted.size(0) == target.size(0):
         accuracy += (predicted == target).all()
@@ -107,8 +109,11 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     prec = 0.0
     rec = 0.0
+
+    print("Predicted.size()", predicted.size())
     if predicted.size(0) != 0:
         common_tokens = set(predicted) & set(target)
+        print("Common_tokens = ", common_tokens)
         prec = len(common_tokens) / predicted.size(0)
         rec = len(common_tokens) /  target.size(0)
 
@@ -187,7 +192,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # Optimizer and learning rate scheduling
     optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
-    scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
+    #scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
     loss_epoch = []
@@ -268,7 +273,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             optim.step()
             optim.zero_grad()
 
-        scheduler.step()
+        #scheduler.step()
 
         # VALIDATE
         validation_loss_avg = torch.tensor([0.0])
