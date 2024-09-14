@@ -83,10 +83,11 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:][0]
 
     
+    print("Predicted:")
     print(tokenizer.decode(predicted,skip_special_tokens=True))
 
+    print("Target:")
     print(tokenizer.decode(target,skip_special_tokens=True))
-
     # this score is calculated from the plain english sentences
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
 
@@ -177,8 +178,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     state_dict = torch.load(pre_trained_connector_path)
 
     connector_llm.connector.load_state_dict(state_dict)
-
-    #print("dict loaded")
 
     # LOAD ViT encoder from the CLIP model on the first GPU
     img_encoder = load_ViT_img_encoder(**clip_parameters, device=device_vit, tokenizer=connector_llm.tokenizer, MAX_LENGTH=MAX_LENGTH)
