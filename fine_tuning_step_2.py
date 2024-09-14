@@ -222,7 +222,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
     # Optimizer and learning rate scheduling
-    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
+    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters,foreach=False)
     #scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
@@ -246,7 +246,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 print(f"Memory allocated after first dataload: {torch.cuda.memory_allocated() / 1e6} MB")
 
                 # Get image features from the img encoder (on GPU 0)
-                image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+                with torch.no_grad():
+                    image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
 
 
                 # Check memory after loading the model
