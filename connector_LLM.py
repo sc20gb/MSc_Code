@@ -171,7 +171,7 @@ class Connector_LLM(nn.Module):
             nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
 
         #return the generated tokens and the loss
-        return torch.cat(gen_tokens), torch.tensor(nll_loss, requires_grad=True)
+        return torch.cat(gen_tokens), torch.tensor(nll_loss, requires_grad=True,device=self.device)
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
