@@ -173,7 +173,8 @@ class Connector_LLM(nn.Module):
         #return the generated tokens and the loss
 
         print("at end of forward gen")
-        return torch.cat(gen_tokens, device=self.device), torch.tensor(nll_loss, requires_grad=True,device=self.device)
+        print(torch.cat(gen_tokens).device, self.device)
+        return torch.cat(gen_tokens), torch.tensor(nll_loss, requires_grad=True,device=self.device)
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
