@@ -77,6 +77,9 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     # Calc accuracy
     accuracy = 0
+
+    print(predicted.device)
+    print(target.device)
     # This here is the same as EM see the link below
     if predicted.size(0) == target.size(0):
         accuracy += (predicted == target).all()
