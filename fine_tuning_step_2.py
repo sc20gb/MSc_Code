@@ -204,6 +204,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     connector_llm.connector.load_state_dict(state_dict)
 
+    #Half the size of weights???
+    connector_llm.half()
+
     
     # Check memory after loading the model
     print(f"Memory allocated after connector_LLM: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -222,7 +225,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
     # Optimizer and learning rate scheduling
-    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters,foreach=False)
+    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
     #scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
@@ -256,7 +259,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
                 
                 # Move image features to the second GPU for LLM processing
-                image_features = image_features.to(device_llm)
+                image_features = image_features.half().to(device_llm)
                
                 # Check memory after loading the model
                 print(f"Memory allocated after sending img_features to GPU: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -268,7 +271,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     if len(a) < MAX_LENGTH:
                         answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-                answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
+                answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
                                
                 # Check memory after loading the model
