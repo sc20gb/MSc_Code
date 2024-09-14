@@ -247,7 +247,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                 # Get image features from the img encoder (on GPU 0)
                 with torch.no_grad():
-                    image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+                    image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
 
                 # Check memory after loading the model
