@@ -151,7 +151,9 @@ class Connector_LLM(nn.Module):
 
                 #This will be correct as the ;pg_probs is taken from new tokens which is just the next generated probs
                 #It takes the log probabilities for the target
-                log_probs_for_target = log_probs.gather(1, selected_values)
+
+                print(log_probs.dtype, selected_values.dtype)
+                log_probs_for_target = log_probs.gather(1, selected_values.to(torch.int64))
 
                 print("log_probs_for_target.size() = ", log_probs_for_target.size())
 
