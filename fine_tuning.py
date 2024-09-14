@@ -377,13 +377,13 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
 path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 clip_parameters  =  {
 "transformer_width":512,
-"transformer_layers":12,
+"transformer_layers":6,
 "transformer_heads":8,
 "embed_dim":512,
-"vision_width":768,
+"vision_width":512,
 "image_resolution":224,
 "vision_patch_size":56,
-"vision_layers":12,
+"vision_layers":6,
 "clip_model_path": path1
 
 }
@@ -411,7 +411,7 @@ for wd in WEIGHT_DECAY_LIST ]
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 connector_llm_parameters = {
 "vicuna_path":path,
-"embed_dim": 768, # this is the width of the CLIP ViT
+"embed_dim": 512, # this is the width of the CLIP ViT
 "connector_layers":2
 }
 
