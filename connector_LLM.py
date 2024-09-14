@@ -101,7 +101,7 @@ class Connector_LLM(nn.Module):
 
     def generate_using_forward_method(self, embeddings,attention_mask, max_length=50, temperature=1.0, target=None):
 
-        loss_sum  = 0.0
+        log_probs_sum = 0.0
 
         count = 0
 
