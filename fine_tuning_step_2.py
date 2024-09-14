@@ -194,13 +194,11 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     connector_llm = Connector_LLM(**connector_llm_parameters, device=device_llm, MAX_LENGTH=MAX_LENGTH_LLM)
 
     #Load the pre_trained connector stat_dict
-    #dict = torch.load(pre_trained_connector_path)
-
     state_dict = torch.load(pre_trained_connector_path)
 
     connector_llm.connector.load_state_dict(state_dict)
 
-    #Half the size of weights???
+    #Half the size of weights for the connector and LLM
     connector_llm.half()
 
     
@@ -213,6 +211,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # FREEZE CLIP TRAINING (should save memory and computation as well)
     img_encoder.eval()
+
+    # half the size of its weights to save memory
+    img_encoder.half()
 
 
         
