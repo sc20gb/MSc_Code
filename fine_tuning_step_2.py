@@ -11,7 +11,7 @@ from CLIP import VisionTransformer
 from transformers import get_cosine_schedule_with_warmup
 
 
-from connector_LLM import Connector_LLM
+from connector_LLM import Connector_LLM, print_memory_usage
 
 import re
 
@@ -109,6 +109,14 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     prec = 0.0
     rec = 0.0
+
+
+#     8 Predicted:
+#   409 yes,
+#   410 Target:
+#   411 yes
+#   412 Predicted.size() torch.Size([2])
+#   413 Common_tokens =  set()
 
     print("Predicted.size()", predicted.size())
     if predicted.size(0) != 0:
@@ -239,12 +247,15 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     max_length=MAX_LENGTH_LLM
                 )
 
+                print_memory_usage()
 
                 loss.backward()
 
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     print('Skipping batch due to OOM')
+                    print(e)
+                    
                 else:
                     print(e)
                 continue
@@ -323,6 +334,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 except RuntimeError as e:
                     if "out of memory" in str(e):
                         print('Skipping batch due to OOM')
+                        print(e)
                     else:
                         print(e)
                     continue

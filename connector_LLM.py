@@ -110,6 +110,7 @@ class Connector_LLM(nn.Module):
         print("generating prob:")
         # Autoregressive generation loop
         for i in range(max_length):
+            print_memory_usage()
             # if vicuna does not need traning save mem
 
             if not self.vicuna.training:
