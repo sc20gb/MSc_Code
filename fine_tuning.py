@@ -224,7 +224,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 4)
+                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
                 
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
@@ -306,7 +306,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                         answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
                         # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                        output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]) + 2)
+                        output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
                         
                         accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                             output,
@@ -372,8 +372,9 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
     return loss_epoch
 
 #/nobackup/sc20gwb/Models/Models_to_upload
-path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
+#path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
+path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 clip_parameters  =  {
 "transformer_width":512,
 "transformer_layers":12,
@@ -389,7 +390,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.1,0.5]#[0.01,0.05]#[0.001,0.0001, 0.00001]
+LR_LIST = [0.01]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
