@@ -71,8 +71,6 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     # Calc accuracy
     accuracy = 0
 
-    print("if ", predicted.size(), " == ", target.size(), "then: acc calc")
-
     # This here is the same as EM see the link below
     if predicted.size(0) == target.size(0):
         accuracy += (predicted == target).all()
@@ -87,11 +85,11 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:][0]
 
     
-    print("Predicted:")
-    print(tokenizer.decode(predicted,skip_special_tokens=True))
+    # print("Predicted:")
+    # print(tokenizer.decode(predicted,skip_special_tokens=True))
 
-    print("Target:")
-    print(tokenizer.decode(target,skip_special_tokens=True))
+    # print("Target:")
+    # print(tokenizer.decode(target,skip_special_tokens=True))
     # this score is calculated from the plain english sentences
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
 
@@ -120,10 +118,8 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 #   412 Predicted.size() torch.Size([2])
 #   413 Common_tokens =  set()
 
-    print("Predicted.size()", predicted.size())
     if predicted.size(0) != 0:
         common_tokens = set(predicted) & set(target)
-        print("Common_tokens = ", common_tokens)
         prec = len(common_tokens) / predicted.size(0)
         rec = len(common_tokens) /  target.size(0)
 
@@ -225,7 +221,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
     # Optimizer and learning rate scheduling
-    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
+    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters,foreach=False)
     #scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
@@ -246,7 +242,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             try:
                 
                 # Check memory after loading the model
-                print(f"Memory allocated after first dataload: {torch.cuda.memory_allocated() / 1e6} MB")
+                print(f"Memory allocated after first dataload: {torch.cuda.memory_allocated() / 1e6} MB ###########")
 
                 # Get image features from the img encoder (on GPU 0)
                 with torch.no_grad():
@@ -306,12 +302,10 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
 
-                print_memory_usage()
-
                 loss.backward()
 
                 # Check memory after loading the model
-                print(f"Memory allocated after backwards(): {torch.cuda.memory_allocated() / 1e6} MB")
+                print(f"Memory allocated after backwards(): {torch.cuda.memory_allocated() / 1e6} MB #######")
 
             except RuntimeError as e:
                 if "out of memory" in str(e):
