@@ -248,7 +248,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 print("at metrics")
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
-                    [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten() for a in answer],
+                    [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
                     tokenizer=connector_llm.tokenizer,
                     max_length=MAX_LENGTH_LLM
                 )
