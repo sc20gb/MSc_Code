@@ -159,7 +159,7 @@ class Connector_LLM(nn.Module):
                 print("log_probs_for_target = ", log_probs_for_target.sum().item())
 
                 # Accumulate the log likelihood
-                log_probs_sum += log_probs_for_target.sum().item()
+                log_probs_sum += log_probs_for_target.sum()
 
                 print("log_probs_sum = ", log_probs_sum)
                 count += 1
@@ -184,7 +184,7 @@ class Connector_LLM(nn.Module):
             attention_mask = self.update_attention(attention_mask,gen_embeddings.size(1))
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)
-            nll_loss = -log_probs_sum #/ float(count)  # Maximize likelihood by minimizing negative log-likelihood
+            nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
 
         #return the generated tokens and the loss
 
