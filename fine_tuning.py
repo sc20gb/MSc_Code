@@ -72,44 +72,33 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     # We need it to be a list of tensors instead 
     # Pad the predicted tensors after the </s> to the unk token [....,answer,2,44235,3153,...] -> [answer,2]
-    print("1")
     target = target[0]
 
     # Calc accuracy
     accuracy = 0
 
-    print(predicted.device)
-    print(target.device)
     # This here is the same as EM see the link below
     if predicted.size(0) == target.size(0):
         accuracy += (predicted == target).all()
 
 
-    print("2")
 
     # we need to ensure that the answer has its captials and its whitespace removed
     predcted_string = process_string(tokenizer.decode(predicted,skip_special_tokens=True))
-    print("3")
 
     # Now we convert it back to its tokens to be used with the rest of the program
     # The <s> token is removed also
     predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:][0]
-    print("4")
 
     
     print(tokenizer.decode(predicted,skip_special_tokens=True))
-    print("5")
 
     print(tokenizer.decode(target,skip_special_tokens=True))
-    print("6")
-
 
     # this score is calculated from the plain english sentences
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
-    print("7")
 
     ans = [[tokenizer.decode(target,skip_special_tokens=True)]]
-    print("8")
 
     if not pred[0] or pred[0].isspace():
         bleu_score_ = 0.0
@@ -118,8 +107,7 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
             pred,
             ans,
             n_gram=1)
-    print("9")
-
+        
     # https://qa.fastforwardlabs.com/no%20answer/null%20threshold/bert/distilbert/exact%20match/f1/robust%20predictions/2020/06/09/Evaluating_BERT_on_SQuAD.html#F1
     # precision here is the number of shared words / len(predict)
     #recall is the number of shared words / len(target)
@@ -136,8 +124,6 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     else:
         f1 = 2 * (prec * rec) / (prec + rec)
 
-
-    print("10")
 
     return accuracy, bleu_score_,prec,rec,f1
 
@@ -222,7 +208,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             
             try:
-                print("at im_encoder")
                 # Get image features from the img encoder (on GPU 0)
                 image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
@@ -240,12 +225,10 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
 
                 answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
-                print("at connector_llm")
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
                 output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
 
 
-                print("at metrics")
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
                     [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
@@ -268,7 +251,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
              # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
             
             if (count_t + 1) % accumulation_steps == 0:
-                print("Optim.step()1")
                 optim.step()
                 optim.zero_grad()
 
@@ -287,7 +269,6 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
 
             # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
-            print("Optim.step()2")
             optim.step()
             optim.zero_grad()
 
@@ -308,32 +289,33 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
 
                 try:
                      # Get image features from the img encoder (on GPU 0)
-                        image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+                    image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+                    #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
+                    image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
+                    
+                    # Move image features to the second GPU for LLM processing
+                    image_features = image_features.to(device_llm)
 
-                        #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
-                        image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
+                    # Format data and "tokenize" inputs for the LLM
+                    answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
 
-                        # Move image features to the second GPU for LLM processing
-                        image_features = image_features.to(device_llm)
+                    for i, a in enumerate(answer_):
+                        if len(a) < MAX_LENGTH:
+                            answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-                        # Format data and "tokenize" inputs for the LLM
-                        answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
+                    answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
-                        for i, a in enumerate(answer_):
-                            if len(a) < MAX_LENGTH:
-                                answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
+                    # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
+                    output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
 
-                        answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
 
-                        # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                        output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
-                        
-                        accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
-                            output,
-                            [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten() for a in answer],
-                            tokenizer=connector_llm.tokenizer,
-                            max_length=MAX_LENGTH_LLM
-                        )
+                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
+                        output,
+                        [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
+                        tokenizer=connector_llm.tokenizer,
+                        max_length=MAX_LENGTH_LLM
+                    )
+
 
                 except RuntimeError as e:
                     if "out of memory" in str(e):
@@ -442,13 +424,13 @@ additional_parameters = {
     "batch_size": 1,
     "vir_batch_size": 16,
     "rand_seed": 42,
-    "MAX_EPOC": 3,
+    "MAX_EPOC": 1,
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
     "save": True,
     "cpu_only": False,
-    "hidden_layer_from_end": 1
+    "hidden_layer_from_end": 0
 }
 
 
