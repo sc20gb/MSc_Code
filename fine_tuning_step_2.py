@@ -256,7 +256,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
                 
                 # Move image features to the second GPU for LLM processing
-                image_features = image_features.half().to(device_llm)
+                image_features = image_features.to(device_llm)
                
                 # Check memory after loading the model
                 print(f"Memory allocated after sending img_features to GPU: {torch.cuda.memory_allocated() / 1e6} MB")
