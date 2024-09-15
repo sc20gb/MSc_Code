@@ -252,7 +252,7 @@ class Connector_LLM(nn.Module):
         # Concatenate embeddings across batches
         #embeddings = torch.stack(embedded_text, dim=0)
 
-        self.attributes_to_delete.append(split_ids,tokenized_list)
+        self.attributes_to_delete.extend([split_ids,tokenized_list])
 
         return embedded_text[0]
 
