@@ -99,7 +99,7 @@ class Connector_LLM(nn.Module):
         causal_mask = torch.tril(torch.ones((embeddings.size(0), embeddings.size(0)))).bool().unsqueeze(0).to(self.device)
         return causal_mask
 
-    def update_attention(self,attention,size):
+    def update_attention(self, size):
         return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
 
 
@@ -194,8 +194,10 @@ class Connector_LLM(nn.Module):
                     break
 
             print(f"Memory allocated after cating embeddings: {torch.cuda.memory_allocated() / 1e6} MB")
+
+            self.attributes_to_delete.append(attention_mask)
         
-            attention_mask = self.update_attention(attention_mask,gen_embeddings.size(1))
+            attention_mask = self.update_attention(gen_embeddings.size(1))
 
             print(f"Memory allocated after updating the attention mask: {torch.cuda.memory_allocated() / 1e6} MB")
 
@@ -205,8 +207,12 @@ class Connector_LLM(nn.Module):
 
             print(f"Memory allocated after nll_loss and itr end: {torch.cuda.memory_allocated() / 1e6} MB")
 
+            self.attributes_to_delete.append(outputs,new_tokens)
+
         #return the generated tokens and the loss
         print(f"Memory allocated after gen function: {torch.cuda.memory_allocated() / 1e6} MB")
+
+        self.attributes_to_delete.append(gen_embeddings)
 
         return torch.cat(gen_tokens), nll_loss
 
@@ -242,6 +248,8 @@ class Connector_LLM(nn.Module):
 
         # Concatenate embeddings across batches
         #embeddings = torch.stack(embedded_text, dim=0)
+
+        self.attributes_to_delete.append(split_ids,tokenized_list)
 
         return embedded_text[0]
 
@@ -298,11 +306,24 @@ class Connector_LLM(nn.Module):
 
         print(f"Memory allocated after generate: {torch.cuda.memory_allocated() / 1e6} MB")
 
-        # Clear any unused variables to free up memory
-        del image_features, embeddings, attention_mask
+        # Clear any unused variables to free up memory when requested
+        self.attributes_to_delete.append(image_features,embeddings,attention_mask,gen)
+
         torch.cuda.empty_cache()  # Clear the CUDA cache
 
 
         print(f"Memory allocated after emptying cache and deleting variables: {torch.cuda.memory_allocated() / 1e6} MB")
 
         return gen, loss
+
+
+    def delete_non_weight_vars(self):
+        self.attributes_to_delete = []
+
+        # Iterate through all attributes of the class to delete
+        for attr_name in self.attributes_to_delete:
+            delattr(self, attr_name)
+            print(f"Deleted attribute: {attr_name}")
+
+        # Optionally, clear unused memory
+        torch.cuda.empty_cache()  # If using CUDA, clear unused GPU memory
