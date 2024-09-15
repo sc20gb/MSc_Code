@@ -72,12 +72,11 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
     # The <s> token is removed also
     predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:][0]
 
-    
     # print("Predicted:")
     # print(tokenizer.decode(predicted,skip_special_tokens=True))
 
     # print("Target:")
-    # print(tokenizer.decode(target,skip_special_tokens=True))
+
     # this score is calculated from the plain english sentences
     pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
 
@@ -97,15 +96,6 @@ def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
 
     prec = 0.0
     rec = 0.0
-
-
-#     8 Predicted:
-#   409 yes,
-#   410 Target:
-#   411 yes
-#   412 Predicted.size() torch.Size([2])
-#   413 Common_tokens =  set()
-
     if predicted.size(0) != 0:
         common_tokens = set(predicted) & set(target)
         prec = len(common_tokens) / predicted.size(0)
@@ -151,7 +141,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
         else:
             print("Only one GPU available, models are split between CPU and GPU 0")
-            device_vit = torch.device("cpu")
+            device_vit = torch.device("cuda:0")
             device_llm = torch.device("cuda:0")
     else:
         print("CUDA is not available. Training will proceed on CPU.")
@@ -216,7 +206,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # Optimizer and learning rate scheduling
     optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters,foreach=False)
-    #scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
+    scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
     for n in range(1, MAX_EPOC + 1):
@@ -263,7 +253,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 
                 # Move image features to the second GPU for LLM processing
                 image_features = image_features.to(device_llm)
-               
 
                 # Format data and "tokenize" inputs for the LLM
                 answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
@@ -278,7 +267,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
  
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer])) # TODO: mem leak here
+                output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
 
 
  
@@ -334,7 +323,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             optim.step()
             optim.zero_grad()
 
-        #scheduler.step()
+        scheduler.step()
 
         # VALIDATE
         validation_loss_avg = torch.tensor([0.0])
@@ -342,7 +331,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         val_precision_avg = 0.0
         val_recall_avg = 0.0
         val_f1_avg = 0.0
-        val_count_q = 0.0
         val_bleu_score_avg = 0.0
         count = 0
         connector_llm.eval()
@@ -392,8 +380,11 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     if "out of memory" in str(e):
                         print('Skipping batch due to OOM')
                         print(e)
+                        sys.exit()
                     else:
+                        print("Error:")
                         print(e)
+                        print("Skipping batch")
                     continue
                 # dont worry about the metrics here the values should be the same as +=  0.0, also the count only increases after the continue so the loss avg is fine too
 
@@ -406,7 +397,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 val_f1_avg += f1
                 val_bleu_score_avg += bleu_score
                 count = count + 1
-                val_count_q += answer_.size(0)
 
         # SAVE RESULTS
         if save:
@@ -414,20 +404,36 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 os.makedirs(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "MLLM_V_" + str(VERSION)))
             torch.save(connector_llm.state_dict(), os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "MLLM_V_" + str(VERSION), "MLLM_model" + str(n) + ".pth"))
 
-        wandb.log({
-            "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
-            "loss_training": trainng_loss_avg.to('cpu').detach().numpy()[0] / count_t,
-            "val_accuracy_avg": val_accuracy_avg / val_count_q,
-            "train_accuracy_avg": train_accuracy_avg / count_q,
-            "val_precision_avg": val_precision_avg / count,
-            "train_precision_avg": train_precision_avg / count_t,
-            "val_recall_avg": val_recall_avg / count,
-            "train_recall_avg": train_recall_avg / count_t,
-            "val_f1_avg": val_f1_avg / count,
-            "train_f1_avg": train_f1_avg / count_t,
-            "train_bleu_score_avg": train_bleu_score_avg / count_t,
-            "val_bleu_score_avg": val_bleu_score_avg / count
-        })
+        if count != 0 and count_t != 0:
+            wandb.log({
+                "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
+                "loss_training": trainng_loss_avg.to('cpu').detach().numpy()[0] / count_t,
+                "val_accuracy_avg": val_accuracy_avg / count,
+                "train_accuracy_avg": train_accuracy_avg / count_q,
+                "val_precision_avg": val_precision_avg / count,
+                "train_precision_avg": train_precision_avg / count_t,
+                "val_recall_avg": val_recall_avg / count,
+                "train_recall_avg": train_recall_avg / count_t,
+                "val_f1_avg": val_f1_avg / count,
+                "train_f1_avg": train_f1_avg / count_t,
+                "train_bleu_score_avg": train_bleu_score_avg / count_t,
+                "val_bleu_score_avg": val_bleu_score_avg / count
+            })
+        else:
+             wandb.log({
+                "loss_validate": -1,
+                "loss_training": -1,
+                "val_accuracy_avg": -1,
+                "train_accuracy_avg": -1,
+                "val_precision_avg": -1,
+                "train_precision_avg": -1,
+                "val_recall_avg": -1,
+                "train_recall_avg": -1,
+                "val_f1_avg": -1,
+                "train_f1_avg": -1,
+                "train_bleu_score_avg": -1,
+                "val_bleu_score_avg": -1
+            })
 
     return 0
 
@@ -450,7 +456,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.0001,0.00001]
+LR_LIST = [0.001,0.0005]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -480,7 +486,7 @@ additional_parameters = {
     "per_warm": 0.2,
     "image_size": 224,
     "batch_size": 1,
-    "vir_batch_size": 50,
+    "vir_batch_size": 32,
     "rand_seed": 42,
     "MAX_EPOC": 15,
     "MAX_LENGTH": 256,
