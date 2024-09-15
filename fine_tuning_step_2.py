@@ -317,7 +317,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 # Check memory after loading the model
                 print(f"Memory allocated after metric calc: {torch.cuda.memory_allocated() / 1e6} MB")
 
-                loss.backward() # TODO: mem leak here
+                #loss.backward() # TODO: mem leak here
 
                 # Check memory after loading the model
                 print(f"Memory allocated after backwards(): {torch.cuda.memory_allocated() / 1e6} MB #######")
