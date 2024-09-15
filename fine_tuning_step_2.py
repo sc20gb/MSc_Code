@@ -141,7 +141,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
         else:
             print("Only one GPU available, models are split between CPU and GPU 0")
-            device_vit = torch.device("cuda:0")
+            device_vit = torch.device("cpu")
             device_llm = torch.device("cuda:0")
     else:
         print("CUDA is not available. Training will proceed on CPU.")
@@ -208,11 +208,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
-
-    for name, param in connector_llm.named_parameters():
-        print(name)
-
-    
     # Record the loss at the epoch
     for n in range(1, MAX_EPOC + 1):
         connector_llm.train()
