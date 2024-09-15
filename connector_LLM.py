@@ -92,7 +92,7 @@ class Connector_LLM(nn.Module):
         
         return filtered_prompt
     
-    def generate_attention(self,embeddings,text_list):
+    def generate_attention(self,embeddings):
         causal_mask = torch.tril(torch.ones((embeddings.size(0), embeddings.size(0)))).bool().unsqueeze(0).to(self.device)
         return causal_mask
 
@@ -175,77 +175,71 @@ class Connector_LLM(nn.Module):
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
-    def encode_text_and_image(self, question,image_features):
+def encode_text_and_image(self, question, image_features):
+    # Initialize lists for split ids and text embeddings
+    split_ids = []
 
-        #So we know where to put the img
-        split_ids = []
+    # Tokenize all text segments across the batch
+    tokenized_list = []
+    for q in question:
+        # Tokenize and prepare text
+        tokens = self.tokenizer("Image: ").input_ids
+        split_ids.append(len(tokens))
+        tokens.extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
+        tokenized_list.append(torch.tensor(tokens, dtype=torch.int64, device=self.device))
 
-        # so we know which are which embedding
-        text_list = []
+    # Embed all text tokens
+    embedded_text = []
+    for tokens in tokenized_list:
+        embedded_text.append(self.vicuna.get_input_embeddings()(tokens))
 
-        #tokenise all text segments across the batch
-        tokenised_list = []
-        for i, q in enumerate(question):
-            tokenised_list.append([])
-            tokenised_list[i].extend(self.tokenizer("Image: ").input_ids)
-            split_ids.append(len(tokenised_list[i]))
-            tokenised_list[i].extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
-            tokenised_list[i] = torch.tensor(tokenised_list[i],dtype=torch.int64).to(self.device)
-            
-        embedded_text = []
-        #Embed all of the text tokens
-        for b in tokenised_list:
-                embedded_text.append(self.vicuna.get_input_embeddings()(b))
+    # Adding image embeddings
+    for i in range(len(image_features)):
+        # Split the embedded text at the appropriate index
+        s1 = embedded_text[i][:split_ids[i]]
+        s2 = embedded_text[i][split_ids[i]:]
 
-        # adding image embeddings
-        for i in range(image_features.size(0)):
-            # insert the image feature at the point shown in split_ids
+        # Concatenate image features with embedded text
+        combined_embeddings = torch.cat((s1, image_features[i], s2), dim=0)
+        embedded_text[i] = combined_embeddings
 
-            text_list.append([])
-            embedded_text[i]
-            s1 = embedded_text[i][:split_ids[i],:]
-            s2 = embedded_text[i][split_ids[i]:,:]
+    # Concatenate embeddings across batches
+    embeddings = torch.stack(embedded_text, dim=0)
 
-            for token in s1: text_list[i].append(1)
-
-            for token in image_features[0]: text_list.append(0)
-
-            for token in s2: text_list[i].append(1)
-
-            embedded_text[i] = torch.cat((s1,image_features.squeeze(0),s2), dim=0)
+    return embeddings
 
 
-        embeddings = torch.cat(embedded_text, dim=-1)
+def forward(self, image_features, question, answer, max_length):
+    batch_size, n_patches, *feature_dims = image_features.shape
 
-        return embeddings, text_list
+    # Reshape image features to merge the batch and 17 dimensions
+    image_features = image_features.view(batch_size * n_patches, *feature_dims)
 
-    def forward(self, image_features,question,answer,max_length):
+    # Project to LLM embedding space
+    image_features = self.connector(image_features)
 
+    # Reshape back to original dimensions after projection
+    image_features = image_features.view(batch_size, n_patches, -1)
 
-        batch_size, n_patches, *feature_dims = image_features.shape # 1,1,*
+    # Encode text and images into the embedding expected by the LLM
+    embeddings = self.encode_text_and_image(question, image_features)
 
-        # Reshape image features to merge the batch and 17 dimensions
-        image_features = image_features.view(batch_size * n_patches, *feature_dims) # 1, *
+    # Generate the attention mask
+    attention_mask = self.generate_attention(embeddings)
 
-        # project to LLM embedding space
-        image_features = self.connector(image_features)
+    # Move embeddings to the device
+    embeddings = embeddings.to(self.device)
 
-        # Reshape back to original dimensions after projection
-        image_features = image_features.view(batch_size, n_patches, -1)
+    # Ensure embeddings have a batch dimension
+    if embeddings.dim() == 2:
+        embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
-        # Encode text and images into the embedding expected by the LLM
-        embeddings, text_list = self.encode_text_and_image(question,image_features)
+    # Autoregressive prediction
+    # Ensure no unnecessary intermediate results are kept
+    gen, loss = self.generate_using_forward_method(embeddings, attention_mask, target=answer, max_length=max_length, temperature=0.9)
 
-        # Generate the attention mask
-        attention_mask = self.generate_attention(embeddings,text_list)
+    # Clear any unused variables to free up memory
+    del image_features, embeddings, attention_mask
+    torch.cuda.empty_cache()  # Clear the CUDA cache
 
-        #This passes the embeddings to the LLM
-        embeddings =  embeddings.to(self.device)
-
-        if embeddings.dim() == 2:
-            embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
-
-        #Autoregressive prediction
-        gen,loss = self.generate_using_forward_method(embeddings,attention_mask,target=answer,max_length=max_length,temperature=0.9)
-
-        return gen, loss
+    return gen, loss
