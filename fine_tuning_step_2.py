@@ -26,6 +26,8 @@ import wandb
 
 import math
 
+import gc
+
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
     # clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=MAX_LENGTH,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
@@ -301,13 +303,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 # Check memory after loading the model
                 print(f"Memory allocated after metric calc: {torch.cuda.memory_allocated() / 1e6} MB")
 
-                torch.cuda.empty_cache()
-                               
-                # Check memory after loading the model
-                print(f"Memory allocated after clearing cache: {torch.cuda.memory_allocated() / 1e6} MB")
-
-
-
                 loss.backward()
 
                 # Check memory after loading the model
@@ -325,8 +320,15 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 else:
                     print(e)
                 continue
-                    
+            
 
+            
+            gc.collect()
+
+            torch.cuda.empty_cache()
+                            
+            # Check memory after loading the model
+            print(f"Memory allocated after clearing cache: {torch.cuda.memory_allocated() / 1e6} MB")
 
              # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
             if (count_t + 1) % accumulation_steps == 0:
@@ -345,6 +347,16 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_bleu_score_avg += bleu_score
             count_t = count_t + 1
             count_q += answer_.size(0)
+
+
+        
+        gc.collect()
+
+        torch.cuda.empty_cache()
+                        
+        # Check memory after loading the model
+        print(f"Memory allocated after clearing cache: {torch.cuda.memory_allocated() / 1e6} MB")
+
 
             # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
