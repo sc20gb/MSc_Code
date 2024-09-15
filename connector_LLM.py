@@ -109,6 +109,8 @@ class Connector_LLM(nn.Module):
         return outputs
 
     def generate_using_forward_method(self, embeddings,attention_mask, max_length, temperature, target):
+
+        print(f"Memory allocated after gen start: {torch.cuda.memory_allocated() / 1e6} MB")
         log_probs_sum = 0.0
 
         count = 0
@@ -116,9 +118,12 @@ class Connector_LLM(nn.Module):
         gen_embeddings = embeddings
 
         gen_tokens = []
+
+
         # Autoregressive generation loop
         for i in range(max_length):
             # if vicuna does not need traning save mem
+            print(f"Memory allocated after gen loop start: {torch.cuda.memory_allocated() / 1e6} MB")
 
             if not self.vicuna.training:
                 with torch.no_grad():
@@ -126,9 +131,19 @@ class Connector_LLM(nn.Module):
             else:
                 outputs = checkpoint(self.wrapper_vicuna_forward,gen_embeddings,attention_mask)
 
+
+            print(f"Memory allocated after vicuna: {torch.cuda.memory_allocated() / 1e6} MB")
+
             outputs.logits.requires_grad_()
+
+
+            print(f"Memory allocated after outputs requires grad: {torch.cuda.memory_allocated() / 1e6} MB")
+
             # Get the logits of the last token and apply temperature scaling
             new_tokens = outputs.logits[:, -1, :] / temperature
+
+
+            print(f"Memory allocated after new_tokens: {torch.cuda.memory_allocated() / 1e6} MB")
 
             # Generate the loss for the model based on the answer
             if target  !=  None:
@@ -155,6 +170,9 @@ class Connector_LLM(nn.Module):
                 log_probs_sum += log_probs_for_target.sum()
 
                 count += 1
+            
+
+            print(f"Memory allocated after loss calc: {torch.cuda.memory_allocated() / 1e6} MB")
 
             #Apply softmax
             prob_logits = torch.nn.functional.softmax(new_tokens, dim=1)
@@ -166,19 +184,29 @@ class Connector_LLM(nn.Module):
             
             next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
 
+            print(f"Memory allocated after vicuna get input embeddings: {torch.cuda.memory_allocated() / 1e6} MB")
+
             gen_embeddings = torch.cat((gen_embeddings,next_embedding.unsqueeze(1)),dim=1)
 
             # check output token for eos if batch size is just one
             if (next_embedding.size()[0] < 2):
                 if next_token_ids[0] == self.tokenizer.eos_token_id:
                     break
+
+            print(f"Memory allocated after cating embeddings: {torch.cuda.memory_allocated() / 1e6} MB")
         
             attention_mask = self.update_attention(attention_mask,gen_embeddings.size(1))
+
+            print(f"Memory allocated after updating the attention mask: {torch.cuda.memory_allocated() / 1e6} MB")
+
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)
             nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
 
+            print(f"Memory allocated after nll_loss and itr end: {torch.cuda.memory_allocated() / 1e6} MB")
+
         #return the generated tokens and the loss
+        print(f"Memory allocated after gen function: {torch.cuda.memory_allocated() / 1e6} MB")
 
         return torch.cat(gen_tokens), nll_loss
 
@@ -229,9 +257,13 @@ class Connector_LLM(nn.Module):
 
         # Reshape image features to merge the batch and 17 dimensions
         #image_features = image_features.view(batch_size * n_patches, *feature_dims)
+        print(f"Memory allocated after forward start: {torch.cuda.memory_allocated() / 1e6} MB")
+
 
         # Project to LLM embedding space
         image_features = checkpoint(self.connector,image_features)
+
+        print(f"Memory allocated after connector: {torch.cuda.memory_allocated() / 1e6} MB")
 
         # Reshape back to original dimensions after projection
         #image_features = image_features.view(batch_size, n_patches, -1)
@@ -239,22 +271,38 @@ class Connector_LLM(nn.Module):
         # Encode text and images into the embedding expected by the LLM
         embeddings = checkpoint(self.encode_text_and_image,question, image_features)
 
+        print(f"Memory allocated after encoding text: {torch.cuda.memory_allocated() / 1e6} MB")
+
         # Generate the attention mask
         attention_mask = checkpoint(self.generate_attention,embeddings)
 
+
+        print(f"Memory allocated after generating attention: {torch.cuda.memory_allocated() / 1e6} MB")
+
         # Move embeddings to the device
         embeddings = embeddings.to(self.device)
+
+
+        print(f"Memory allocated after embedings to device: {torch.cuda.memory_allocated() / 1e6} MB")
 
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
+        print(f"Memory allocated after dim change: {torch.cuda.memory_allocated() / 1e6} MB")
+
         # Autoregressive prediction
         # Ensure no unnecessary intermediate results are kept
         gen, loss = self.generate_using_forward_method(embeddings, attention_mask, max_length, 0.9, answer)
 
+
+        print(f"Memory allocated after generate: {torch.cuda.memory_allocated() / 1e6} MB")
+
         # Clear any unused variables to free up memory
         del image_features, embeddings, attention_mask
         torch.cuda.empty_cache()  # Clear the CUDA cache
+
+
+        print(f"Memory allocated after emptying cache and deleting variables: {torch.cuda.memory_allocated() / 1e6} MB")
 
         return gen, loss

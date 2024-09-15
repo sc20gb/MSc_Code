@@ -245,6 +245,16 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         count_q = 0
         optim.zero_grad()
         for image_tensor, mask_tensor, question, answer in train_loader:
+
+
+
+            gc.collect()
+
+            torch.cuda.empty_cache()
+                        
+            # Check memory after loading the model
+            print(f"Memory allocated after clearing cache at start of itr: {torch.cuda.memory_allocated() / 1e6} MB")
+            torch.cuda.reset_peak_memory_stats()
             
             try:
                 print("At itr: ", count_t)
@@ -282,7 +292,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
+                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer])) # TODO: mem leak here
 
 
                                
@@ -302,7 +312,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 # Check memory after loading the model
                 print(f"Memory allocated after metric calc: {torch.cuda.memory_allocated() / 1e6} MB")
 
-                loss.backward()
+                loss.backward() # TODO: mem leak here
 
                 # Check memory after loading the model
                 print(f"Memory allocated after backwards(): {torch.cuda.memory_allocated() / 1e6} MB #######")
