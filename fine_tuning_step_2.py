@@ -339,10 +339,12 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             # Check memory after loading the model
             print(f"Memory allocated after clearing cache: {torch.cuda.memory_allocated() / 1e6} MB")
 
-             # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
+            # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
             if (count_t + 1) % accumulation_steps == 0:
                 optim.step()
                 optim.zero_grad()
+
+                connector_llm.delete_non_weight_vars()
 
                 gc.collect()
                 torch.cuda.empty_cache()
