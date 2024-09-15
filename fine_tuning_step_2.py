@@ -233,7 +233,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     #scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
-    loss_epoch = []
     for n in range(1, MAX_EPOC + 1):
         connector_llm.train()
         trainng_loss_avg = torch.tensor([0.0])
@@ -313,10 +312,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     print('Skipping batch due to OOM')
                     print(e)
                     sys.exit()
-
-
-
-                    
                 else:
                     print(e)
                 continue
@@ -324,7 +319,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
             
             gc.collect()
-
             torch.cuda.empty_cache()
                             
             # Check memory after loading the model
@@ -332,11 +326,18 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
              # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
             if (count_t + 1) % accumulation_steps == 0:
-                print("optim.step()")
                 optim.step()
                 optim.zero_grad()
 
             connector_llm.zero_grad()
+
+
+            accuracy = accuracy.detach()
+            bleu_score = bleu_score.detach()
+            precision = precision.detach()
+            recall = recall.detach()
+            f1 = f1.detach()
+
 
             trainng_loss_avg += loss.to('cpu')
 
@@ -350,12 +351,13 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
         
-        gc.collect()
+            gc.collect()
 
-        torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
                         
-        # Check memory after loading the model
-        print(f"Memory allocated after clearing cache: {torch.cuda.memory_allocated() / 1e6} MB")
+            # Check memory after loading the model
+            print(f"Memory allocated after clearing cache at end of itr: {torch.cuda.memory_allocated() / 1e6} MB")
+            torch.cuda.reset_peak_memory_stats()
 
 
             # Ensure to perform a step if we have leftover gradients
@@ -444,6 +446,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     continue
                 # dont worry about the metrics here the values should be the same as +=  0.0, also the count only increases after the continue so the loss avg is fine too
 
+                
+
                 validation_loss_avg += loss.to('cpu')
 
                 val_accuracy_avg += accuracy
@@ -475,7 +479,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             "val_bleu_score_avg": val_bleu_score_avg / count
         })
 
-    return loss_epoch
+    return 0
 
 #/nobackup/sc20gwb/Models/Models_to_upload
 #path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
