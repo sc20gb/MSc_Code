@@ -53,6 +53,9 @@ class Connector_LLM(nn.Module):
 
         self.vicuna_path = vicuna_path
 
+
+        self.attributes_to_delete = []
+
     def _initialize_weights(self):
             for m in self.connector.modules():
                 if isinstance(m, nn.Linear):
@@ -318,8 +321,6 @@ class Connector_LLM(nn.Module):
 
 
     def delete_non_weight_vars(self):
-        self.attributes_to_delete = []
-
         # Iterate through all attributes of the class to delete
         for attr_name in self.attributes_to_delete:
             delattr(self, attr_name)
