@@ -114,8 +114,8 @@ class Connector_LLM(nn.Module):
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features):
         # Project to LLM embedding space
         if torch.is_grad_enabled():
-            image_features.requires_grad_()
-            image_features = checkpoint(self.connector, image_features)
+            #image_features.requires_grad_()
+            image_features = self.connector(image_features)
         else:
             image_features = self.connector(image_features)
 
