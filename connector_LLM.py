@@ -207,9 +207,9 @@ class Connector_LLM(nn.Module):
             embedded_text[i] = combined_embeddings
 
         # Concatenate embeddings across batches
-        embeddings = torch.stack(embedded_text, dim=0)
+        #embeddings = torch.stack(embedded_text, dim=0)
 
-        return embeddings
+        return embedded_text[0]
 
 
     def forward(self, image_features, question, answer, max_length):
