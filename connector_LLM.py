@@ -315,7 +315,7 @@ class Connector_LLM(nn.Module):
         print(f"Memory allocated after generate: {torch.cuda.memory_allocated() / 1e6} MB")
 
         # Clear any unused variables to free up memory when requested
-        self.attributes_to_delete.extend([image_features,embeddings,attention_mask,gen])
+        self.attributes_to_delete.extend([embeddings,attention_mask,gen])
 
         torch.cuda.empty_cache()  # Clear the CUDA cache
 
