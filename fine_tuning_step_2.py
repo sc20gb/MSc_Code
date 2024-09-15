@@ -252,7 +252,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         
 
         for image_tensor, mask_tensor, question, answer in train_loader:
-
+            print(" Train itr ", str(count_t), " of ", len(train_loader))
 
 
             gc.collect()
@@ -264,25 +264,18 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             torch.cuda.reset_peak_memory_stats()
             
             try:
-                print("At itr: ", count_t)
-                # Check memory after loading the model
-                print(f"Memory allocated after first dataload: {torch.cuda.memory_allocated() / 1e6} MB ###########")
 
                 # Get image features from the img encoder (on GPU 0)
                 with torch.no_grad():
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
 
-                # Check memory after loading the model
-                print(f"Memory allocated after img_encoder forwards: {torch.cuda.memory_allocated() / 1e6} MB")
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
                 
                 # Move image features to the second GPU for LLM processing
                 image_features = image_features.to(device_llm)
                
-                # Check memory after loading the model
-                print(f"Memory allocated after sending img_features to GPU: {torch.cuda.memory_allocated() / 1e6} MB")
 
                 # Format data and "tokenize" inputs for the LLM
                 answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
@@ -294,18 +287,13 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
                                
-                # Check memory after loading the model
-                print(f"Memory allocated after answers_ generations: {torch.cuda.memory_allocated() / 1e6} MB")
-
+ 
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
                 output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer])) # TODO: mem leak here
 
 
-                # Check memory after loading the model
-                print(f"Memory allocated after connector_LLM forward: {torch.cuda.memory_allocated() / 1e6} MB")
-
-
+ 
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
                     [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
@@ -314,14 +302,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 )
 
                                
-                # Check memory after loading the model
-                print(f"Memory allocated after metric calc: {torch.cuda.memory_allocated() / 1e6} MB")
-
-                #loss.backward() # TODO: mem leak here
-
-                # Check memory after loading the model
-                print(f"Memory allocated after backwards(): {torch.cuda.memory_allocated() / 1e6} MB #######")
-
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     print('Skipping batch due to OOM')
@@ -335,29 +315,14 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             
 
             
-            gc.collect()
-            torch.cuda.empty_cache()
-                            
-            # Check memory after loading the model
-            print(f"Memory allocated after clearing cache: {torch.cuda.memory_allocated() / 1e6} MB")
-
             # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
             if (count_t + 1) % accumulation_steps == 0:
                 optim.step()
                 optim.zero_grad()
-
                 connector_llm.delete_non_weight_vars()
-
-                gc.collect()
-                torch.cuda.empty_cache()
                             
             connector_llm.zero_grad()
 
-
-            # Check memory after loading the model
-            print(f"Memory allocated after optim and zero_grad and emptying cache: {torch.cuda.memory_allocated() / 1e6} MB")
-
-            print("Diff in mem = ", mem_alloc - (torch.cuda.memory_allocated() / 1e6))
 
             trainng_loss_avg += loss
 
@@ -370,17 +335,13 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             count_q += answer_.size(0)
 
 
-        
-            gc.collect()
-
-            torch.cuda.empty_cache()
-                        
+  
             # Check memory after loading the model
-            print(f"Memory allocated after clearing cache at end of itr: {torch.cuda.memory_allocated() / 1e6} MB")
-            torch.cuda.reset_peak_memory_stats()
+            print(f"Memory allocated after optim and zero_grad and emptying cache: {torch.cuda.memory_allocated() / 1e6} MB")
 
+            print("Diff in mem = ", mem_alloc - (torch.cuda.memory_allocated() / 1e6))
 
-            # Ensure to perform a step if we have leftover gradients
+        # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
@@ -400,27 +361,19 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
-
+                print("Validation itr ", str(count), " of ", len(validate_loader))
                 try:
-                    print("At itr: ", count)
-                    # Check memory after loading the model
-                    print(f"Memory allocated after first dataload: {torch.cuda.memory_allocated() / 1e6} MB ###########")
-
                     # Get image features from the img encoder (on GPU 0)
                     with torch.no_grad():
                         image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
 
-                    # Check memory after loading the model
-                    print(f"Memory allocated after img_encoder forwards: {torch.cuda.memory_allocated() / 1e6} MB")
                     #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                     image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
                     
                     # Move image features to the second GPU for LLM processing
                     image_features = image_features.to(device_llm)
                 
-                    # Check memory after loading the model
-                    print(f"Memory allocated after sending img_features to GPU: {torch.cuda.memory_allocated() / 1e6} MB")
 
                     # Format data and "tokenize" inputs for the LLM
                     answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
@@ -431,19 +384,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                     answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
-                                
-                    # Check memory after loading the model
-                    print(f"Memory allocated after answers_ generations: {torch.cuda.memory_allocated() / 1e6} MB")
-
 
                     # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
                     output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
-
-
-                                
-                    # Check memory after loading the model
-                    print(f"Memory allocated after connector_LLM forward: {torch.cuda.memory_allocated() / 1e6} MB")
-
 
 
                     accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
@@ -452,10 +395,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                         tokenizer=connector_llm.tokenizer,
                         max_length=MAX_LENGTH_LLM
                     )
-
-                                
-                    # Check memory after loading the model
-                    print(f"Memory allocated after metric calc: {torch.cuda.memory_allocated() / 1e6} MB")
 
                 except RuntimeError as e:
                     if "out of memory" in str(e):
@@ -556,7 +495,7 @@ additional_parameters = {
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
-    "save": True,
+    "save": False,
     "cpu_only": False,
     "hidden_layer_from_end": 0
 }
