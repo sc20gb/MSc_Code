@@ -299,7 +299,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer])) # TODO: mem leak here
+                output = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer])) # TODO: mem leak here
 
 
                 # Check memory after loading the model
