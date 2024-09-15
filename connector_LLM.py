@@ -220,6 +220,7 @@ class Connector_LLM(nn.Module):
 
 
         nll_loss = -log_probs_sum / float(count)
+        nll_loss.requires_grad()
         nll_loss.backward()
 
         self.attributes_to_delete.append(gen_embeddings)

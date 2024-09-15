@@ -328,7 +328,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     print(e)
                     sys.exit()
                 else:
+                    print("Error:")
                     print(e)
+                    print("Skipping batch")
                 continue
             
 
