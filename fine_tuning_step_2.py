@@ -254,7 +254,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             print(" Train itr ", str(count_t), " of ", len(train_loader))
 
-            if count_t > 200:
+            if count_t > 300:
                 break
 
             gc.collect()
@@ -464,7 +464,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.001,0.0001]
+LR_LIST = [0.0001,0.00001]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -476,7 +476,7 @@ optim_list = [{
 
 "weight_decay":wd
 
-} for lr in LR_LIST
+} for lr in LR_LIST 
 for wd in WEIGHT_DECAY_LIST ]
 
 
@@ -494,7 +494,7 @@ additional_parameters = {
     "per_warm": 0.2,
     "image_size": 224,
     "batch_size": 1,
-    "vir_batch_size": 20,
+    "vir_batch_size": 50,
     "rand_seed": 42,
     "MAX_EPOC": 15,
     "MAX_LENGTH": 256,
@@ -510,8 +510,7 @@ for i, para in enumerate(optim_list):
     p = {**connector_llm_parameters,**para,**clip_parameters,**additional_parameters}
     wandb.init(
         project="MSc_fine_tuning_step_2",
-        config=p,
-        resume=False  # Ensure it starts a new run
+        config=p
     )
     feature_aliginment_training_step_2_GPU_SPLIT(
         clip_parameters=clip_parameters,
