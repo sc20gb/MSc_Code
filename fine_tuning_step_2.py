@@ -464,7 +464,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.01]
+LR_LIST = [0.001,0.0001]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -494,7 +494,7 @@ additional_parameters = {
     "per_warm": 0.2,
     "image_size": 224,
     "batch_size": 1,
-    "vir_batch_size": 1,
+    "vir_batch_size": 20,
     "rand_seed": 42,
     "MAX_EPOC": 15,
     "MAX_LENGTH": 256,
