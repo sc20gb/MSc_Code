@@ -114,6 +114,7 @@ class Connector_LLM(nn.Module):
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features):
         # Project to LLM embedding space
         if torch.is_grad_enabled():
+            image_features.requires_grad_()
             image_features = checkpoint(self.connector, image_features)
         else:
             image_features = self.connector(image_features)
@@ -126,6 +127,7 @@ class Connector_LLM(nn.Module):
 
         # Generate the attention mask
         if torch.is_grad_enabled():
+            embeddings.requires_grad_()
             attention_mask = checkpoint(self.generate_attention, embeddings)
         else:
             attention_mask = self.generate_attention(embeddings)
@@ -150,6 +152,7 @@ class Connector_LLM(nn.Module):
                     outputs = self.vicuna(inputs_embeds=gen_embeddings, attention_mask=attention_mask)
             else:
                 if torch.is_grad_enabled():
+                    gen_embeddings.requires_grad_()
                     outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings, attention_mask)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings, attention_mask)
@@ -185,15 +188,13 @@ class Connector_LLM(nn.Module):
             self.attributes_to_delete.append(attention_mask)
             attention_mask = self.update_attention(gen_embeddings.size(1))
 
-            # Return the generated tokens and the averaged negative log-likelihood (NLL loss)
-            nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
-
+            # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
             self.attributes_to_delete.extend([new_tokens])
 
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
 
-        if not torch.is_grad_enabled():
+        if torch.is_grad_enabled():
             nll_loss.requires_grad_()
             nll_loss.backward()
             nll_loss = nll_loss.detach()
