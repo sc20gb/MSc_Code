@@ -285,6 +285,8 @@ class Connector_LLM(nn.Module):
         # Encode text and images into the embedding expected by the LLM
         embeddings = checkpoint(self.encode_text_and_image,question, image_features)
 
+        del image_features
+
         print(f"Memory allocated after encoding text: {torch.cuda.memory_allocated() / 1e6} MB")
 
         # Generate the attention mask
