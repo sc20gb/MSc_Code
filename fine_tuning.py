@@ -24,6 +24,8 @@ import wandb
 
 import math
 
+import sys
+
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
     clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=MAX_LENGTH,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
@@ -166,12 +168,19 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
     # FREEZE CLIP TRAINING (should save memory and computation as well)
     img_encoder.eval()
 
+    # half the size of its weights to save memory
+    img_encoder.half()
+
+    # Half does not work with some layers
+    for layer in img_encoder.modules():
+        if isinstance(layer, torch.nn.LayerNorm):
+            layer.float()
+
     # Optimizer and learning rate scheduling
     optim = torch.optim.AdamW(connector_llm.connector.parameters(), **optim_parameters)
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
     # Record the loss at the epoch
-    loss_epoch = []
     for n in range(1, MAX_EPOC + 1):
         connector_llm.connector.train()
         trainng_loss_avg = torch.tensor([0.0])
@@ -186,8 +195,11 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             
             try:
-                # Get image features from the img encoder (on GPU 0)
-                image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+
+                with torch.no_grad():
+                    # Get image features from the img encoder (on GPU 0)
+                    image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
+                
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
                 
@@ -201,7 +213,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                     if len(a) < MAX_LENGTH:
                         answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-                answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
+                answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
                 output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
@@ -215,13 +227,15 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 )
 
 
-                loss.backward()
-
             except RuntimeError as e:
                 if "out of memory" in str(e):
                     print('Skipping batch due to OOM')
-                else:
                     print(e)
+                    sys.exit()
+                else:
+                    print("Error:")
+                    print(e)
+                    print("Skipping batch")
                 continue
                     
 
@@ -231,10 +245,11 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
             if (count_t + 1) % accumulation_steps == 0:
                 optim.step()
                 optim.zero_grad()
+                connector_llm.delete_non_weight_vars()
 
             connector_llm.connector.zero_grad()
 
-            trainng_loss_avg += loss.to('cpu')
+            trainng_loss_avg += loss
 
             train_accuracy_avg += accuracy
             train_precision_avg += precision
@@ -266,45 +281,50 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
             for image_tensor, mask_tensor, question, answer in validate_loader:
 
                 try:
-                     # Get image features from the img encoder (on GPU 0)
-                    image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
-                    #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
-                    image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
+                    with torch.no_grad():
+                        # Get image features from the img encoder (on GPU 0)
+                        image_features, hidden_states = img_encoder(image_tensor.to(device_vit),return_hidden_states=True)
                     
-                    # Move image features to the second GPU for LLM processing
-                    image_features = image_features.to(device_llm)
+                        #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
+                        image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
+                        
+                        # Move image features to the second GPU for LLM processing
+                        image_features = image_features.to(device_llm)
 
-                    # Format data and "tokenize" inputs for the LLM
-                    answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
+                        # Format data and "tokenize" inputs for the LLM
+                        answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
 
-                    for i, a in enumerate(answer_):
-                        if len(a) < MAX_LENGTH:
-                            answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
+                        for i, a in enumerate(answer_):
+                            if len(a) < MAX_LENGTH:
+                                answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
 
-                    answer_ = torch.cat(answer_, dim=0)[:, 1:].to(device_llm)
+                        answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
-                    # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                    output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
+                        # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
+                        output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
 
 
-                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
-                        output,
-                        [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
-                        tokenizer=connector_llm.tokenizer,
-                        max_length=MAX_LENGTH_LLM
-                    )
+                        accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
+                            output,
+                            [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
+                            tokenizer=connector_llm.tokenizer,
+                            max_length=MAX_LENGTH_LLM
+                        )
 
 
                 except RuntimeError as e:
                     if "out of memory" in str(e):
                         print('Skipping batch due to OOM')
-                    else:
                         print(e)
+                        sys.exit()
+                    else:
+                        print("Error:")
+                        print(e)
+                        print("Skipping batch")
                     continue
                 # dont worry about the metrics here the values should be the same as +=  0.0, also the count only increases after the continue so the loss avg is fine too
 
-                validation_loss_avg += loss.to('cpu')
-
+                validation_loss_avg += loss
                 val_accuracy_avg += accuracy
                 val_precision_avg += precision
                 val_recall_avg += recall
@@ -349,7 +369,7 @@ def feature_aliginment_training_step_1_GPU_SPLIT(
                 "val_bleu_score_avg": -1
             })
 
-    return loss_epoch
+    return 0
 
 #/nobackup/sc20gwb/Models/Models_to_upload
 #path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload", "clip_model_30.pth")
