@@ -118,7 +118,9 @@ class VisionTransformer(nn.Module):
 
         print("Vit 5")
 
-        x = self.ln_pre(x)
+        x_dtype = x.dtype
+
+        x = self.ln_pre(x.to(torch.float)).to(x_dtype)
 
         print("Vit 6")
 
@@ -143,7 +145,7 @@ class VisionTransformer(nn.Module):
         x = x.permute(1, 0, 2)  # LND -> NLD
 
 
-        x = self.ln_post(x[:, 0, :])
+        x = self.ln_post(x[:, 0, :].to(torch.float)).to(x_dtype)
 
         print("Vit 9")
 
