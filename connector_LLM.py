@@ -219,16 +219,16 @@ class Connector_LLM(nn.Module):
         #checkpoint()
 
 
-        batch_size, n_patches, *feature_dims = image_features.shape
+        #batch_size, n_patches, *feature_dims = image_features.shape
 
         # Reshape image features to merge the batch and 17 dimensions
-        image_features = image_features.view(batch_size * n_patches, *feature_dims)
+        #image_features = image_features.view(batch_size * n_patches, *feature_dims)
 
         # Project to LLM embedding space
-        image_features = self.connector(image_features)
+        image_features = checkpoint(self.connector,image_features)
 
         # Reshape back to original dimensions after projection
-        image_features = image_features.view(batch_size, n_patches, -1)
+        #image_features = image_features.view(batch_size, n_patches, -1)
 
         # Encode text and images into the embedding expected by the LLM
         embeddings = checkpoint(self.encode_text_and_image,question, image_features)
