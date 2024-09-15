@@ -169,6 +169,10 @@ class Connector_LLM(nn.Module):
 
                 probs = torch.nn.functional.softmax(new_tokens,dim=1)
 
+                print(probs.sum(dim=1).size(),probs.sum(dim=0).size())
+
+                print(probs.size(),selected_values.size())
+
                 loss = torch.nn.functional.cross_entropy(probs,selected_values)
 
                 loss_sum += loss
