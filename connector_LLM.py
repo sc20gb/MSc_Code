@@ -102,7 +102,7 @@ class Connector_LLM(nn.Module):
     def update_attention(self,attention,size):
         return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
 
-    def generate_using_forward_method(self, embeddings,attention_mask, max_length=50, temperature=1.0, target=None):
+    def generate_using_forward_method(self, embeddings,attention_mask, max_length, temperature, target):
         log_probs_sum = 0.0
 
         count = 0
@@ -245,7 +245,7 @@ class Connector_LLM(nn.Module):
 
         # Autoregressive prediction
         # Ensure no unnecessary intermediate results are kept
-        gen, loss = checkpoint(self.generate_using_forward_method,embeddings, attention_mask, target=answer, max_length=max_length, temperature=0.9)
+        gen, loss = checkpoint(self.generate_using_forward_method,embeddings, attention_mask, max_length, 0.9, answer)
 
         # Clear any unused variables to free up memory
         del image_features, embeddings, attention_mask
