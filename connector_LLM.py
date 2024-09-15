@@ -146,6 +146,9 @@ class Connector_LLM(nn.Module):
             new_tokens = outputs.logits[:, -1, :] / temperature
 
 
+            del outputs
+
+
             print(f"Memory allocated after new_tokens: {torch.cuda.memory_allocated() / 1e6} MB")
 
             # Generate the loss for the model based on the answer
