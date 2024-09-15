@@ -225,7 +225,8 @@ class Connector_LLM(nn.Module):
 
         self.attributes_to_delete.append(gen_embeddings)
 
-        return torch.cat(gen_tokens)
+        return torch.cat(gen_tokens), nll_loss.detach().cpu().item()
+
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
@@ -314,7 +315,7 @@ class Connector_LLM(nn.Module):
 
         # Autoregressive prediction
         # Ensure no unnecessary intermediate results are kept
-        gen = self.generate_using_forward_method(embeddings, attention_mask, max_length, 0.9, answer)
+        gen, loss = self.generate_using_forward_method(embeddings, attention_mask, max_length, 0.9, answer)
 
 
         print(f"Memory allocated after generate: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -327,7 +328,7 @@ class Connector_LLM(nn.Module):
 
         print(f"Memory allocated after emptying cache and deleting variables: {torch.cuda.memory_allocated() / 1e6} MB")
 
-        return gen
+        return gen, loss
 
 
     def delete_non_weight_vars(self):
