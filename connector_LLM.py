@@ -140,6 +140,7 @@ class Connector_LLM(nn.Module):
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
         log_probs_sum = 0.0
+        loss_sum = torch.tensor([0.0])
         count = 0
         gen_embeddings = embeddings
         gen_tokens = []
@@ -165,6 +166,13 @@ class Connector_LLM(nn.Module):
             if target is not None:
                 index = torch.tensor([i for _ in range(target.size(0))], device=self.device)
                 selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
+
+                probs = torch.nn.functional.softmax(new_tokens,dim=1)
+
+                loss = torch.nn.functional.cross_entropy(probs,selected_values)
+
+                loss_sum += loss
+
                 log_probs = torch.nn.functional.log_softmax(new_tokens, dim=1).half()
                 log_probs_for_target = log_probs.gather(1, selected_values.to(torch.int64))
                 log_probs_sum += log_probs_for_target.sum()
@@ -193,17 +201,20 @@ class Connector_LLM(nn.Module):
 
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
+        loss_sum = loss_sum / float(count)
 
         if torch.is_grad_enabled():
             print("GRAD Enabled doing .backwards()")
-            nll_loss.requires_grad_()
-            nll_loss.backward()
-            nll_loss = nll_loss.detach()
-
+            loss_sum.requires_grad_()
+            loss_sum.backward()
+    
+            # nll_loss.requires_grad_()
+            # nll_loss.backward()
+            # nll_loss = nll_loss.detach()
 
         self.attributes_to_delete.append(gen_embeddings)
 
-        return torch.cat(gen_tokens), nll_loss.cpu().item()
+        return torch.cat(gen_tokens), loss_sum.cpu().item()
 
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
