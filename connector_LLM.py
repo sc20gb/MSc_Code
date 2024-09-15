@@ -175,71 +175,71 @@ class Connector_LLM(nn.Module):
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
-def encode_text_and_image(self, question, image_features):
-    # Initialize lists for split ids and text embeddings
-    split_ids = []
+    def encode_text_and_image(self, question, image_features):
+        # Initialize lists for split ids and text embeddings
+        split_ids = []
 
-    # Tokenize all text segments across the batch
-    tokenized_list = []
-    for q in question:
-        # Tokenize and prepare text
-        tokens = self.tokenizer("Image: ").input_ids
-        split_ids.append(len(tokens))
-        tokens.extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
-        tokenized_list.append(torch.tensor(tokens, dtype=torch.int64, device=self.device))
+        # Tokenize all text segments across the batch
+        tokenized_list = []
+        for q in question:
+            # Tokenize and prepare text
+            tokens = self.tokenizer("Image: ").input_ids
+            split_ids.append(len(tokens))
+            tokens.extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
+            tokenized_list.append(torch.tensor(tokens, dtype=torch.int64, device=self.device))
 
-    # Embed all text tokens
-    embedded_text = []
-    for tokens in tokenized_list:
-        embedded_text.append(self.vicuna.get_input_embeddings()(tokens))
+        # Embed all text tokens
+        embedded_text = []
+        for tokens in tokenized_list:
+            embedded_text.append(self.vicuna.get_input_embeddings()(tokens))
 
-    # Adding image embeddings
-    for i in range(len(image_features)):
-        # Split the embedded text at the appropriate index
-        s1 = embedded_text[i][:split_ids[i]]
-        s2 = embedded_text[i][split_ids[i]:]
+        # Adding image embeddings
+        for i in range(len(image_features)):
+            # Split the embedded text at the appropriate index
+            s1 = embedded_text[i][:split_ids[i]]
+            s2 = embedded_text[i][split_ids[i]:]
 
-        # Concatenate image features with embedded text
-        combined_embeddings = torch.cat((s1, image_features[i], s2), dim=0)
-        embedded_text[i] = combined_embeddings
+            # Concatenate image features with embedded text
+            combined_embeddings = torch.cat((s1, image_features[i], s2), dim=0)
+            embedded_text[i] = combined_embeddings
 
-    # Concatenate embeddings across batches
-    embeddings = torch.stack(embedded_text, dim=0)
+        # Concatenate embeddings across batches
+        embeddings = torch.stack(embedded_text, dim=0)
 
-    return embeddings
+        return embeddings
 
 
-def forward(self, image_features, question, answer, max_length):
-    batch_size, n_patches, *feature_dims = image_features.shape
+    def forward(self, image_features, question, answer, max_length):
+        batch_size, n_patches, *feature_dims = image_features.shape
 
-    # Reshape image features to merge the batch and 17 dimensions
-    image_features = image_features.view(batch_size * n_patches, *feature_dims)
+        # Reshape image features to merge the batch and 17 dimensions
+        image_features = image_features.view(batch_size * n_patches, *feature_dims)
 
-    # Project to LLM embedding space
-    image_features = self.connector(image_features)
+        # Project to LLM embedding space
+        image_features = self.connector(image_features)
 
-    # Reshape back to original dimensions after projection
-    image_features = image_features.view(batch_size, n_patches, -1)
+        # Reshape back to original dimensions after projection
+        image_features = image_features.view(batch_size, n_patches, -1)
 
-    # Encode text and images into the embedding expected by the LLM
-    embeddings = self.encode_text_and_image(question, image_features)
+        # Encode text and images into the embedding expected by the LLM
+        embeddings = self.encode_text_and_image(question, image_features)
 
-    # Generate the attention mask
-    attention_mask = self.generate_attention(embeddings)
+        # Generate the attention mask
+        attention_mask = self.generate_attention(embeddings)
 
-    # Move embeddings to the device
-    embeddings = embeddings.to(self.device)
+        # Move embeddings to the device
+        embeddings = embeddings.to(self.device)
 
-    # Ensure embeddings have a batch dimension
-    if embeddings.dim() == 2:
-        embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
+        # Ensure embeddings have a batch dimension
+        if embeddings.dim() == 2:
+            embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
-    # Autoregressive prediction
-    # Ensure no unnecessary intermediate results are kept
-    gen, loss = self.generate_using_forward_method(embeddings, attention_mask, target=answer, max_length=max_length, temperature=0.9)
+        # Autoregressive prediction
+        # Ensure no unnecessary intermediate results are kept
+        gen, loss = self.generate_using_forward_method(embeddings, attention_mask, target=answer, max_length=max_length, temperature=0.9)
 
-    # Clear any unused variables to free up memory
-    del image_features, embeddings, attention_mask
-    torch.cuda.empty_cache()  # Clear the CUDA cache
+        # Clear any unused variables to free up memory
+        del image_features, embeddings, attention_mask
+        torch.cuda.empty_cache()  # Clear the CUDA cache
 
-    return gen, loss
+        return gen, loss
