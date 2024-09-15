@@ -137,7 +137,7 @@ class Connector_LLM(nn.Module):
 
             print(f"Memory allocated after vicuna: {torch.cuda.memory_allocated() / 1e6} MB")
 
-            outputs.logits.requires_grad_()
+            #outputs.logits.requires_grad_()
 
 
             print(f"Memory allocated after outputs requires grad: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -213,14 +213,14 @@ class Connector_LLM(nn.Module):
 
             print(f"Memory allocated after nll_loss and itr end: {torch.cuda.memory_allocated() / 1e6} MB")
 
-            self.attributes_to_delete.extend([outputs,new_tokens])
+            self.attributes_to_delete.extend([new_tokens])
 
         #return the generated tokens and the loss
         print(f"Memory allocated after gen function: {torch.cuda.memory_allocated() / 1e6} MB")
 
         self.attributes_to_delete.append(gen_embeddings)
 
-        return torch.cat(gen_tokens), nll_loss
+        return torch.cat(gen_tokens), nll_loss.requires_grad_()
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
