@@ -102,6 +102,12 @@ class Connector_LLM(nn.Module):
     def update_attention(self,attention,size):
         return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
 
+
+    def wrapper_vicuna_forward(self,gen_embeddings,attention_mask):
+        # this is a wrapper for the forwards method in vicuna so the checkpoint method can be used
+        outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
+        return outputs
+
     def generate_using_forward_method(self, embeddings,attention_mask, max_length, temperature, target):
         log_probs_sum = 0.0
 
@@ -118,7 +124,7 @@ class Connector_LLM(nn.Module):
                 with torch.no_grad():
                     outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
             else:
-                outputs = checkpoint(self.vicuna,inputs_embeds=gen_embeddings,attention_mask=attention_mask)
+                outputs = checkpoint(self.wrapper_vicuna_forward,gen_embeddings,attention_mask)
 
 
             # Get the logits of the last token and apply temperature scaling
