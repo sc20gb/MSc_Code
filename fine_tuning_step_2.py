@@ -407,8 +407,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                 
 
-                validation_loss_avg += loss.to('cpu')
-
+                validation_loss_avg += loss
                 val_accuracy_avg += accuracy
                 val_precision_avg += precision
                 val_recall_avg += recall
