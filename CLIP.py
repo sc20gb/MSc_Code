@@ -32,8 +32,12 @@ class LayerNorm(nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
 
     def forward(self, x: torch.Tensor):
+
+        print("In LayerNorm forward", x.dtype)
         orig_type = x.dtype
         ret = super().forward(x.type(torch.float32))
+
+        print("End of LayerNorm forward")
         return ret.type(orig_type)
 
 class QuickGELU(nn.Module):
@@ -118,9 +122,7 @@ class VisionTransformer(nn.Module):
 
         print("Vit 5")
 
-        x_dtype = x.dtype
-
-        x = self.ln_pre(x.to(torch.float)).to(x_dtype)
+        x = self.ln_pre(x)
 
         print("Vit 6")
 
@@ -145,7 +147,7 @@ class VisionTransformer(nn.Module):
         x = x.permute(1, 0, 2)  # LND -> NLD
 
 
-        x = self.ln_post(x[:, 0, :].to(torch.float)).to(x_dtype)
+        x = self.ln_post(x[:, 0, :])
 
         print("Vit 9")
 
