@@ -192,12 +192,16 @@ class Connector_LLM(nn.Module):
 
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
-        nll_loss.requires_grad_()
-        nll_loss.backward()
+
+        if not torch.is_grad_enabled():
+            nll_loss.requires_grad_()
+            nll_loss.backward()
+            nll_loss = nll_loss.detach()
+
 
         self.attributes_to_delete.append(gen_embeddings)
 
-        return torch.cat(gen_tokens), nll_loss.detach().cpu().item()
+        return torch.cat(gen_tokens), nll_loss.cpu().item()
 
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
