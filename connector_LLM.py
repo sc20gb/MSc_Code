@@ -210,7 +210,7 @@ class Connector_LLM(nn.Module):
 
             print(f"Memory allocated after nll_loss and itr end: {torch.cuda.memory_allocated() / 1e6} MB")
 
-            self.attributes_to_delete.append(outputs,new_tokens)
+            self.attributes_to_delete.extend([outputs,new_tokens])
 
         #return the generated tokens and the loss
         print(f"Memory allocated after gen function: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -310,7 +310,7 @@ class Connector_LLM(nn.Module):
         print(f"Memory allocated after generate: {torch.cuda.memory_allocated() / 1e6} MB")
 
         # Clear any unused variables to free up memory when requested
-        self.attributes_to_delete.append(image_features,embeddings,attention_mask,gen)
+        self.attributes_to_delete.extend([image_features,embeddings,attention_mask,gen])
 
         torch.cuda.empty_cache()  # Clear the CUDA cache
 
