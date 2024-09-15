@@ -95,18 +95,37 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x: torch.Tensor, return_hidden_states=False):
 
+        print("In vit forward")
+
         x = self.conv1(x)  # shape = [*, width, grid, grid]
 
+        print("Vit 1")
+
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2] # 64
+
+        print("Vit 2")
+
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
+
+        print("Vit 3")
+
         x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width] #  65
 
+        print("Vit 4")
+
+
         x = self.positional_embedding(x).to(x.dtype)
+
+        print("Vit 5")
+
         x = self.ln_pre(x)
+
+        print("Vit 6")
+
 
         x = x.permute(1, 0, 2)  # NLD -> LND
 
-        x2 =x.clone()
+        print("Vit 7")
 
         hidden_states = []  # List to store hidden states
 
@@ -116,6 +135,9 @@ class VisionTransformer(nn.Module):
             if return_hidden_states:
                 hidden_states.append(self.ln_post(x.permute(1, 0, 2)[:,0,:]).unsqueeze(1))  # Store the hidden state after each layer (LND -> NLD)
 
+
+        print("Vit 8")
+
         #x = self.transformer(x2)
 
         x = x.permute(1, 0, 2)  # LND -> NLD
@@ -123,8 +145,12 @@ class VisionTransformer(nn.Module):
 
         x = self.ln_post(x[:, 0, :])
 
+        print("Vit 9")
+
         if self.proj is not None:
             x = x @ self.proj
+
+        print("Vit 10")
 
         if return_hidden_states:
             return x, hidden_states  # Return final output and hidden states
@@ -241,15 +267,8 @@ class CLIP(nn.Module):
         return x
     
     def forward(self, image, text):
-
-        print("In clip forward")
         image_features = self.encode_image(image)
-
-        print("encode text")
         text_features = self.encode_text(text)
-
-
-        print("Out of clip forward")
 
         # shape = [global_batch_size, global_batch_size]
         return image_features, text_features
