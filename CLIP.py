@@ -241,8 +241,15 @@ class CLIP(nn.Module):
         return x
     
     def forward(self, image, text):
+
+        print("In clip forward")
         image_features = self.encode_image(image)
+
+        print("encode text")
         text_features = self.encode_text(text)
+
+
+        print("Out of clip forward")
 
         # shape = [global_batch_size, global_batch_size]
         return image_features, text_features
