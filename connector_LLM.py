@@ -245,7 +245,7 @@ class Connector_LLM(nn.Module):
 
         # Autoregressive prediction
         # Ensure no unnecessary intermediate results are kept
-        gen, loss = checkpoint(self.generate_using_forward_method,embeddings, attention_mask, max_length, 0.9, answer)
+        gen, loss = self.generate_using_forward_method(embeddings, attention_mask, max_length, 0.9, answer)
 
         # Clear any unused variables to free up memory
         del image_features, embeddings, attention_mask
