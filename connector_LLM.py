@@ -118,7 +118,7 @@ class Connector_LLM(nn.Module):
                 with torch.no_grad():
                     outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
             else:
-                outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
+                outputs = checkpoint(self.vicuna,inputs_embeds=gen_embeddings,attention_mask=attention_mask)
 
 
             # Get the logits of the last token and apply temperature scaling
