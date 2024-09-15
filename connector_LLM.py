@@ -111,7 +111,40 @@ class Connector_LLM(nn.Module):
         outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
         return outputs
 
-    def generate_using_forward_method(self, embeddings,attention_mask, max_length, temperature, target):
+    def generate_using_forward_method(self, max_length, temperature, target, question,image_features):
+
+
+         # Project to LLM embedding space
+        image_features = checkpoint(self.connector,image_features)
+
+        print(f"Memory allocated after connector: {torch.cuda.memory_allocated() / 1e6} MB")
+
+        # Reshape back to original dimensions after projection
+        #image_features = image_features.view(batch_size, n_patches, -1)
+
+        # Encode text and images into the embedding expected by the LLM
+        embeddings = checkpoint(self.encode_text_and_image,question, image_features)
+
+        print(f"Memory allocated after encoding text: {torch.cuda.memory_allocated() / 1e6} MB")
+
+        # Generate the attention mask
+        attention_mask = checkpoint(self.generate_attention,embeddings)
+
+
+        print(f"Memory allocated after generating attention: {torch.cuda.memory_allocated() / 1e6} MB")
+
+        # Move embeddings to the device
+        embeddings = embeddings.to(self.device)
+
+
+        print(f"Memory allocated after embedings to device: {torch.cuda.memory_allocated() / 1e6} MB")
+
+        # Ensure embeddings have a batch dimension
+        if embeddings.dim() == 2:
+            embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
+
+        print(f"Memory allocated after dim change: {torch.cuda.memory_allocated() / 1e6} MB")
+
 
         print(f"Memory allocated after gen start: {torch.cuda.memory_allocated() / 1e6} MB")
         log_probs_sum = 0.0
@@ -280,48 +313,12 @@ class Connector_LLM(nn.Module):
         print(f"Memory allocated after forward start: {torch.cuda.memory_allocated() / 1e6} MB")
 
 
-        # Project to LLM embedding space
-        image_features = checkpoint(self.connector,image_features)
-
-        print(f"Memory allocated after connector: {torch.cuda.memory_allocated() / 1e6} MB")
-
-        # Reshape back to original dimensions after projection
-        #image_features = image_features.view(batch_size, n_patches, -1)
-
-        # Encode text and images into the embedding expected by the LLM
-        embeddings = checkpoint(self.encode_text_and_image,question, image_features)
-
-        del image_features
-
-        print(f"Memory allocated after encoding text: {torch.cuda.memory_allocated() / 1e6} MB")
-
-        # Generate the attention mask
-        attention_mask = checkpoint(self.generate_attention,embeddings)
-
-
-        print(f"Memory allocated after generating attention: {torch.cuda.memory_allocated() / 1e6} MB")
-
-        # Move embeddings to the device
-        embeddings = embeddings.to(self.device)
-
-
-        print(f"Memory allocated after embedings to device: {torch.cuda.memory_allocated() / 1e6} MB")
-
-        # Ensure embeddings have a batch dimension
-        if embeddings.dim() == 2:
-            embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
-
-        print(f"Memory allocated after dim change: {torch.cuda.memory_allocated() / 1e6} MB")
-
         # Autoregressive prediction
         # Ensure no unnecessary intermediate results are kept
-        gen, loss = self.generate_using_forward_method(embeddings, attention_mask, max_length, 0.9, answer)
+        gen, loss = self.generate_using_forward_method(max_length, 0.9, answer,question,image_features)
 
 
         print(f"Memory allocated after generate: {torch.cuda.memory_allocated() / 1e6} MB")
-
-        # Clear any unused variables to free up memory when requested
-        self.attributes_to_delete.extend([embeddings,attention_mask,gen])
 
         torch.cuda.empty_cache()  # Clear the CUDA cache
 
