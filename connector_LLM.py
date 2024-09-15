@@ -133,7 +133,7 @@ class Connector_LLM(nn.Module):
             attention_mask = self.generate_attention(embeddings)
 
         # Move embeddings to the device
-        embeddings = embeddings.to(self.device)
+        #embeddings = embeddings.to(self.device)
 
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
