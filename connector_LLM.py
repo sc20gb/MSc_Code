@@ -323,8 +323,7 @@ class Connector_LLM(nn.Module):
     def delete_non_weight_vars(self):
         # Iterate through all attributes of the class to delete
         for attr_name in self.attributes_to_delete:
-            delattr(self, attr_name)
-            print(f"Deleted attribute: {attr_name}")
+            del attr_name
 
         # Optionally, clear unused memory
         torch.cuda.empty_cache()  # If using CUDA, clear unused GPU memory
