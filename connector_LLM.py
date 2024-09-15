@@ -111,147 +111,86 @@ class Connector_LLM(nn.Module):
         outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
         return outputs
 
-    def generate_using_forward_method(self, max_length, temperature, target, question,image_features):
-
-
-         # Project to LLM embedding space
-        image_features = checkpoint(self.connector,image_features)
-
-        print(f"Memory allocated after connector: {torch.cuda.memory_allocated() / 1e6} MB")
-
-        # Reshape back to original dimensions after projection
-        #image_features = image_features.view(batch_size, n_patches, -1)
+    def generate_using_forward_method(self, max_length, temperature, target, question, image_features):
+        # Project to LLM embedding space
+        if torch.is_grad_enabled():
+            image_features = checkpoint(self.connector, image_features)
+        else:
+            image_features = self.connector(image_features)
 
         # Encode text and images into the embedding expected by the LLM
-        embeddings = checkpoint(self.encode_text_and_image,question, image_features)
-
-        print(f"Memory allocated after encoding text: {torch.cuda.memory_allocated() / 1e6} MB")
+        if torch.is_grad_enabled():
+            embeddings = checkpoint(self.encode_text_and_image, question, image_features)
+        else:
+            embeddings = self.encode_text_and_image(question, image_features)
 
         # Generate the attention mask
-        attention_mask = checkpoint(self.generate_attention,embeddings)
-
-
-        print(f"Memory allocated after generating attention: {torch.cuda.memory_allocated() / 1e6} MB")
+        if torch.is_grad_enabled():
+            attention_mask = checkpoint(self.generate_attention, embeddings)
+        else:
+            attention_mask = self.generate_attention(embeddings)
 
         # Move embeddings to the device
         embeddings = embeddings.to(self.device)
-
-
-        print(f"Memory allocated after embedings to device: {torch.cuda.memory_allocated() / 1e6} MB")
 
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
-        print(f"Memory allocated after dim change: {torch.cuda.memory_allocated() / 1e6} MB")
-
-
-        print(f"Memory allocated after gen start: {torch.cuda.memory_allocated() / 1e6} MB")
         log_probs_sum = 0.0
-
         count = 0
-
         gen_embeddings = embeddings
-
         gen_tokens = []
-
 
         # Autoregressive generation loop
         for i in range(max_length):
-            # if vicuna does not need traning save mem
-            print(f"Memory allocated after gen loop start: {torch.cuda.memory_allocated() / 1e6} MB")
-
+            # if vicuna does not need training save mem
             if not self.vicuna.training:
                 with torch.no_grad():
-                    outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
+                    outputs = self.vicuna(inputs_embeds=gen_embeddings, attention_mask=attention_mask)
             else:
-                outputs = checkpoint(self.wrapper_vicuna_forward,gen_embeddings,attention_mask)
+                if torch.is_grad_enabled():
+                    outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings, attention_mask)
+                else:
+                    outputs = self.wrapper_vicuna_forward(gen_embeddings, attention_mask)
 
-
-            print(f"Memory allocated after vicuna: {torch.cuda.memory_allocated() / 1e6} MB")
-
-            #outputs.logits.requires_grad_()
-
-
-            print(f"Memory allocated after outputs requires grad: {torch.cuda.memory_allocated() / 1e6} MB")
 
             # Get the logits of the last token and apply temperature scaling
             new_tokens = outputs.logits[:, -1, :] / temperature
 
-
-            #del outputs
-
-
-            print(f"Memory allocated after new_tokens: {torch.cuda.memory_allocated() / 1e6} MB")
-
             # Generate the loss for the model based on the answer
-            if target  !=  None:
+            if target is not None:
                 index = torch.tensor([i for _ in range(target.size(0))], device=self.device)
-
-                # # Use advanced indexing to select values from A
-                # selected_values = target[torch.arange(target.size(0),device=self.device), index].unsqueeze(1)
-
-                # loss_sum += F.cross_entropy(new_tokens.clone(),selected_values.flatten()).item()
-
-
-                # Select the correct target token for the current position
                 selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
-                
-                # Calculate the log-likelihood for the selected token
                 log_probs = torch.nn.functional.log_softmax(new_tokens, dim=1).half()
-
-                #This will be correct as the ;pg_probs is taken from new tokens which is just the next generated probs
-                #It takes the log probabilities for the target
-
                 log_probs_for_target = log_probs.gather(1, selected_values.to(torch.int64))
-
-                # Accumulate the log likelihood
                 log_probs_sum += log_probs_for_target.sum()
-
                 count += 1
-            
 
-            print(f"Memory allocated after loss calc: {torch.cuda.memory_allocated() / 1e6} MB")
-
-            #Apply softmax
+            # Apply softmax
             prob_logits = torch.nn.functional.softmax(new_tokens, dim=1)
 
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
-
             gen_tokens.append(next_token_ids)
-            
             next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
 
-            print(f"Memory allocated after vicuna get input embeddings: {torch.cuda.memory_allocated() / 1e6} MB")
+            gen_embeddings = torch.cat((gen_embeddings, next_embedding.unsqueeze(1)), dim=1)
 
-            gen_embeddings = torch.cat((gen_embeddings,next_embedding.unsqueeze(1)),dim=1)
-
-            # check output token for eos if batch size is just one
-            if (next_embedding.size()[0] < 2):
+            # Check output token for EOS if batch size is just one
+            if next_embedding.size()[0] < 2:
                 if next_token_ids[0] == self.tokenizer.eos_token_id:
                     break
 
-            print(f"Memory allocated after cating embeddings: {torch.cuda.memory_allocated() / 1e6} MB")
-
             self.attributes_to_delete.append(attention_mask)
-        
             attention_mask = self.update_attention(gen_embeddings.size(1))
-
-            print(f"Memory allocated after updating the attention mask: {torch.cuda.memory_allocated() / 1e6} MB")
-
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)
             nll_loss = -log_probs_sum / float(count)  # Maximize likelihood by minimizing negative log-likelihood
 
-            print(f"Memory allocated after nll_loss and itr end: {torch.cuda.memory_allocated() / 1e6} MB")
-
             self.attributes_to_delete.extend([new_tokens])
 
-        #return the generated tokens and the loss
-        print(f"Memory allocated after gen function: {torch.cuda.memory_allocated() / 1e6} MB")
-
-
+        # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
         nll_loss.requires_grad_()
         nll_loss.backward()
@@ -310,7 +249,6 @@ class Connector_LLM(nn.Module):
 
         # Reshape image features to merge the batch and 17 dimensions
         #image_features = image_features.view(batch_size * n_patches, *feature_dims)
-        print(f"Memory allocated after forward start: {torch.cuda.memory_allocated() / 1e6} MB")
 
 
         # Autoregressive prediction
@@ -318,12 +256,8 @@ class Connector_LLM(nn.Module):
         gen, loss = self.generate_using_forward_method(max_length, 0.9, answer,question,image_features)
 
 
-        print(f"Memory allocated after generate: {torch.cuda.memory_allocated() / 1e6} MB")
-
         torch.cuda.empty_cache()  # Clear the CUDA cache
 
-
-        print(f"Memory allocated after emptying cache and deleting variables: {torch.cuda.memory_allocated() / 1e6} MB")
 
         return gen, loss
 
