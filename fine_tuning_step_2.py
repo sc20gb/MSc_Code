@@ -254,6 +254,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             print(" Train itr ", str(count_t), " of ", len(train_loader))
 
+            if count_t > 200:
+                break
 
             gc.collect()
 
@@ -362,6 +364,10 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
                 print("Validation itr ", str(count), " of ", len(validate_loader))
+
+                if count > 100:
+                    break
+
                 try:
                     # Get image features from the img encoder (on GPU 0)
                     with torch.no_grad():
