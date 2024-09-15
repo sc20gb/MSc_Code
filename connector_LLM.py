@@ -140,7 +140,7 @@ class Connector_LLM(nn.Module):
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
         log_probs_sum = 0.0
-        loss_sum = torch.tensor([0.0])
+        loss_sum = torch.tensor([0.0],device=self.device)
         count = 0
         gen_embeddings = embeddings
         gen_tokens = []
@@ -221,6 +221,8 @@ class Connector_LLM(nn.Module):
             # nll_loss = nll_loss.detach()
 
         self.attributes_to_delete.append(gen_embeddings)
+
+        print("At end of generate")
 
         return torch.cat(gen_tokens), loss_sum.cpu().item()
 
