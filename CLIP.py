@@ -32,12 +32,8 @@ class LayerNorm(nn.LayerNorm):
     """Subclass torch's LayerNorm to handle fp16."""
 
     def forward(self, x: torch.Tensor):
-
-        print("In LayerNorm forward", x.dtype)
         orig_type = x.dtype
         ret = super().forward(x.type(torch.float32))
-
-        print("End of LayerNorm forward")
         return ret.type(orig_type)
 
 class QuickGELU(nn.Module):
@@ -99,37 +95,19 @@ class VisionTransformer(nn.Module):
 
     def forward(self, x: torch.Tensor, return_hidden_states=False):
 
-        print("In vit forward")
-
         x = self.conv1(x)  # shape = [*, width, grid, grid]
-
-        print("Vit 1")
 
         x = x.reshape(x.shape[0], x.shape[1], -1)  # shape = [*, width, grid ** 2] # 64
 
-        print("Vit 2")
-
         x = x.permute(0, 2, 1)  # shape = [*, grid ** 2, width]
-
-        print("Vit 3")
 
         x = torch.cat([self.class_embedding.to(x.dtype) + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device), x], dim=1)  # shape = [*, grid ** 2 + 1, width] #  65
 
-        print("Vit 4")
-
-
         x = self.positional_embedding(x).to(x.dtype)
-
-        print("Vit 5")
 
         x = self.ln_pre(x)
 
-        print("Vit 6")
-
-
         x = x.permute(1, 0, 2)  # NLD -> LND
-
-        print("Vit 7")
 
         hidden_states = []  # List to store hidden states
 
@@ -139,22 +117,12 @@ class VisionTransformer(nn.Module):
             if return_hidden_states:
                 hidden_states.append(self.ln_post(x.permute(1, 0, 2)[:,0,:]).unsqueeze(1))  # Store the hidden state after each layer (LND -> NLD)
 
-
-        print("Vit 8")
-
-        #x = self.transformer(x2)
-
         x = x.permute(1, 0, 2)  # LND -> NLD
-
 
         x = self.ln_post(x[:, 0, :])
 
-        print("Vit 9")
-
         if self.proj is not None:
             x = x @ self.proj
-
-        print("Vit 10")
 
         if return_hidden_states:
             return x, hidden_states  # Return final output and hidden states
@@ -238,25 +206,6 @@ class CLIP(nn.Module):
         x = x.permute(1, 0, 2)  # LND -> NLD
         x = self.ln_final(x).type(self.dtype) # b,n,transformer width
 
-
-        # x2 = x.clone()
-
-        # # Find the index where <unk> (0) starts in each sequence
-        # pad_mask = (text != 0)
-
-        # # Prepare a tensor to gather features
-        # # Use the mask to gather features for non-padding tokens
-        # # This will select features at valid token positions only
-        # batch_indices = torch.arange(x.size(0), device=x.device).unsqueeze(1)  # [batch_size, 1]
-        # token_indices = pad_mask.nonzero(as_tuple=True)  # Get indices of non-padding tokens
-
-        # x_masked = x[token_indices]
-
-        # x2 = x_masked
-
-        # print("x2 size = ", x2.size() )
-        
-        
         #TODO: TEMP CODE FOR USE WITH CURRENT TOKENIZER, CHNAGE BACK when OTHER is USED
         token_id = 2 # REMOVE
 
