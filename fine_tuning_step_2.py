@@ -244,6 +244,13 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         count_t = 0
         count_q = 0
         optim.zero_grad()
+
+
+        print(f"Memory allocated before loop: {torch.cuda.memory_allocated() / 1e6} MB")
+
+        mem_alloc = torch.cuda.memory_allocated() / 1e6
+        
+
         for image_tensor, mask_tensor, question, answer in train_loader:
 
 
@@ -295,10 +302,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer])) # TODO: mem leak here
 
 
-                               
                 # Check memory after loading the model
                 print(f"Memory allocated after connector_LLM forward: {torch.cuda.memory_allocated() / 1e6} MB")
-
 
 
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
@@ -339,11 +344,16 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 optim.step()
                 optim.zero_grad()
 
+                gc.collect()
+                torch.cuda.empty_cache()
+                            
             connector_llm.zero_grad()
 
 
-            accuracy = accuracy.detach()
-            bleu_score = bleu_score.detach()
+            # Check memory after loading the model
+            print(f"Memory allocated after optim and zero_grad and emptying cache: {torch.cuda.memory_allocated() / 1e6} MB")
+
+            print("Diff in mem = ", mem_alloc - (torch.cuda.memory_allocated() / 1e6))
 
             trainng_loss_avg += loss.to('cpu')
 
