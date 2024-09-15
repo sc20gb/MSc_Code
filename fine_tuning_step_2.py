@@ -162,8 +162,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             device_llm = torch.device("cuda:1")
             print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
         else:
-            print("Only one GPU available, both models will run on GPU 0.")
-            device_vit = torch.device("cuda:0")
+            print("Only one GPU available, models are split between CPU and GPU 0")
+            device_vit = torch.device("cpu")
             device_llm = torch.device("cuda:0")
     else:
         print("CUDA is not available. Training will proceed on CPU.")
