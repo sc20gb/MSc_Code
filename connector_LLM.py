@@ -7,6 +7,9 @@ import gc
 from transformers import LlamaForCausalLM, AutoTokenizer
 import torch.nn.functional as F
 
+from torch.utils.checkpoint import checkpoint
+
+
 import psutil
 def print_memory_usage():
     # Print CPU memory usage
@@ -210,6 +213,12 @@ class Connector_LLM(nn.Module):
 
 
     def forward(self, image_features, question, answer, max_length):
+
+
+        #To save memory at the cost of more computation
+        #checkpoint()
+
+
         batch_size, n_patches, *feature_dims = image_features.shape
 
         # Reshape image features to merge the batch and 17 dimensions
@@ -222,10 +231,10 @@ class Connector_LLM(nn.Module):
         image_features = image_features.view(batch_size, n_patches, -1)
 
         # Encode text and images into the embedding expected by the LLM
-        embeddings = self.encode_text_and_image(question, image_features)
+        embeddings = checkpoint(self.encode_text_and_image,question, image_features)
 
         # Generate the attention mask
-        attention_mask = self.generate_attention(embeddings)
+        attention_mask = checkpoint(self.generate_attention,embeddings)
 
         # Move embeddings to the device
         embeddings = embeddings.to(self.device)
@@ -236,7 +245,7 @@ class Connector_LLM(nn.Module):
 
         # Autoregressive prediction
         # Ensure no unnecessary intermediate results are kept
-        gen, loss = self.generate_using_forward_method(embeddings, attention_mask, target=answer, max_length=max_length, temperature=0.9)
+        gen, loss = checkpoint(self.generate_using_forward_method,embeddings, attention_mask, target=answer, max_length=max_length, temperature=0.9)
 
         # Clear any unused variables to free up memory
         del image_features, embeddings, attention_mask
