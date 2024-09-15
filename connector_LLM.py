@@ -167,19 +167,19 @@ class Connector_LLM(nn.Module):
                 index = torch.tensor([i for _ in range(target.size(0))], device=self.device)
                 selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
 
-                probs = torch.nn.functional.softmax(new_tokens,dim=1)
+                # probs = torch.nn.functional.softmax(new_tokens,dim=1)
 
-                print(probs.sum(dim=1).size(),probs.sum(dim=0).size())
+                # print(probs.sum(dim=1).size(),probs.sum(dim=0).size())
 
-                print(probs.size(),selected_values.size())
+                # print(probs.size(),selected_values.size())
 
-                loss = torch.nn.functional.cross_entropy(probs.to(torch.float32),selected_values.squeeze(0).to(torch.int64))
+                # loss = torch.nn.functional.cross_entropy(probs.to(torch.float32),selected_values.squeeze(0).to(torch.int64))
 
-                loss = loss.half()
+                # loss = loss.half()
 
-                print(loss)
+                # print(loss)
 
-                loss_sum += loss
+                # loss_sum += loss
 
                 log_probs = torch.nn.functional.log_softmax(new_tokens, dim=1).half()
                 log_probs_for_target = log_probs.gather(1, selected_values.to(torch.int64))
@@ -209,22 +209,21 @@ class Connector_LLM(nn.Module):
 
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
-        loss_sum = loss_sum / float(count)
+        #loss_sum = loss_sum / float(count)
 
         if torch.is_grad_enabled():
-            print("GRAD Enabled doing .backwards()")
-            loss_sum.requires_grad_()
-            loss_sum.backward()
+            # loss_sum.requires_grad_()
+            # loss_sum.backward()
     
-            # nll_loss.requires_grad_()
-            # nll_loss.backward()
-            # nll_loss = nll_loss.detach()
+            nll_loss.requires_grad_()
+            nll_loss.backward()
+            nll_loss = nll_loss.detach()
 
         self.attributes_to_delete.append(gen_embeddings)
 
         print("At end of generate")
 
-        return torch.cat(gen_tokens), loss_sum.cpu().item()
+        return torch.cat(gen_tokens), nll_loss.cpu().item()
 
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
