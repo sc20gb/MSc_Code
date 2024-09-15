@@ -488,7 +488,7 @@ additional_parameters = {
     "batch_size": 1,
     "vir_batch_size": 32,
     "rand_seed": 42,
-    "MAX_EPOC": 15,
+    "MAX_EPOC": 30,
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
