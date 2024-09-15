@@ -200,7 +200,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     #Half the size of weights for the connector and LLM
     connector_llm.half()
-
     
     # Check memory after loading the model
     print(f"Memory allocated after connector_LLM: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -214,6 +213,12 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # half the size of its weights to save memory
     img_encoder.half()
+
+    
+    # Half does not work with some layers
+    for layer in img_encoder.modules():
+        if isinstance(layer, torch.nn.LayerNorm):
+            layer.float()
 
 
         
