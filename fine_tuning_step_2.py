@@ -334,10 +334,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
             accuracy = accuracy.detach()
             bleu_score = bleu_score.detach()
-            precision = precision.detach()
-            recall = recall.detach()
-            f1 = f1.detach()
-
 
             trainng_loss_avg += loss.to('cpu')
 
