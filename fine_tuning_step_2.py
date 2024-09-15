@@ -5,7 +5,7 @@ import torch
 
 import numpy as np
 
-from CLIP import VisionTransformer
+from CLIP import VisionTransformer, CLIP
 
 
 from transformers import get_cosine_schedule_with_warmup
