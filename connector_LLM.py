@@ -195,6 +195,7 @@ class Connector_LLM(nn.Module):
         nll_loss = -log_probs_sum / float(count)
 
         if torch.is_grad_enabled():
+            print("GRAD Enabled doing .backwards()")
             nll_loss.requires_grad_()
             nll_loss.backward()
             nll_loss = nll_loss.detach()
