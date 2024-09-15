@@ -173,7 +173,9 @@ class Connector_LLM(nn.Module):
 
                 print(probs.size(),selected_values.size())
 
-                loss = torch.nn.functional.cross_entropy(probs,selected_values.squeeze(0))
+                loss = torch.nn.functional.cross_entropy(probs.to(torch.float32),selected_values.squeeze(0).to(torch.int64))
+
+                loss = loss.half()
 
                 print(loss)
 
