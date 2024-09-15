@@ -126,7 +126,7 @@ class Connector_LLM(nn.Module):
             else:
                 outputs = checkpoint(self.wrapper_vicuna_forward,gen_embeddings,attention_mask)
 
-
+            outputs.logits.requires_grad_()
             # Get the logits of the last token and apply temperature scaling
             new_tokens = outputs.logits[:, -1, :] / temperature
 
