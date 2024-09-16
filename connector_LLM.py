@@ -114,7 +114,7 @@ class Connector_LLM(nn.Module):
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features):
         # Project to LLM embedding space
         if torch.is_grad_enabled():
-            #image_features.requires_grad_()
+            image_features.requires_grad_()
             image_features = self.connector(image_features)
         else:
             image_features = self.connector(image_features)
@@ -127,20 +127,15 @@ class Connector_LLM(nn.Module):
 
         # Generate the attention mask
         if torch.is_grad_enabled():
-            embeddings.requires_grad_()
             attention_mask = checkpoint(self.generate_attention, embeddings)
         else:
             attention_mask = self.generate_attention(embeddings)
-
-        # Move embeddings to the device
-        #embeddings = embeddings.to(self.device)
 
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
-        log_probs_sum = 0.0
-        loss_sum = torch.tensor([0.0],device=self.device)
+        log_probs_sum = torch.tensor([0.0], device=self.device, requires_grad=True)
         count = 0
         gen_embeddings = embeddings
         gen_tokens = []
@@ -153,7 +148,6 @@ class Connector_LLM(nn.Module):
                     outputs = self.vicuna(inputs_embeds=gen_embeddings, attention_mask=attention_mask)
             else:
                 if torch.is_grad_enabled():
-                    gen_embeddings.requires_grad_()
                     outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings, attention_mask)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings, attention_mask)
@@ -166,21 +160,6 @@ class Connector_LLM(nn.Module):
             if target is not None:
                 index = torch.tensor([i for _ in range(target.size(0))], device=self.device)
                 selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
-
-                # probs = torch.nn.functional.softmax(new_tokens,dim=1)
-
-                # print(probs.sum(dim=1).size(),probs.sum(dim=0).size())
-
-                # print(probs.size(),selected_values.size())
-
-                # loss = torch.nn.functional.cross_entropy(probs.to(torch.float32),selected_values.squeeze(0).to(torch.int64))
-
-                # loss = loss.half()
-
-                # print(loss)
-
-                # loss_sum += loss
-
                 log_probs = torch.nn.functional.log_softmax(new_tokens, dim=1).half()
                 log_probs_for_target = log_probs.gather(1, selected_values.to(torch.int64))
                 log_probs_sum += log_probs_for_target.sum()
@@ -193,33 +172,32 @@ class Connector_LLM(nn.Module):
             next_token_ids = torch.argmax(prob_logits, dim=1)
             gen_tokens.append(next_token_ids)
             next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
+            next_embedding = next_embedding.unsqueeze(1)
+            next_embedding.requires_grad_()
 
-            gen_embeddings = torch.cat((gen_embeddings, next_embedding.unsqueeze(1)), dim=1)
+            gen_embeddings = torch.cat((gen_embeddings, next_embedding), dim=1,)
 
             # Check output token for EOS if batch size is just one
             if next_embedding.size()[0] < 2:
                 if next_token_ids[0] == self.tokenizer.eos_token_id:
                     break
 
-            self.attributes_to_delete.append(attention_mask)
             attention_mask = self.update_attention(gen_embeddings.size(1))
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
-            self.attributes_to_delete.extend([new_tokens])
 
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
         #loss_sum = loss_sum / float(count)
 
         if torch.is_grad_enabled():
-            # loss_sum.requires_grad_()
-            # loss_sum.backward()
-    
-            nll_loss.requires_grad_()
-            nll_loss.backward()
-            nll_loss = nll_loss.detach()
 
-        self.attributes_to_delete.append(gen_embeddings)
+            nll_loss.backward()
+
+            nll_loss = nll_loss.detach()
+            if self.vicuna.training:
+                self.vicuna.zero_grad()  # Clear all gradients
+            self.connector.zero_grad()
 
         print("At end of generate")
 
