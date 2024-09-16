@@ -161,8 +161,8 @@ class Connector_LLM(nn.Module):
                     outputs = self.vicuna(inputs_embeds=gen_embeddings, attention_mask=attention_mask)
             else:
                 if torch.is_grad_enabled():
-                    self.check_grad(gen_embeddings,"gen itr ", str(i), " gen_embeddings")
-                    self.check_grad(attention_mask,"gen itr ", str(i), " attention_mask")
+                    self.check_grad(gen_embeddings,"gen itr " + str(i) + " gen_embeddings")
+                    self.check_grad(attention_mask,"gen itr " +  str(i) +  " attention_mask")
                     outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings, attention_mask)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings, attention_mask)
