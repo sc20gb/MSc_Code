@@ -129,7 +129,8 @@ class Connector_LLM(nn.Module):
         # Encode text and images into the embedding expected by the LLM
         if torch.is_grad_enabled():
             self.check_grad(image_features,"Image_feaures 2")
-            embeddings = checkpoint(self.encode_text_and_image(question, image_features))
+            #TODO: try not check pointing this
+            embeddings = checkpoint(self.encode_text_and_image,question, image_features)
         else:
             embeddings = self.encode_text_and_image(question, image_features)
 
