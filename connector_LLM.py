@@ -111,29 +111,41 @@ class Connector_LLM(nn.Module):
         outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
         return outputs
 
+
+    def check_grad(self,t,strv):
+        if not t.requires_grad:
+            print("NO GRAD FOR ", strv)
+        
+
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features):
         # Project to LLM embedding space
         if torch.is_grad_enabled():
             image_features.requires_grad_()
+            self.check_grad(image_features,"image_feaures")
             image_features = self.connector(image_features)
         else:
             image_features = self.connector(image_features)
 
         # Encode text and images into the embedding expected by the LLM
         if torch.is_grad_enabled():
-            embeddings = checkpoint(self.encode_text_and_image, question, image_features)
+            self.check_grad(image_features,"Image_feaures 2")
+            embeddings = checkpoint(self.encode_text_and_image(question, image_features))
         else:
             embeddings = self.encode_text_and_image(question, image_features)
 
         # Generate the attention mask
         if torch.is_grad_enabled():
-            attention_mask = checkpoint(self.generate_attention, embeddings)
+            self.check_grad(embeddings,"embeddings")
+            attention_mask = self.generate_attention(embeddings)
         else:
             attention_mask = self.generate_attention(embeddings)
 
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
+
+
+        self.check_grad(embeddings,"embeddings 2")
 
         log_probs_sum = torch.tensor([0.0], device=self.device, requires_grad=True)
         count = 0
@@ -148,6 +160,8 @@ class Connector_LLM(nn.Module):
                     outputs = self.vicuna(inputs_embeds=gen_embeddings, attention_mask=attention_mask)
             else:
                 if torch.is_grad_enabled():
+                    self.check_grad(gen_embeddings,"gen itr ", str(i), " gen_embeddings")
+                    self.check_grad(attention_mask,"gen itr ", str(i), " attention_mask")
                     outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings, attention_mask)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings, attention_mask)
@@ -155,6 +169,11 @@ class Connector_LLM(nn.Module):
 
             # Get the logits of the last token and apply temperature scaling
             new_tokens = outputs.logits[:, -1, :] / temperature
+
+
+            self.check_grad(outputs.logits, "outputs")
+
+            self.check_grad(new_tokens, "new_tokens")
 
             # Generate the loss for the model based on the answer
             if target is not None:
@@ -185,9 +204,12 @@ class Connector_LLM(nn.Module):
             attention_mask = self.update_attention(gen_embeddings.size(1))
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
+        self.check_grad(nll_loss, "loss 1")
 
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
+
+        self.check_grad(nll_loss, "loss 2")
         #loss_sum = loss_sum / float(count)
 
         if torch.is_grad_enabled():
@@ -202,7 +224,6 @@ class Connector_LLM(nn.Module):
         print("At end of generate")
 
         return torch.cat(gen_tokens), nll_loss.cpu().item()
-
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     #It also embeds the text
