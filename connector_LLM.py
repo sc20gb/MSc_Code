@@ -106,9 +106,9 @@ class Connector_LLM(nn.Module):
         return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
 
 
-    def wrapper_vicuna_forward(self,gen_embeddings,attention_mask):
+    def wrapper_vicuna_forward(self,gen_embeddings):
         # this is a wrapper for the forwards method in vicuna so the checkpoint method can be used
-        outputs = self.vicuna(inputs_embeds=gen_embeddings,attention_mask=attention_mask)
+        outputs = self.vicuna(inputs_embeds=gen_embeddings)
         return outputs
 
 
@@ -132,12 +132,6 @@ class Connector_LLM(nn.Module):
         else:
             embeddings = self.encode_text_and_image(question, image_features)
 
-        # Generate the attention mask
-        if torch.is_grad_enabled():
-            attention_mask = self.generate_attention(embeddings)
-        else:
-            attention_mask = self.generate_attention(embeddings)
-
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
@@ -152,13 +146,12 @@ class Connector_LLM(nn.Module):
             # if vicuna does not need training save mem
             if not self.vicuna.training:
                 with torch.no_grad():
-                    outputs = self.vicuna(inputs_embeds=gen_embeddings, attention_mask=attention_mask)
+                    outputs = self.vicuna(inputs_embeds=gen_embeddings)
             else:
                 if torch.is_grad_enabled():
-                    attention_mask.requires_grad_()
-                    outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings, attention_mask)
+                    outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings)
                 else:
-                    outputs = self.wrapper_vicuna_forward(gen_embeddings, attention_mask)
+                    outputs = self.wrapper_vicuna_forward(gen_embeddings)
 
 
             # Get the logits of the last token and apply temperature scaling
@@ -195,8 +188,6 @@ class Connector_LLM(nn.Module):
             if next_embedding.size()[0] < 2:
                 if next_token_ids[0] == self.tokenizer.eos_token_id:
                     break
-
-            attention_mask = self.update_attention(gen_embeddings.size(1))
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
         
