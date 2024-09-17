@@ -170,7 +170,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
     # Load connector and vicuna model on the second GPU
-    connector_llm = Connector_LLM(**connector_llm_parameters, device=device_llm, MAX_LENGTH=MAX_LENGTH_LLM)
+    connector_llm = Connector_LLM(**connector_llm_parameters, device=device_llm, MAX_LENGTH=MAX_LENGTH_LLM, accumulation_steps=accumulation_steps)
 
     #Load the pre_trained connector stat_dict
     state_dict = torch.load(pre_trained_connector_path)
@@ -237,9 +237,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             print(" Train itr ", str(count_t), " of ", len(train_loader))
 
-            if count_t > 300:
-                break
-
             gc.collect()
 
             torch.cuda.empty_cache()
@@ -274,7 +271,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
  
 
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
+                output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
 
 
  
@@ -328,6 +325,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
+            connector_llm.zero_grad()
+            connector_llm.w_vicuna.zero_grad()
+            connector_llm.connector.zero_grad()
 
         scheduler.step()
 
@@ -346,9 +346,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
                 print("Validation itr ", str(count), " of ", len(validate_loader))
-
-                if count > 100:
-                    break
 
                 try:
                     # Get image features from the img encoder (on GPU 0)

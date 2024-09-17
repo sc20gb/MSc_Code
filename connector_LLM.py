@@ -35,12 +35,14 @@ class _NetCheckpointWrapper(nn.Module):
         return self.net.get_input_embeddings()
 
 class Connector_LLM(nn.Module):
-    def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH):
+    def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH,accumulation_steps=-1):
         super(Connector_LLM, self).__init__()
         layers = []
         input_dim = embed_dim
 
         self.device = device
+
+        self.accumulation_steps = accumulation_steps
 
         self.MAX_LENGTH = MAX_LENGTH
 
@@ -138,7 +140,7 @@ class Connector_LLM(nn.Module):
             print("Grad FOR ", strv)
         
 
-    def generate_using_forward_method(self, max_length, temperature, target, question, image_features):
+    def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
         # Project to LLM embedding space
         if torch.is_grad_enabled():
             image_features.requires_grad_()
@@ -173,6 +175,7 @@ class Connector_LLM(nn.Module):
             else:
                 if torch.is_grad_enabled():
                     self.check_grad(gen_embeddings, "gen embeddings")
+                    print("checking vicuna training",self.w_vicuna.training)
                     outputs = self.w_vicuna(gen_embeddings)
                 else:
                     outputs = self.w_vicuna(gen_embeddings)
@@ -225,24 +228,15 @@ class Connector_LLM(nn.Module):
 
         self.check_grad(nll_loss, "loss 2")
 
-        #loss_sum = loss_sum / float(count)
-
-        for name, param in self.w_vicuna.named_parameters():
-            if param.grad is None:
-                print(f"No gradient for {name}")
-            else:
-                print(f"A gradient for {name}")
-
         if torch.is_grad_enabled():
             nll_loss.backward()
-            self.optim.step()
-            self.optim.zero_grad()
-
-            if self.w_vicuna.training:
-                self.w_vicuna.zero_grad()  # Clear all gradients
-            self.connector.zero_grad()
-
-        print(nll_loss.cpu().item())
+            if not self.accumulation_steps < 1:
+                if ((itr + 1) % self.accumulation_steps):
+                    self.optim.step()
+                    self.optim.zero_grad()
+                    if self.w_vicuna.training:
+                        self.w_vicuna.zero_grad()  # Clear all gradients
+                    self.connector.zero_grad()
 
         return torch.cat(gen_tokens), nll_loss.cpu().item()
 
@@ -284,7 +278,7 @@ class Connector_LLM(nn.Module):
         return embedded_text[0]
 
 
-    def forward(self, image_features, question, answer, max_length):
+    def forward(self, image_features, question, answer, max_length, itr):
 
 
         #To save memory at the cost of more computation
@@ -299,7 +293,7 @@ class Connector_LLM(nn.Module):
 
         # Autoregressive prediction
         # Ensure no unnecessary intermediate results are kept
-        gen, loss = self.generate_using_forward_method(max_length, 0.9, answer,question,image_features)
+        gen, loss = self.generate_using_forward_method(max_length, 0.9, answer,question,image_features, itr)
 
 
         torch.cuda.empty_cache()  # Clear the CUDA cache
