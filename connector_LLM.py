@@ -22,9 +22,8 @@ def print_memory_usage():
 
 
 class _NetCheckpointWrapper:
-    def __init__(self, net, x):
+    def __init__(self, net):
         self.net = net
-        self.x = x
 
     def __call__(self, x):
         return self.net(x)
