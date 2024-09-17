@@ -215,7 +215,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     # Record the loss at the epoch
     for n in range(1, MAX_EPOC + 1):
         connector_llm.train()
-        connector_llm.vicuna.train()
+        connector_llm.w_vicuna.train()
         connector_llm.connector.train()
         trainng_loss_avg = torch.tensor([0.0])
         train_accuracy_avg = 0.0
@@ -339,7 +339,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         val_bleu_score_avg = 0.0
         count = 0
         connector_llm.eval()
-        connector_llm.vicuna.eval()
+        connector_llm.w_vicuna.eval()
         connector_llm.connector.eval()
 
         with torch.no_grad():

@@ -29,6 +29,10 @@ class _NetCheckpointWrapper(nn.Module):
     def forward(self, x):
         # Call the wrapped network using the inputs_embeds argument
         return self.net(inputs_embeds=x)
+    
+
+    def get_input_embeddings(self):
+        return self.net.get_input_embeddings()
 
 class Connector_LLM(nn.Module):
     def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH):
@@ -40,14 +44,14 @@ class Connector_LLM(nn.Module):
 
         self.MAX_LENGTH = MAX_LENGTH
 
-        self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
+        vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
-        self.w_vicuna = _NetCheckpointWrapper(self.vicuna)
+        self.w_vicuna = _NetCheckpointWrapper(vicuna)
 
-        self.vicuna.eval()
+        self.w_vicuna.eval()
         with torch.no_grad():
-            embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
-        self.vicuna.train()
+            embedding_size = self.w_vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
+        self.w_vicuna.train()
 
         # Create the specified number of layers
         for _ in range(connector_layers - 1):
@@ -125,11 +129,6 @@ class Connector_LLM(nn.Module):
         return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
 
 
-    def wrapper_vicuna_forward(self,gen_embeddings):
-        # this is a wrapper for the forwards method in vicuna so the checkpoint method can be used
-        return self.vicuna(inputs_embeds=gen_embeddings)
-
-
     def check_grad(self,t,strv):
         if not t.requires_grad:
             print("NO GRAD FOR ", strv)
@@ -179,9 +178,9 @@ class Connector_LLM(nn.Module):
         # Autoregressive generation loop
         for i in range(max_length):
             # if vicuna does not need training save mem
-            if not self.vicuna.training:
+            if not self.w_vicuna.training:
                 with torch.no_grad():
-                    outputs = self.vicuna(inputs_embeds=gen_embeddings)
+                    outputs = self.w_vicuna(inputs_embeds=gen_embeddings)
             else:
                 if torch.is_grad_enabled():
                     self.check_grad(gen_embeddings, "gen embeddings")
@@ -215,7 +214,7 @@ class Connector_LLM(nn.Module):
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
             gen_tokens.append(next_token_ids)
-            next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
+            next_embedding = self.w_vicuna.get_input_embeddings()(next_token_ids)
             next_embedding = next_embedding.unsqueeze(1)
 
             self.check_grad(next_token_ids, "next_token_ids")
@@ -245,8 +244,8 @@ class Connector_LLM(nn.Module):
             self.optim.step()
             self.optim.zero_grad()
 
-            if self.vicuna.training:
-                self.vicuna.zero_grad()  # Clear all gradients
+            if self.w_vicuna.training:
+                self.w_vicuna.zero_grad()  # Clear all gradients
             self.connector.zero_grad()
     
 
