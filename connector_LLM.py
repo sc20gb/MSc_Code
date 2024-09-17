@@ -32,6 +32,10 @@ class Connector_LLM(nn.Module):
 
         self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
+        self.optim = optim
+
+        self.scheduler = scheduler 
+
         self.vicuna.eval()
         with torch.no_grad():
             embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
@@ -69,6 +73,12 @@ class Connector_LLM(nn.Module):
         model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
 
         return model, tokenizer
+    
+    def set_optim_scheduler(self,optim,scheduler):
+
+        self.optim = optim
+
+        self.scheduler = scheduler
     
     def filter_prompt(self,prompt):
         # Obtain the <UNK> token ID
@@ -129,7 +139,7 @@ class Connector_LLM(nn.Module):
         # Encode text and images into the embedding expected by the LLM
         if torch.is_grad_enabled():
             #TODO: try not check pointing this
-            embeddings = checkpoint(self.encode_text_and_image,question, image_features)
+            embeddings = self.encode_text_and_image(question, image_features)
         else:
             embeddings = self.encode_text_and_image(question, image_features)
 
@@ -204,10 +214,13 @@ class Connector_LLM(nn.Module):
         if torch.is_grad_enabled():
 
             nll_loss.backward()
-            nll_loss = nll_loss.detach()
+            self.optim.step()
+            self.optim.zero_grad()
+
             if self.vicuna.training:
                 self.vicuna.zero_grad()  # Clear all gradients
             self.connector.zero_grad()
+    
 
         return torch.cat(gen_tokens), nll_loss.cpu().item()
 

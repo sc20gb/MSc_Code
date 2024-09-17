@@ -209,6 +209,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
+
+    connector_llm.set_optim_scheduler(optim,scheduler)
+
     # Record the loss at the epoch
     for n in range(1, MAX_EPOC + 1):
         connector_llm.train()
@@ -296,10 +299,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
             
             # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
-            if (count_t + 1) % accumulation_steps == 0:
-                optim.step()
-                optim.zero_grad()
-                connector_llm.delete_non_weight_vars()
+            # if (count_t + 1) % accumulation_steps == 0:
+            #     optim.step()
+            #     optim.zero_grad()
                             
             connector_llm.zero_grad()
 
