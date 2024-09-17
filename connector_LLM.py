@@ -21,11 +21,13 @@ def print_memory_usage():
 
 
 
-class _NetCheckpointWrapper:
+class _NetCheckpointWrapper(nn.Module):
     def __init__(self, net):
-        self.net = net
+        super(_NetCheckpointWrapper, self).__init__()  # Initialize nn.Module
+        self.net = net  # The network to wrap
 
-    def __call__(self, x):
+    def forward(self, x):
+        # Call the wrapped network using the inputs_embeds argument
         return self.net(inputs_embeds=x)
 
 class Connector_LLM(nn.Module):
