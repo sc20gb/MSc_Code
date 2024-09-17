@@ -115,6 +115,8 @@ class Connector_LLM(nn.Module):
     def check_grad(self,t,strv):
         if not t.requires_grad:
             print("NO GRAD FOR ", strv)
+        else:
+            print("Grad FOR ", strv)
         
 
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features):
@@ -149,6 +151,7 @@ class Connector_LLM(nn.Module):
                     outputs = self.vicuna(inputs_embeds=gen_embeddings)
             else:
                 if torch.is_grad_enabled():
+                    self.check_grad(gen_embeddings, "gen embeddings")
                     outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings)
@@ -191,7 +194,6 @@ class Connector_LLM(nn.Module):
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
         
-        self.check_grad(nll_loss, "loss 1")
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
 
