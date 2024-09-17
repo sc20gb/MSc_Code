@@ -271,7 +271,7 @@ class Connector_LLM(nn.Module):
         # Embed all text tokens
         embedded_text = []
         for tokens in tokenized_list:
-            embedded_text.append(self.vicuna.get_input_embeddings()(tokens))
+            embedded_text.append(self.w_vicuna.get_input_embeddings()(tokens))
 
         # Adding image embeddings
         for i in range(len(image_features)):
