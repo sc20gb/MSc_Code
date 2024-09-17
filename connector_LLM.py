@@ -108,8 +108,7 @@ class Connector_LLM(nn.Module):
 
     def wrapper_vicuna_forward(self,gen_embeddings):
         # this is a wrapper for the forwards method in vicuna so the checkpoint method can be used
-        outputs = self.vicuna(inputs_embeds=gen_embeddings)
-        return outputs
+        return self.vicuna(inputs_embeds=gen_embeddings)
 
 
     def check_grad(self,t,strv):
@@ -152,13 +151,14 @@ class Connector_LLM(nn.Module):
             else:
                 if torch.is_grad_enabled():
                     self.check_grad(gen_embeddings, "gen embeddings")
-                    outputs = checkpoint(self.wrapper_vicuna_forward, gen_embeddings)
+                    outputs = self.wrapper_vicuna_forward(gen_embeddings)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings)
 
+            temperature_ = torch.tensor(temperature, device=self.device).half()
 
             # Get the logits of the last token and apply temperature scaling
-            new_tokens = outputs.logits[:, -1, :] / temperature
+            new_tokens = outputs.logits[:, -1, :] / temperature_
 
 
             self.check_grad(outputs.logits, "outputs")
