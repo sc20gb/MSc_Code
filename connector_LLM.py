@@ -26,7 +26,7 @@ class _NetCheckpointWrapper:
         self.net = net
 
     def __call__(self, x):
-        return self.net(x)
+        return self.net(inputs_embeds=x)
 
 class Connector_LLM(nn.Module):
     def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH):
