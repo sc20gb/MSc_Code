@@ -46,6 +46,8 @@ class Connector_LLM(nn.Module):
 
         vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
+        vicuna.model.gradient_checkpointing_enable()
+
         self.w_vicuna = _NetCheckpointWrapper(vicuna)
 
         self.w_vicuna.eval()
