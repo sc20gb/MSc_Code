@@ -349,8 +349,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                 try:
                     # Get image features from the img encoder (on GPU 0)
-                    with torch.no_grad():
-                        image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
+                    image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
 
                     #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
@@ -358,7 +357,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     
                     # Move image features to the second GPU for LLM processing
                     image_features = image_features.to(device_llm)
-                
 
                     # Format data and "tokenize" inputs for the LLM
                     answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
@@ -369,11 +367,11 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                     answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
-
+                                
                     # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                    output, loss = connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]))
+                    output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), 0)
 
-
+    
                     accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                         output,
                         [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
