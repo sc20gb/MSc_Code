@@ -158,7 +158,7 @@ class Connector_LLM(nn.Module):
             else:
                 if torch.is_grad_enabled():
                     self.check_grad(gen_embeddings, "gen embeddings")
-                    outputs = self.wrapper_vicuna_forward(gen_embeddings)
+                    outputs = checkpoint(self.wrapper_vicuna_forward,gen_embeddings)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings)
 
@@ -196,7 +196,7 @@ class Connector_LLM(nn.Module):
             
             next_embedding.requires_grad_()
 
-            gen_embeddings = torch.cat((gen_embeddings, next_embedding), dim=1,)
+            gen_embeddings = torch.cat((gen_embeddings, next_embedding), dim=1).clone()
 
             # Check output token for EOS if batch size is just one
             if next_embedding.size()[0] < 2:
