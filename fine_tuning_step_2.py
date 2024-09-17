@@ -49,6 +49,10 @@ def process_string(s):
         s = re.sub(r'[^\S ]+', '', s)
         # Replace multiple spaces with a single space
         s = re.sub(r' +', ' ', s)
+
+         # Remove punctuation
+        s = ''.join([char for char in s if char not in string.punctuation])
+
         return s.strip()  # Optionally, remove leading/trailing spaces
 
 
