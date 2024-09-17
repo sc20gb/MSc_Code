@@ -238,6 +238,13 @@ class Connector_LLM(nn.Module):
                         self.w_vicuna.zero_grad()  # Clear all gradients
                     self.connector.zero_grad()
 
+
+        final_output = torch.cat(gen_tokens)
+
+        if final_output.requires_grad:
+            final_output = final_output.detach()
+
+
         return torch.cat(gen_tokens), nll_loss.cpu().item()
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
