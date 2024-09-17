@@ -231,7 +231,7 @@ class Connector_LLM(nn.Module):
         if torch.is_grad_enabled():
             nll_loss.backward()
             if not self.accumulation_steps < 1:
-                if ((itr + 1) % self.accumulation_steps):
+                if ((itr + 1) % self.accumulation_steps == 0):
                     self.optim.step()
                     self.optim.zero_grad()
                     if self.w_vicuna.training:
