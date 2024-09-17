@@ -142,7 +142,7 @@ class Connector_LLM(nn.Module):
         # Project to LLM embedding space
         if torch.is_grad_enabled():
             image_features.requires_grad_()
-            image_features = checkpoint(self.connector,image_features)
+            image_features = self.connector(image_features)
             self.check_grad(image_features, "image_features")
         else:
             image_features = self.connector(image_features)
@@ -163,19 +163,6 @@ class Connector_LLM(nn.Module):
         count = 0
         gen_embeddings = embeddings
         gen_tokens = []
-
-
-#         Grad FOR  image_features
-# 17095 Grad FOR  gen embeddings
-# 17096 NO GRAD FOR  outputs
-# 17097 NO GRAD FOR  new_tokens
-# 17098 NO GRAD FOR  next_token_ids
-# 17099 NO GRAD FOR  next_embedding
-# 17100 Grad FOR  gen embeddings
-# 17101 NO GRAD FOR  outputs
-# 17102 NO GRAD FOR  new_tokens
-# 17103 NO GRAD FOR  next_token_ids
-# 17104 NO GRAD FOR  next_embedding
 
         # Autoregressive generation loop
         for i in range(max_length):
@@ -240,8 +227,13 @@ class Connector_LLM(nn.Module):
 
         #loss_sum = loss_sum / float(count)
 
-        if torch.is_grad_enabled():
+        for name, param in self.w_vicuna.named_parameters():
+            if param.grad is None:
+                print(f"No gradient for {name}")
+            else:
+                print(f"A gradient for {name}")
 
+        if torch.is_grad_enabled():
             nll_loss.backward()
             self.optim.step()
             self.optim.zero_grad()
@@ -249,7 +241,8 @@ class Connector_LLM(nn.Module):
             if self.w_vicuna.training:
                 self.w_vicuna.zero_grad()  # Clear all gradients
             self.connector.zero_grad()
-    
+
+        print(nll_loss.cpu().item())
 
         return torch.cat(gen_tokens), nll_loss.cpu().item()
 
