@@ -186,7 +186,7 @@ class Connector_LLM(nn.Module):
                     self.check_grad(gen_embeddings, "gen embeddings")
                     outputs = checkpoint(self.w_vicuna,gen_embeddings)
                 else:
-                    outputs = self.wrapper_vicuna_forward(gen_embeddings)
+                    outputs = self.w_vicuna(gen_embeddings)
 
             temperature_ = torch.tensor(temperature, device=self.device).half()
 
