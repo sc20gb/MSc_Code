@@ -32,10 +32,6 @@ class Connector_LLM(nn.Module):
 
         self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
-        self.optim = optim
-
-        self.scheduler = scheduler 
-
         self.vicuna.eval()
         with torch.no_grad():
             embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
