@@ -207,6 +207,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # Optimizer and learning rate scheduling
     optim = torch.optim.SGD(connector_llm.parameters(), lr=optim_parameters['lr'])
+    print("lr = ",optim_parameters['lr'])
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
 
 
@@ -463,7 +464,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.0005]
+LR_LIST = [0.00001]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
