@@ -128,7 +128,8 @@ class Connector_LLM(nn.Module):
         # Project to LLM embedding space
         if torch.is_grad_enabled():
             image_features.requires_grad_()
-            image_features = self.connector(image_features)
+            image_features = checkpoint(self.connector,image_features)
+            self.check_grad(image_features, "image_features")
         else:
             image_features = self.connector(image_features)
 
@@ -187,8 +188,12 @@ class Connector_LLM(nn.Module):
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
             gen_tokens.append(next_token_ids)
-            next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
+            next_embedding = checkpoint(self.vicuna.get_input_embeddings(), next_token_ids)
             next_embedding = next_embedding.unsqueeze(1)
+
+            self.check_grad(next_token_ids, "next_token_ids")
+            self.check_grad(next_embedding, "next_embedding")
+            
             next_embedding.requires_grad_()
 
             gen_embeddings = torch.cat((gen_embeddings, next_embedding), dim=1,)
