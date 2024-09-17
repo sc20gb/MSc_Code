@@ -200,11 +200,9 @@ class Connector_LLM(nn.Module):
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
         
-        self.check_grad(nll_loss, "loss 1")
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
 
-        self.check_grad(nll_loss, "loss 2")
 
         #loss_sum = loss_sum / float(count)
 
