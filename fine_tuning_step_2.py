@@ -287,7 +287,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 if "out of memory" in str(e):
                     print('Skipping batch due to OOM')
                     print(e)
-                    sys.exit()
                 else:
                     print("Error:")
                     print(e)
@@ -383,7 +382,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     if "out of memory" in str(e):
                         print('Skipping batch due to OOM')
                         print(e)
-                        sys.exit()
                     else:
                         print("Error:")
                         print(e)
