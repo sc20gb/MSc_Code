@@ -46,7 +46,7 @@ class Connector_LLM(nn.Module):
 
         vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
-        vicuna.gradient_checkpointing_enable()
+        #vicuna.gradient_checkpointing_enable()
 
         self.w_vicuna = _NetCheckpointWrapper(vicuna)
 
@@ -182,11 +182,11 @@ class Connector_LLM(nn.Module):
             # if vicuna does not need training save mem
             if not self.w_vicuna.training:
                 with torch.no_grad():
-                    outputs = self.w_vicuna(inputs_embeds=gen_embeddings)
+                    outputs = self.w_vicuna(gen_embeddings)
             else:
                 if torch.is_grad_enabled():
                     self.check_grad(gen_embeddings, "gen embeddings")
-                    outputs = checkpoint(self.w_vicuna,gen_embeddings)
+                    outputs = self.w_vicuna(gen_embeddings)
                 else:
                     outputs = self.w_vicuna(gen_embeddings)
 
