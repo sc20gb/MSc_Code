@@ -460,7 +460,7 @@ clip_parameters  =  {
 
 
 
-LR_LIST = [0.001,0.0005]
+LR_LIST = [0.0005]
 #WEIGHT_DECAY_LIST = [0.0001,0.001,0.00001]
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -496,7 +496,7 @@ additional_parameters = {
     "MAX_LENGTH": 256,
     "VERSION": 2000,
     "MAX_LENGTH_LLM": 48,
-    "save": False,
+    "save": True,
     "cpu_only": False,
     "hidden_layer_from_end": 0
 }
