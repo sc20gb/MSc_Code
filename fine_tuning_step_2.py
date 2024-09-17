@@ -28,6 +28,8 @@ import math
 
 import gc
 
+import string
+
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,MAX_LENGTH,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
     clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=MAX_LENGTH,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
@@ -50,64 +52,59 @@ def process_string(s):
         return s.strip()  # Optionally, remove leading/trailing spaces
 
 
-def calc_loss_and_metrics(predicted,target,tokenizer,max_length):
-
-    # We need it to be a list of tensors instead 
+def calc_loss_and_metrics(predicted, target, tokenizer, max_length):
+    # We need it to be a list of tensors instead
     # Pad the predicted tensors after the </s> to the unk token [....,answer,2,44235,3153,...] -> [answer,2]
     target = target[0]
 
     # Calc accuracy
     accuracy = 0
 
-    # This here is the same as EM see the link below
-    if predicted.size(0) == target.size(0):
-        accuracy += (predicted == target).all()
-
-
-
     # we need to ensure that the answer has its captials and its whitespace removed
-    predcted_string = process_string(tokenizer.decode(predicted,skip_special_tokens=True))
+    predcted_string = process_string(tokenizer.decode(predicted, skip_special_tokens=True))
 
-    # Now we convert it back to its tokens to be used with the rest of the program
-    # The <s> token is removed also
-    predicted = tokenizer(predcted_string, return_tensors="pt").input_ids[:, 1:][0]
+    print(predcted_string)
 
-    # print("Predicted:")
-    # print(tokenizer.decode(predicted,skip_special_tokens=True))
+    target_string = process_string(tokenizer.decode(target, skip_special_tokens=True))
 
-    # print("Target:")
+    print(target_string)
 
-    # this score is calculated from the plain english sentences
-    pred = [tokenizer.decode(predicted,skip_special_tokens=True)]
+    predicted_list = predcted_string.split()
+    target_list = target_string.split()
 
-    ans = [[tokenizer.decode(target,skip_special_tokens=True)]]
+    print(predicted_list)
+    print(target_list)
 
-    if not pred[0] or pred[0].isspace():
+    if predicted_list == target_list:
+        accuracy += 1.0
+
+    if len(target_list) == 0 or len(predicted_list) == 0:
         bleu_score_ = 0.0
     else:
+        print(predcted_string, target_string)
         bleu_score_ = bleu_score(
-            pred,
-            ans,
-            n_gram=1)
-        
+            predcted_string,
+            [target_string],
+            n_gram=1).item()
+
     # https://qa.fastforwardlabs.com/no%20answer/null%20threshold/bert/distilbert/exact%20match/f1/robust%20predictions/2020/06/09/Evaluating_BERT_on_SQuAD.html#F1
     # precision here is the number of shared words / len(predict)
-    #recall is the number of shared words / len(target)
+    # recall is the number of shared words / len(target)
 
     prec = 0.0
     rec = 0.0
-    if predicted.size(0) != 0:
-        common_tokens = set(predicted) & set(target)
-        prec = len(common_tokens) / predicted.size(0)
-        rec = len(common_tokens) /  target.size(0)
+    if len(predcted_string) != 0 and len(target_string) != 0:
+        common_tokens = set(predicted_list) & set(target_list)
+        prec = len(common_tokens) / len(predicted_list)
+        rec = len(common_tokens) / len(target_list)
 
     if prec + rec == 0.0:
         f1 = 0.0
     else:
         f1 = 2 * (prec * rec) / (prec + rec)
 
+    return accuracy, bleu_score_, prec, rec, f1
 
-    return accuracy, bleu_score_,prec,rec,f1
 
 def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_parameters,
