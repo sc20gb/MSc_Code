@@ -136,7 +136,7 @@ class Connector_LLM(nn.Module):
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
 
-        log_probs_sum = 0.0
+        log_probs_sum = torch.tensor([0.0], device=self.device, requires_grad=True)
         count = 0
         gen_embeddings = embeddings
         gen_tokens = []
@@ -169,7 +169,7 @@ class Connector_LLM(nn.Module):
                 selected_values = target[torch.arange(target.size(0), device=self.device), index].unsqueeze(1)
                 log_probs = torch.nn.functional.log_softmax(new_tokens, dim=1).half()
                 log_probs_for_target = log_probs.gather(1, selected_values.to(torch.int64))
-                log_probs_sum = log_probs_sum + log_probs_for_target.sum().item()
+                log_probs_sum = log_probs_sum + log_probs_for_target.sum()
                 count += 1
 
             # Apply softmax
@@ -191,9 +191,11 @@ class Connector_LLM(nn.Module):
 
             # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
         
+        self.check_grad(nll_loss, "loss 1")
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
 
+        self.check_grad(nll_loss, "loss 2")
 
         #loss_sum = loss_sum / float(count)
 
