@@ -20,6 +20,15 @@ def print_memory_usage():
     print(f"CPU Memory Usage - VMS: {cpu_memory_vms:.2f} GB")
 
 
+
+class _NetCheckpointWrapper:
+    def __init__(self, net, x):
+        self.net = net
+        self.x = x
+
+    def __call__(self, x):
+        return self.net(x)
+
 class Connector_LLM(nn.Module):
     def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH):
         super(Connector_LLM, self).__init__()
@@ -31,6 +40,8 @@ class Connector_LLM(nn.Module):
         self.MAX_LENGTH = MAX_LENGTH
 
         self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
+
+        self.w_vicuna = _NetCheckpointWrapper(self.vicuna)
 
         self.vicuna.eval()
         with torch.no_grad():
@@ -62,6 +73,7 @@ class Connector_LLM(nn.Module):
                     nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')  # Kaiming initialization
                     if m.bias is not None:
                         nn.init.zeros_(m.bias)  # Initialize biases to zero
+
 
     def load_vicuna(self,model_path,device):
         tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True, padding_side='left')
@@ -136,10 +148,11 @@ class Connector_LLM(nn.Module):
         # Encode text and images into the embedding expected by the LLM
         if torch.is_grad_enabled():
             #TODO: try not check pointing this
-            embeddings = checkpoint(self.encode_text_and_image,question, image_features)
+            embeddings = self.encode_text_and_image(question, image_features)
         else:
             embeddings = self.encode_text_and_image(question, image_features)
 
+        self.check_grad(embeddings, "embeddings at start")
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
@@ -148,6 +161,19 @@ class Connector_LLM(nn.Module):
         count = 0
         gen_embeddings = embeddings
         gen_tokens = []
+
+
+#         Grad FOR  image_features
+# 17095 Grad FOR  gen embeddings
+# 17096 NO GRAD FOR  outputs
+# 17097 NO GRAD FOR  new_tokens
+# 17098 NO GRAD FOR  next_token_ids
+# 17099 NO GRAD FOR  next_embedding
+# 17100 Grad FOR  gen embeddings
+# 17101 NO GRAD FOR  outputs
+# 17102 NO GRAD FOR  new_tokens
+# 17103 NO GRAD FOR  next_token_ids
+# 17104 NO GRAD FOR  next_embedding
 
         # Autoregressive generation loop
         for i in range(max_length):
@@ -158,7 +184,7 @@ class Connector_LLM(nn.Module):
             else:
                 if torch.is_grad_enabled():
                     self.check_grad(gen_embeddings, "gen embeddings")
-                    outputs = checkpoint(self.wrapper_vicuna_forward,gen_embeddings)
+                    outputs = checkpoint(self.w_vicuna,gen_embeddings)
                 else:
                     outputs = self.wrapper_vicuna_forward(gen_embeddings)
 
@@ -188,7 +214,7 @@ class Connector_LLM(nn.Module):
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
             gen_tokens.append(next_token_ids)
-            next_embedding = checkpoint(self.vicuna.get_input_embeddings(), next_token_ids)
+            next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
             next_embedding = next_embedding.unsqueeze(1)
 
             self.check_grad(next_token_ids, "next_token_ids")
