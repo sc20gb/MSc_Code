@@ -155,8 +155,7 @@ def run_test_itr( clip_parameters,
         )
 
         # Load connector and vicuna model on the second GPU
-        connector_llm = Connector_LLM(**connector_llm_parameters, device=device_llm, MAX_LENGTH=MAX_LENGTH_LLM)
-
+        connector_llm = Connector_LLM(**connector_llm_parameters, device=torch.device("cpu"), MAX_LENGTH=MAX_LENGTH_LLM)
 
         
         #Load the pre_trained connector stat_dict
@@ -168,6 +167,10 @@ def run_test_itr( clip_parameters,
 
         #Half the size of weights for the connector and LLM
         connector_llm.half()
+
+        connector_llm.to(device_llm)
+
+        connector_llm.device = device_llm
         
         # Check memory after loading the model
         print(f"Memory allocated after connector_LLM: {torch.cuda.memory_allocated() / 1e6} MB")
