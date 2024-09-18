@@ -92,6 +92,84 @@ class JsonDataset(Dataset):
                 
         return image_tensor, mask_tensor, question_tensor, answer_tensor
 
+
+
+# Custom Dataset class
+class JsonDatasetTest(Dataset):
+
+    def process_string(self,s):
+        # Convert to lowercase
+        s = s.lower()
+        # Remove all whitespace characters except spaces
+        s = re.sub(r'[^\S ]+', '', s)
+        # Replace multiple spaces with a single space
+        s = re.sub(r' +', ' ', s)
+        return s.strip()  # Optionally, remove leading/trailing spaces
+
+
+    def __init__(self, json_file, transform=transforms.ToTensor()):
+        self.data = self.load_json(json_file)
+        self.data_frame = pd.DataFrame(self.data)        
+        self.data_frame = self.data_frame[self.data_frame['q_lang'] == 'en']
+        self.transform = transform
+        dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
+        self.img_dir = os.path.normpath(dir)
+
+    def load_image_as_tensor(self, img_path, transform):
+        # Load the image
+        image = Image.open(img_path).convert('RGB')
+                
+        # Apply the transformation
+        image_tensor = transform(image)
+        
+        return image_tensor
+    
+    def string_to_padded_tensor(self, string, max_length):
+        unicode_code_points = [ord(char) for char in string]
+        # Pad the sequence with zeros if it's shorter than max_length
+        padded_code_points = unicode_code_points + [0] * (max_length - len(unicode_code_points))
+        # Truncate the sequence if it's longer than max_length
+        padded_code_points = padded_code_points[:max_length]
+        return torch.tensor(padded_code_points, dtype=torch.float32)
+    
+    def load_json(self, file_path):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            return json.load(file)
+
+    def __len__(self):
+        return len(self.data_frame)
+
+    def __getitem__(self, idx):
+        # Get the image path for the current index
+        img_path = os.path.normpath(os.path.join(self.img_dir, *self.data_frame.iloc[idx]['img_name'].split('/')))
+
+        # Load the image and convert it to a tensor
+        image_tensor = self.load_image_as_tensor(img_path, self.transform)
+        
+        # Get the row from the DataFrame as a dictionary
+        df_row_dict = self.data_frame.iloc[idx].to_dict()
+
+        # word tokenization
+        question_tensor = self.process_string(df_row_dict['question'])
+
+        answer_tensor = self.process_string(df_row_dict['answer'])
+
+        catogory = df_row_dict['answer_type']
+
+        # Get the img
+        img_directory = os.path.dirname(img_path)
+
+        # Get the mask path for the current index
+        mask_path = os.path.normpath(os.path.join(img_directory, 'mask.png'))
+        mt = CustomMaskTransform(self.transform)
+        
+        # Load the mask and convert it to a tensor
+        mask_tensor = self.load_image_as_tensor(mask_path, mt)
+                
+        return image_tensor, mask_tensor, question_tensor, answer_tensor, catogory
+
+
+
 def display_sample(image_tensor, mask_tensor, question, answer, batchsize=1, save_path=None):
     """
     Display the image, its mask, the question, and the answer using Matplotlib.
@@ -167,7 +245,7 @@ def load_test_data(transform,batchSize,seed, dataDir):
 
 
     # Create Dataset objects
-    test_dataset = JsonDataset(test_json_path, transform)
+    test_dataset = JsonDatasetTest(test_json_path, transform)
 
 
     # Create DataLoader objects
@@ -235,7 +313,7 @@ class CLIPTrainJsonDataset(JsonDataset):
         mask_tensor = self.load_image_as_tensor(mask_path, mt)
                 
         return image_tensor, mask_tensor, text
-    
+
 
 def load_combined_text_data(transform,batchSize,seed, dataDir):
 
