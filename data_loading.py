@@ -166,7 +166,7 @@ class JsonDatasetTest(Dataset):
         # Load the mask and convert it to a tensor
         mask_tensor = self.load_image_as_tensor(mask_path, mt)
                 
-        return image_tensor, mask_tensor, question_tensor, answer_tensor, catogory[0]
+        return image_tensor, mask_tensor, question_tensor, answer_tensor, catogory
 
 
 
