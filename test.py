@@ -213,7 +213,7 @@ def run_test_itr( clip_parameters,
 
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer,catogory in test_loader:
-                print("Validation itr ", str(count), " of ", len(test_loader))
+                print("Validation itr ", str(count_CLOSED + count_OPEN), " of ", len(test_loader))
 
                 try:
                     # Get image features from the img encoder (on GPU 0)
