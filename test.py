@@ -259,8 +259,11 @@ def run_test_itr( clip_parameters,
                 # dont worry about the metrics here the values should be the same as +=  0.0, also the count only increases after the continue so the loss avg is fine too
                 
 
+                print(catogory[0])
 
-                if catogory == "OPEN":
+                print(catogory[0] == "OPEN")
+
+                if catogory[0] == "OPEN":
                     val_accuracy_avg_OPEN += loss
                     val_precision_avg_OPEN += accuracy
                     val_recall_avg_OPEN += recall
