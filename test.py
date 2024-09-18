@@ -264,22 +264,22 @@ def run_test_itr( clip_parameters,
                 print(catogory[0] == "OPEN")
 
                 if catogory[0] == "OPEN":
-                    val_accuracy_avg_OPEN += loss
-                    val_precision_avg_OPEN += accuracy
+                    val_accuracy_avg_OPEN += accuracy
+                    val_precision_avg_OPEN += precision
                     val_recall_avg_OPEN += recall
                     val_f1_avg_OPEN += f1
                     val_bleu_score_avg_OPEN += bleu_score
                     count_OPEN += 1
                 else:
-                    val_accuracy_avg_CLOSED += loss
-                    val_precision_avg_CLOSED += accuracy
+                    val_accuracy_avg_CLOSED += accuracy
+                    val_precision_avg_CLOSED += precision
                     val_recall_avg_CLOSED += recall
                     val_f1_avg_CLOSED += f1
                     val_bleu_score_avg_CLOSED += bleu_score
                     count_CLOSED += 1
 
             wandb.log({
-                "val_accuracy_avg_OPEN": val_accuracy_avg_OPEN/count_OPEN,
+                    "val_accuracy_avg_OPEN": val_accuracy_avg_OPEN/count_OPEN,
                     "val_precision_avg_OPEN": val_precision_avg_OPEN/count_OPEN,
                     "val_recall_avg_OPEN": val_recall_avg_OPEN/count_OPEN,
                     "val_f1_avg_OPEN": val_f1_avg_OPEN/count_OPEN,
