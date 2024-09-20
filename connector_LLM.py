@@ -79,8 +79,14 @@ class Connector_LLM(nn.Module):
 
     def freeze_weights_for_PEFT(self):
             print("Named Parameters in Vicuna:")
-            for parameter, _ in self.w_vicuna.named_parameters():
-                print(parameter)
+            for name, param in self.w_vicuna.named_parameters():
+                str = name
+                param.requires_grad = False
+                # Unfreeze the projection weights for q, k, v, o in self-attention layers
+                if any(proj in name for proj in ["self_attn.q_proj", "self_attn.k_proj", "self_attn.v_proj", "self_attn.o_proj"]):
+                    param.requires_grad = True
+                    str = str + "GRAD TRUE"
+                print(str)
             print("End of named parameters")
 
 
@@ -303,3 +309,32 @@ class Connector_LLM(nn.Module):
 
         # Optionally, clear unused memory
         torch.cuda.empty_cache()  # If using CUDA, clear unused GPU memory
+
+
+
+# freeze all mlp layers .mlp
+
+#  11 Named Parameters in Vicuna:
+#  12 net.model.embed_tokens.weight
+#  13 net.model.layers.0.self_attn.q_proj.weight
+#  14 net.model.layers.0.self_attn.k_proj.weight
+#  15 net.model.layers.0.self_attn.v_proj.weight
+#  16 net.model.layers.0.self_attn.o_proj.weight
+#  17 net.model.layers.0.mlp.gate_proj.weight
+#  18 net.model.layers.0.mlp.up_proj.weight
+#  19 net.model.layers.0.mlp.down_proj.weight
+#  20 net.model.layers.0.input_layernorm.weight
+#  21 net.model.layers.0.post_attention_layernorm.weight
+#  ...
+# 292 net.model.layers.31.self_attn.q_proj.weight
+# 293 net.model.layers.31.self_attn.k_proj.weight
+# 294 net.model.layers.31.self_attn.v_proj.weight
+# 295 net.model.layers.31.self_attn.o_proj.weight
+# 296 net.model.layers.31.mlp.gate_proj.weight
+# 297 net.model.layers.31.mlp.up_proj.weight
+# 298 net.model.layers.31.mlp.down_proj.weight
+# 299 net.model.layers.31.input_layernorm.weight
+# 300 net.model.layers.31.post_attention_layernorm.weight
+# 301 net.model.norm.weight
+# 302 net.lm_head.weight
+# 303 End of named parameters
