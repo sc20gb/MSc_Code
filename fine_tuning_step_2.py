@@ -179,6 +179,10 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     #Half the size of weights for the connector and LLM
     connector_llm.half()
+
+
+    #Freeze layers for fine-tuning
+    connector_llm.freeze_weights_for_PEFT()
     
     # Check memory after loading the model
     print(f"Memory allocated after connector_LLM: {torch.cuda.memory_allocated() / 1e6} MB")
