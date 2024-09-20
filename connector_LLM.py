@@ -156,7 +156,6 @@ class Connector_LLM(nn.Module):
         if torch.is_grad_enabled():
             image_features.requires_grad_()
             image_features = self.connector(image_features)
-            self.check_grad(image_features, "image_features")
         else:
             image_features = self.connector(image_features)
 
@@ -167,7 +166,6 @@ class Connector_LLM(nn.Module):
         else:
             embeddings = self.encode_text_and_image(question, image_features)
 
-        self.check_grad(embeddings, "embeddings at start")
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
@@ -185,8 +183,6 @@ class Connector_LLM(nn.Module):
                     outputs = self.w_vicuna(gen_embeddings)
             else:
                 if torch.is_grad_enabled():
-                    self.check_grad(gen_embeddings, "gen embeddings")
-                    print("checking vicuna training",self.w_vicuna.training)
                     outputs = self.w_vicuna(gen_embeddings)
                 else:
                     outputs = self.w_vicuna(gen_embeddings)
@@ -195,12 +191,6 @@ class Connector_LLM(nn.Module):
 
             # Get the logits of the last token and apply temperature scaling
             new_tokens = outputs.logits[:, -1, :] / temperature_
-
-
-            self.check_grad(outputs.logits, "outputs")
-
-            self.check_grad(new_tokens, "new_tokens")
-
 
             # Generate the loss for the model based on the answer
             if target is not None:
@@ -219,10 +209,7 @@ class Connector_LLM(nn.Module):
             gen_tokens.append(next_token_ids)
             next_embedding = self.w_vicuna.get_input_embeddings()(next_token_ids)
             next_embedding = next_embedding.unsqueeze(1)
-
-            self.check_grad(next_token_ids, "next_token_ids")
-            self.check_grad(next_embedding, "next_embedding")
-            
+           
             next_embedding.requires_grad_()
 
             gen_embeddings = torch.cat((gen_embeddings, next_embedding), dim=1).clone()
@@ -236,8 +223,6 @@ class Connector_LLM(nn.Module):
         
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
-
-        self.check_grad(nll_loss, "loss 2")
 
         if torch.is_grad_enabled():
             nll_loss.backward()
@@ -298,11 +283,6 @@ class Connector_LLM(nn.Module):
 
     def forward(self, image_features, question, answer, max_length, itr):
 
-
-        #To save memory at the cost of more computation
-        #checkpoint()
-
-
         #batch_size, n_patches, *feature_dims = image_features.shape
 
         # Reshape image features to merge the batch and 17 dimensions
@@ -313,9 +293,7 @@ class Connector_LLM(nn.Module):
         # Ensure no unnecessary intermediate results are kept
         gen, loss = self.generate_using_forward_method(max_length, 0.9, answer,question,image_features, itr)
 
-
         torch.cuda.empty_cache()  # Clear the CUDA cache
-
 
         return gen, loss
 

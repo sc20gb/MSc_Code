@@ -151,12 +151,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     accumulation_steps = vir_batch_size // batch_size
 
-
-    torch.cuda.reset_peak_memory_stats()
-
-    # Check memory before loading the model
-    print(f"Memory allocated before any: {torch.cuda.memory_allocated() / 1e6} MB")
-
     # LOAD DATA
     train_loader, validate_loader = load_data(
         transforms.Compose([
@@ -164,10 +158,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             transforms.ToTensor()
         ]), batch_size, rand_seed, os.path.join(os.getcwd(), 'Slake1.0')
     )
-
-    # Check memory after loading the model
-    print(f"Memory allocated after dataloaders: {torch.cuda.memory_allocated() / 1e6} MB")
-
 
     # Load connector and vicuna model on the second GPU
     connector_llm = Connector_LLM(**connector_llm_parameters, device=device_llm, MAX_LENGTH=MAX_LENGTH_LLM, accumulation_steps=accumulation_steps)
@@ -184,10 +174,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     #Freeze layers for fine-tuning
     connector_llm.freeze_weights_for_PEFT()
     
-    # Check memory after loading the model
-    print(f"Memory allocated after connector_LLM: {torch.cuda.memory_allocated() / 1e6} MB")
-
-
     # LOAD ViT encoder from the CLIP model on the first GPU
     img_encoder = load_ViT_img_encoder(**clip_parameters, device=device_vit, tokenizer=connector_llm.tokenizer, MAX_LENGTH=MAX_LENGTH)
 
@@ -203,17 +189,10 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         if isinstance(layer, torch.nn.LayerNorm):
             layer.float()
 
-
-        
-    # Check memory after loading the model
-    print(f"Memory allocated after connector_LLM: {torch.cuda.memory_allocated() / 1e6} MB")
-
-
     # Optimizer and learning rate scheduling
     optim = torch.optim.SGD(connector_llm.parameters(), lr=optim_parameters['lr'])
     print("lr = ",optim_parameters['lr'])
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
-
 
     connector_llm.set_optim_scheduler(optim,scheduler)
 
@@ -239,16 +218,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         
 
         for image_tensor, mask_tensor, question, answer in train_loader:
-            print(" Train itr ", str(count_t), " of ", len(train_loader))
-
-            gc.collect()
-
-            torch.cuda.empty_cache()
-                        
-            # Check memory after loading the model
-            print(f"Memory allocated after clearing cache at start of itr: {torch.cuda.memory_allocated() / 1e6} MB")
-            torch.cuda.reset_peak_memory_stats()
-            
             try:
 
                 # Get image features from the img encoder (on GPU 0)
@@ -318,11 +287,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             count_t = count_t + 1
             count_q += answer_.size(0)
 
-
-  
-            # Check memory after loading the model
-            print(f"Memory allocated after optim and zero_grad and emptying cache: {torch.cuda.memory_allocated() / 1e6} MB")
-
             print("Diff in mem = ", mem_alloc - (torch.cuda.memory_allocated() / 1e6))
 
         # Ensure to perform a step if we have leftover gradients
@@ -349,8 +313,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
-                print("Validation itr ", str(count), " of ", len(validate_loader))
-
                 try:
                     # Get image features from the img encoder (on GPU 0)
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
