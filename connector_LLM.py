@@ -78,9 +78,8 @@ class Connector_LLM(nn.Module):
 
 
     def freeze_weights_for_PEFT(self):
-            
             print("Named Parameters in Vicuna:")
-            for parameter in self.w_vicuna.named_parameters():
+            for parameter, _ in self.w_vicuna.named_parameters():
                 print(parameter)
             print("End of named parameters")
 
@@ -161,7 +160,6 @@ class Connector_LLM(nn.Module):
 
         # Encode text and images into the embedding expected by the LLM
         if torch.is_grad_enabled():
-            #TODO: try not check pointing this
             embeddings = self.encode_text_and_image(question, image_features)
         else:
             embeddings = self.encode_text_and_image(question, image_features)
