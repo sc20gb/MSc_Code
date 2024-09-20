@@ -172,7 +172,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
 
     #Freeze layers for fine-tuning
-    connector_llm.freeze_weights_for_PEFT()
+    connector_llm.apply_lora()
     
     # LOAD ViT encoder from the CLIP model on the first GPU
     img_encoder = load_ViT_img_encoder(**clip_parameters, device=device_vit, tokenizer=connector_llm.tokenizer, MAX_LENGTH=MAX_LENGTH)
