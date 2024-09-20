@@ -8,6 +8,8 @@ from transformers import LlamaForCausalLM, AutoTokenizer
 import torch.nn.functional as F
 
 from torch.utils.checkpoint import checkpoint
+from peft import get_peft_model, LoraConfig
+
 
 
 import psutil
@@ -18,21 +20,6 @@ def print_memory_usage():
     cpu_memory_rss = mem_info.rss / (1024 ** 3)  # Resident Set Size (RSS) in GB
     cpu_memory_vms = mem_info.vms / (1024 ** 3)  # Virtual Memory Size (VMS) in GB
     print(f"CPU Memory Usage - VMS: {cpu_memory_vms:.2f} GB")
-
-
-
-class _NetCheckpointWrapper(nn.Module):
-    def __init__(self, net):
-        super(_NetCheckpointWrapper, self).__init__()  # Initialize nn.Module
-        self.net = net  # The network to wrap
-
-    def forward(self, x):
-        # Call the wrapped network using the inputs_embeds argument
-        return self.net(inputs_embeds=x)
-    
-
-    def get_input_embeddings(self):
-        return self.net.get_input_embeddings()
 
 class Connector_LLM(nn.Module):
     def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH,accumulation_steps=-1):
@@ -46,16 +33,12 @@ class Connector_LLM(nn.Module):
 
         self.MAX_LENGTH = MAX_LENGTH
 
-        vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
+        self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
-        #vicuna.gradient_checkpointing_enable()
-
-        self.w_vicuna = _NetCheckpointWrapper(vicuna)
-
-        self.w_vicuna.eval()
+        self.vicuna.eval()
         with torch.no_grad():
-            embedding_size = self.w_vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
-        self.w_vicuna.train()
+            embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
+        self.vicuna.train()
 
         # Create the specified number of layers
         for _ in range(connector_layers - 1):
@@ -73,13 +56,10 @@ class Connector_LLM(nn.Module):
 
         self.vicuna_path = vicuna_path
 
-
-        self.attributes_to_delete = []
-
-
+    #For training only attention projections
     def freeze_weights_for_PEFT(self):
             print("Named Parameters in Vicuna:")
-            for name, param in self.w_vicuna.named_parameters():
+            for name, param in self.vicuna.named_parameters():
                 str = name
                 param.requires_grad = False
                 # Unfreeze the projection weights for q, k, v, o in self-attention layers
@@ -87,11 +67,26 @@ class Connector_LLM(nn.Module):
                     param.requires_grad = True
                     str = str + "GRAD TRUE"
                 print(str)
-            print("End of named parameters")
+            print("End of named parameters")  
+    
+    #Applies lora to the vicuna model
+    def apply_lora(self,rank,alpha,modules,dropout):
+        # Define the LoRA configuration
+        lora_config = LoraConfig(
+            r=8,   # Rank of the low-rank adaptation
+            lora_alpha=32,
+            target_modules=["q_proj", "v_proj"],  # Modules to apply LoRA to
+            lora_dropout=0.1
+        )
 
+        # Wrap your model with LoRA
+        self.vicuna = get_peft_model(self.vicuna, lora_config)
 
-        
+        # Only the LoRA matrices in the specified modules will be trainable
+        for name, param in self.vicuna.named_parameters():
+            print(f"{name}: trainable={param.requires_grad}")
 
+    #Initilises the weights for the MLP connector (visual embedder)
     def _initialize_weights(self):
             for m in self.connector.modules():
                 if isinstance(m, nn.Linear):
@@ -99,7 +94,7 @@ class Connector_LLM(nn.Module):
                     if m.bias is not None:
                         nn.init.zeros_(m.bias)  # Initialize biases to zero
 
-
+    # Loads pretrained weights into the vicuna model
     def load_vicuna(self,model_path,device):
         tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True, padding_side='left')
 
@@ -107,69 +102,28 @@ class Connector_LLM(nn.Module):
 
         return model, tokenizer
     
+    #A function for setting the optimiser and scheduler used in training during generate_using_forward_method
     def set_optim_scheduler(self,optim,scheduler):
 
         self.optim = optim
 
         self.scheduler = scheduler
     
-    def filter_prompt(self,prompt):
-        # Obtain the <UNK> token ID
-        unk_token_id = self.tokenizer.convert_tokens_to_ids(self.tokenizer.unk_token)
-        
-        # Get the valid token IDs from the tokenizer's vocabulary
-        valid_token_ids = set(self.tokenizer.get_vocab().values())
-        
-        # Create a mask for valid tokens
-        valid_token_mask = torch.tensor([[token_id in valid_token_ids for token_id in seq] for seq in prompt], dtype=torch.bool).to(prompt.device)
-        
-        # Replace invalid tokens with <UNK> token ID
-        prompt_with_unk = torch.where(valid_token_mask, prompt, torch.tensor(unk_token_id, dtype=prompt.dtype, device=prompt.device))
-        
-        # No need to remove zero values (padding); keep them as they are.
-        
-        # Pad sequences to the same length
-        if prompt_with_unk.size(1) > 0:  # Ensure there is data to pad
-            filtered_prompt = torch.nn.utils.rnn.pad_sequence(
-                [seq for seq in prompt_with_unk], 
-                batch_first=True, 
-                padding_value=0
-            )
-        else:
-            # Handle the case where there might be no sequences at all
-            filtered_prompt = torch.empty((prompt.size(0), 0), dtype=torch.long, device=prompt.device)
-        
-        return filtered_prompt
-    
-    def generate_attention(self,embeddings):
-        causal_mask = torch.tril(torch.ones((embeddings.size(0), embeddings.size(0)))).bool().unsqueeze(0).to(self.device)
-        return causal_mask
-
-    def update_attention(self, size):
-        return torch.tril(torch.ones((size, size),device=self.device)).bool().unsqueeze(0)
-
-
+    #A debuggging function to check the gradents of diffrent layers
     def check_grad(self,t,strv):
         if not t.requires_grad:
             print("NO GRAD FOR ", strv)
         else:
             print("Grad FOR ", strv)
-        
-
+    
+    #Auto-regresivly generates the output of the vicuna-LLM. Also generates loss and performs backwards()
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
         # Project to LLM embedding space
-        if torch.is_grad_enabled():
-            image_features.requires_grad_()
-            image_features = self.connector(image_features)
-        else:
-            image_features = self.connector(image_features)
+        image_features = self.connector(image_features)
 
         # Encode text and images into the embedding expected by the LLM
-        if torch.is_grad_enabled():
-            embeddings = self.encode_text_and_image(question, image_features)
-        else:
-            embeddings = self.encode_text_and_image(question, image_features)
-
+        embeddings = self.encode_text_and_image(question, image_features)
+ 
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
@@ -182,15 +136,12 @@ class Connector_LLM(nn.Module):
         # Autoregressive generation loop
         for i in range(max_length):
             # if vicuna does not need training save mem
-            if not self.w_vicuna.training:
+            if not self.vicuna.training:
                 with torch.no_grad():
-                    outputs = self.w_vicuna(gen_embeddings)
+                    outputs = self.vicuna(inputs_embeds=gen_embeddings)
             else:
-                if torch.is_grad_enabled():
-                    outputs = self.w_vicuna(gen_embeddings)
-                else:
-                    outputs = self.w_vicuna(gen_embeddings)
-
+                outputs = self.vicuna(inputs_embeds=gen_embeddings)
+  
             temperature_ = torch.tensor(temperature, device=self.device).half()
 
             # Get the logits of the last token and apply temperature scaling
@@ -211,7 +162,7 @@ class Connector_LLM(nn.Module):
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
             gen_tokens.append(next_token_ids)
-            next_embedding = self.w_vicuna.get_input_embeddings()(next_token_ids)
+            next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
             next_embedding = next_embedding.unsqueeze(1)
            
             next_embedding.requires_grad_()
@@ -234,8 +185,8 @@ class Connector_LLM(nn.Module):
                 if ((itr + 1) % self.accumulation_steps == 0):
                     self.optim.step()
                     self.optim.zero_grad()
-                    if self.w_vicuna.training:
-                        self.w_vicuna.zero_grad()  # Clear all gradients
+                    if self.vicuna.training:
+                        self.vicuna.zero_grad()  # Clear all gradients
                     self.connector.zero_grad()
 
 
@@ -248,7 +199,6 @@ class Connector_LLM(nn.Module):
         return torch.cat(gen_tokens), nll_loss.cpu().item()
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
-    #It also embeds the text
     def encode_text_and_image(self, question, image_features):
         # Initialize lists for split ids and text embeddings
         split_ids = []
@@ -265,7 +215,7 @@ class Connector_LLM(nn.Module):
         # Embed all text tokens
         embedded_text = []
         for tokens in tokenized_list:
-            embedded_text.append(self.w_vicuna.get_input_embeddings()(tokens))
+            embedded_text.append(self.vicuna.get_input_embeddings()(tokens))
 
         # Adding image embeddings
         for i in range(len(image_features)):
@@ -284,7 +234,6 @@ class Connector_LLM(nn.Module):
 
         return embedded_text[0]
 
-
     def forward(self, image_features, question, answer, max_length, itr):
 
         #batch_size, n_patches, *feature_dims = image_features.shape
@@ -300,17 +249,6 @@ class Connector_LLM(nn.Module):
         torch.cuda.empty_cache()  # Clear the CUDA cache
 
         return gen, loss
-
-
-    def delete_non_weight_vars(self):
-        # Iterate through all attributes of the class to delete
-        for attr_name in self.attributes_to_delete:
-            del attr_name
-
-        # Optionally, clear unused memory
-        torch.cuda.empty_cache()  # If using CUDA, clear unused GPU memory
-
-
 
 # freeze all mlp layers .mlp
 

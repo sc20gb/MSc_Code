@@ -199,7 +199,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     # Record the loss at the epoch
     for n in range(1, MAX_EPOC + 1):
         connector_llm.train()
-        connector_llm.w_vicuna.train()
+        connector_llm.vicuna.train()
         connector_llm.connector.train()
         trainng_loss_avg = torch.tensor([0.0])
         train_accuracy_avg = 0.0
@@ -224,7 +224,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 with torch.no_grad():
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
-
                 #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
                 
@@ -240,14 +239,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                 answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
-                               
- 
-
                 # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
                 output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
 
-
- 
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
                     [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
@@ -266,19 +260,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     print(e)
                     print("Skipping batch")
                 continue
-            
-
-            
-            # Perform the optimizer step after accumulating the gradients for `accumulation_steps` batches
-            # if (count_t + 1) % accumulation_steps == 0:
-            #     optim.step()
-            #     optim.zero_grad()
                             
-            connector_llm.zero_grad()
-
-
             trainng_loss_avg += loss
-
             train_accuracy_avg += accuracy
             train_precision_avg += precision
             train_recall_avg += recall
@@ -294,7 +277,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             optim.step()
             optim.zero_grad()
             connector_llm.zero_grad()
-            connector_llm.w_vicuna.zero_grad()
+            connector_llm.vicuna.zero_grad()
             connector_llm.connector.zero_grad()
 
         scheduler.step()
@@ -308,7 +291,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         val_bleu_score_avg = 0.0
         count = 0
         connector_llm.eval()
-        connector_llm.w_vicuna.eval()
+        connector_llm.vicuna.eval()
         connector_llm.connector.eval()
 
         with torch.no_grad():
