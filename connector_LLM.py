@@ -10,8 +10,6 @@ import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 from peft import get_peft_model, LoraConfig
 
-
-
 import psutil
 def print_memory_usage():
     # Print CPU memory usage
@@ -70,13 +68,13 @@ class Connector_LLM(nn.Module):
             print("End of named parameters")  
     
     #Applies lora to the vicuna model
-    def apply_lora(self,rank,alpha,modules,dropout):
+    def apply_lora(self,rank=8,alpha=32,modules=["q_proj", "v_proj"],dropout=0.1):
         # Define the LoRA configuration
         lora_config = LoraConfig(
-            r=8,   # Rank of the low-rank adaptation
-            lora_alpha=32,
-            target_modules=["q_proj", "v_proj"],  # Modules to apply LoRA to
-            lora_dropout=0.1
+            r=rank,   # Rank of the low-rank adaptation
+            lora_alpha=alpha,
+            target_modules=modules,  # Modules to apply LoRA to
+            lora_dropout=dropout
         )
 
         # Wrap your model with LoRA
