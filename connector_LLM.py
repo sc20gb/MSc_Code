@@ -76,6 +76,17 @@ class Connector_LLM(nn.Module):
 
         self.attributes_to_delete = []
 
+
+    def freeze_weights_for_PEFT(self):
+            
+            print("Named Parameters in Vicuna:")
+            for parameter in self.w_vicuna.named_parameters():
+                print(parameter)
+            print("End of named parameters")
+
+
+        
+
     def _initialize_weights(self):
             for m in self.connector.modules():
                 if isinstance(m, nn.Linear):
