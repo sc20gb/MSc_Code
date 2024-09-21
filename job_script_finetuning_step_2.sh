@@ -12,4 +12,4 @@
 #$ -m be
 
 #Now run the job
-python fine_tuning_step_2.py
+python fine_tune.py
