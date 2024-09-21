@@ -17,6 +17,7 @@ def print_memory_usage():
     mem_info = process.memory_info()
     cpu_memory_rss = mem_info.rss / (1024 ** 3)  # Resident Set Size (RSS) in GB
     cpu_memory_vms = mem_info.vms / (1024 ** 3)  # Virtual Memory Size (VMS) in GB
+    print(f"Memory cuda: {torch.cuda.memory_allocated() / 1e6} MB")
     print(f"CPU Memory Usage - VMS: {cpu_memory_vms:.2f} GB")
 
 class Connector_LLM(nn.Module):
@@ -192,6 +193,7 @@ class Connector_LLM(nn.Module):
 
         if torch.is_grad_enabled():
             nll_loss.backward()
+            print_memory_usage()
             if not self.accumulation_steps < 1:
                 if ((itr + 1) % self.accumulation_steps == 0):
                     self.optim.step()
