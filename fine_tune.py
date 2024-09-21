@@ -259,8 +259,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                     output,
                     [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
-                    tokenizer=connector_llm.tokenizer,
-                    max_length=MAX_LENGTH_LLM
+                    tokenizer=connector_llm.tokenizer
                 )
 
                                
@@ -310,7 +309,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     # Get image features from the img encoder (on GPU 0)
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
-
                     #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                     image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
                     
@@ -326,16 +324,13 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                     answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
 
-                                
                     # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                    output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), 0)
+                    output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
 
-    
                     accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
                         output,
                         [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
-                        tokenizer=connector_llm.tokenizer,
-                        max_length=MAX_LENGTH_LLM
+                        tokenizer=connector_llm.tokenizer
                     )
 
                 except RuntimeError as e:
