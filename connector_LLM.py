@@ -116,15 +116,15 @@ class Connector_LLM(nn.Module):
     
     #Auto-regresivly generates the output of the vicuna-LLM. Also generates loss and performs backwards()
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
-        # Project to LLM embedding space
+
+        #Deal with dfiffrent dims
+        image_features = image_features.flatten(0)
         batch_size, n_patches, *feature_dims = image_features.shape
-
         print(batch_size, n_patches,*feature_dims)
-
         print(image_features.size())
-
-        # Reshape image features to merge the batch and 17 dimensions
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
+        
+        #embed the image features
         image_features = self.connector(image_features)
         image_features = image_features.view(batch_size,n_patches,-1)
 
