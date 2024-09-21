@@ -141,8 +141,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             device_llm = torch.device("cuda:1")
             print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
         else:
-            print("Only one GPU available, models are split between CPU and GPU 0")
-            device_vit = torch.device("cpu")
+            print("Only one GPU available, models are split between GPU 0")
+            device_vit = torch.device("cuda:0")
             device_llm = torch.device("cuda:0")
     else:
         print("CUDA is not available. Training will proceed on CPU.")
@@ -170,8 +170,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     #Half the size of weights for the connector and LLM
     connector_llm.half()
 
-
-    #Freeze layers for fine-tuning
+    #lora
     connector_llm.apply_lora()
     
     # LOAD ViT encoder from the CLIP model on the first GPU
@@ -182,7 +181,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # half the size of its weights to save memory
     img_encoder.half()
-
     
     # Half does not work with some layers
     for layer in img_encoder.modules():
@@ -190,17 +188,14 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             layer.float()
 
     # Optimizer and learning rate scheduling
-    optim = torch.optim.SGD(connector_llm.parameters(), lr=optim_parameters['lr'])
+    optim = torch.optim.AdamW(connector_llm.parameters(), **optim_parameters)
     print("lr = ",optim_parameters['lr'])
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
-
     connector_llm.set_optim_scheduler(optim,scheduler)
 
     # Record the loss at the epoch
     for n in range(1, MAX_EPOC + 1):
         connector_llm.train()
-        connector_llm.vicuna.train()
-        connector_llm.connector.train()
         trainng_loss_avg = torch.tensor([0.0])
         train_accuracy_avg = 0.0
         train_precision_avg = 0.0
@@ -210,7 +205,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         count_t = 0
         count_q = 0
         optim.zero_grad()
-
 
         print(f"Memory allocated before loop: {torch.cuda.memory_allocated() / 1e6} MB")
 
@@ -277,8 +271,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             optim.step()
             optim.zero_grad()
             connector_llm.zero_grad()
-            connector_llm.vicuna.zero_grad()
-            connector_llm.connector.zero_grad()
 
         scheduler.step()
 
@@ -291,8 +283,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         val_bleu_score_avg = 0.0
         count = 0
         connector_llm.eval()
-        connector_llm.vicuna.eval()
-        connector_llm.connector.eval()
 
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
