@@ -35,17 +35,17 @@ class Connector_LLM(nn.Module):
 
         self.vicuna.eval()
         with torch.no_grad():
-            embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
+            self.embedding_size = self.vicuna.get_input_embeddings()(torch.tensor([0],dtype=torch.int64,device=device)).size(1)
         self.vicuna.train()
 
         # Create the specified number of layers
         for _ in range(connector_layers - 1):
-            layers.append(nn.Linear(input_dim, embedding_size))
+            layers.append(nn.Linear(input_dim, self.embedding_size))
             layers.append(nn.GELU())
-            input_dim = embedding_size
+            input_dim = self.embedding_size
 
         # Add the final output layer
-        layers.append(nn.Linear(embedding_size, embedding_size))
+        layers.append(nn.Linear(self.embedding_size, self.embedding_size))
 
         # Build the Sequential model
         self.connector = nn.Sequential(*layers).to(device)
@@ -118,6 +118,10 @@ class Connector_LLM(nn.Module):
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
         # Project to LLM embedding space
         batch_size, n_patches, *feature_dims = image_features.shape
+
+        print(batch_size, n_patches,*feature_dims)
+
+        print(image_features.size())
 
         # Reshape image features to merge the batch and 17 dimensions
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
