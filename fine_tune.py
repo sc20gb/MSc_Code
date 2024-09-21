@@ -144,7 +144,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         device_llm = torch.device("cpu")
 
 
-    if training_step != 1 or training_step !=2:
+    if training_step != 1 and training_step !=2:
         print("Training Step must be 1 or 2 not ", training_step)
         return 0
     
