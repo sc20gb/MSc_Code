@@ -21,7 +21,7 @@ def print_memory_usage():
     print(f"CPU Memory Usage - VMS: {cpu_memory_vms:.2f} GB")
 
 class Connector_LLM(nn.Module):
-    def __init__(self, embed_dim, connector_layers,vicuna_path,device, MAX_LENGTH,accumulation_steps=-1):
+    def __init__(self, embed_dim, connector_layers,vicuna_path,device,accumulation_steps=-1):
         super(Connector_LLM, self).__init__()
         layers = []
         input_dim = embed_dim
@@ -29,8 +29,6 @@ class Connector_LLM(nn.Module):
         self.device = device
 
         self.accumulation_steps = accumulation_steps
-
-        self.MAX_LENGTH = MAX_LENGTH
 
         self.vicuna,self.tokenizer = self.load_vicuna(vicuna_path,device)
 
