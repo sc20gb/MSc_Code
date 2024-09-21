@@ -118,12 +118,12 @@ class Connector_LLM(nn.Module):
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
 
         #Deal with dfiffrent dims
-        image_features = image_features.flatten(0)
+        image_features = image_features.squeeze(0)
         batch_size, n_patches, *feature_dims = image_features.shape
         print(batch_size, n_patches,*feature_dims)
         print(image_features.size())
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
-        
+
         #embed the image features
         image_features = self.connector(image_features)
         image_features = image_features.view(batch_size,n_patches,-1)
