@@ -434,7 +434,7 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":1,
+        "batch_size":2,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
@@ -445,7 +445,7 @@ optim_list = [{
         "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
-        "training_step":1
+        "training_step":2
             }
             for lr in LR_LIST 
             for wd in WEIGHT_DECAY_LIST 
