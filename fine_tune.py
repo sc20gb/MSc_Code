@@ -1,11 +1,11 @@
 import torchvision.transforms as transforms
 import os
-from data_loading import load_data
+from Data_Loading.data_loading import load_data
 import torch
 import numpy as np
-from CLIP import VisionTransformer, CLIP
+from Model_Defs.CLIP import VisionTransformer, CLIP
 from transformers import get_cosine_schedule_with_warmup
-from connector_LLM import Connector_LLM, print_memory_usage
+from Model_Defs.connector_LLM import Connector_LLM, print_memory_usage
 import sys
 import re
 import torch.nn.functional as F
@@ -101,7 +101,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_vision_layers,
         clip_model_path,
         MAX_LENGTH,
-        MAX_LENGTH_LLM,
         vicuna_path,
         connector_layers,
         embed_dim,
@@ -439,7 +438,6 @@ optim_list = [{
         "rand_seed":42,
         "MAX_EPOC":30,
         "MAX_LENGTH":48,
-        "MAX_LENGTH_LLM":48,
         "VERSION":2000,
         "pre_trained_connector_path":path3,
         "save":False,

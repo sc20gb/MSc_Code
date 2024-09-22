@@ -1,10 +1,10 @@
 import torch.utils
 import torchvision.transforms as transforms
 import os
-from data_loading import load_combined_text_data
+from Data_Loading.data_loading import load_combined_text_data
 import torch
 
-from CLIP import CLIP
+from Model_Defs.CLIP import CLIP
 
 from transformers import AutoTokenizer
 
