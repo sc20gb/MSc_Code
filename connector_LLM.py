@@ -109,9 +109,9 @@ class Connector_LLM(nn.Module):
     #A debuggging function to check the gradents of diffrent layers
     def check_grad(self,t,strv):
         if not t.requires_grad:
-            print("NO GRAD FOR ", strv)
+            print("NO GRAD FOR ", strv, t.size())
         else:
-            print("Grad FOR ", strv)
+            print("Grad FOR ", strv, t.size())
     
     #Auto-regresivly generates the output of the vicuna-LLM. Also generates loss and performs backwards()
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
@@ -122,21 +122,25 @@ class Connector_LLM(nn.Module):
         print(batch_size, n_patches,*feature_dims)
         print(image_features.size())
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
+        
+        self.check_grad(image_features, "image features after resize")
 
         #embed the image features
         image_features = self.connector(image_features)
         image_features = image_features.view(batch_size,n_patches,-1)
 
-        print("Image Features size: ", image_features.size())
+        self.check_grad(image_features,"image_features after connector and view")
 
         # Encode text and images into the embedding expected by the LLM
         embeddings = self.encode_text_and_image(question, image_features)
 
-        print("Embeddings size: ", embeddings.size())
- 
+        self.check_grad(embeddings, "embeddings after combining both")
+
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
+
+        self.check_grad(embeddings, "embeddings after ensuring batch dim")
 
         log_probs_sum = torch.tensor([0.0], device=self.device, requires_grad=True)
         count = 0
@@ -151,11 +155,15 @@ class Connector_LLM(nn.Module):
                     outputs = self.vicuna(inputs_embeds=gen_embeddings)
             else:
                 outputs = self.vicuna(inputs_embeds=gen_embeddings)
+
+            self.check_grad(outputs.logits, "outputs of vicuna")
   
             temperature_ = torch.tensor(temperature, device=self.device).half()
 
             # Get the logits of the last token and apply temperature scaling
             new_tokens = outputs.logits[:, -1, :] / temperature_
+
+            self.check_grad(new_tokens, "new_tokens")
 
             # Generate the loss for the model based on the answer
             if target is not None:
@@ -169,22 +177,26 @@ class Connector_LLM(nn.Module):
             # Apply softmax
             prob_logits = torch.nn.functional.softmax(new_tokens, dim=1)
 
+            self.check_grad(prob_logits, "prob_logits")
+
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
             gen_tokens.append(next_token_ids)
             next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
             next_embedding = next_embedding.unsqueeze(1)
+
+            self.check_grad(next_embedding, "next_embedding")
            
             next_embedding.requires_grad_()
 
             gen_embeddings = torch.cat((gen_embeddings, next_embedding), dim=1).clone()
 
+            self.check_grad(gen_embeddings, "genembeddings at the end")
+
             # Check output token for EOS if batch size is just one
             if next_embedding.size()[0] < 2:
                 if next_token_ids[0] == self.tokenizer.eos_token_id:
                     break
-
-            # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
         
         # Return the generated tokens and the loss
         nll_loss = -log_probs_sum / float(count)
@@ -206,7 +218,7 @@ class Connector_LLM(nn.Module):
         if final_output.requires_grad:
             final_output = final_output.detach()
 
-
+        # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
         return torch.cat(gen_tokens), nll_loss.cpu().item()
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
