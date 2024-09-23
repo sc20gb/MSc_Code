@@ -41,12 +41,6 @@ def process_string(s):
 
 def calc_loss_and_metrics(predicted, target, tokenizer):
 
-    print("Is contguous ", target.is_contiguous())
-
-    predicted = predicted.contiguous()
-
-    target = target.contiguous()
-
     accuracy = 0
     bleu_scores = []
     precisions = []
@@ -69,23 +63,13 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
         predicted_list = predicted_string.split()
         target_list = target_string.split()
 
-        print(predicted_list)
-        print(target_list)
-
         if predicted_list == target_list:
             accuracy += 1.0
 
         if len(target_list) == 0 or len(predicted_list) == 0:
             bleu_score_ = 0.0
         else:
-            print(predicted_string, target_string)
             bleu_score_ = bleu_score(predicted_string, [target_string], n_gram=1).item()
-
-    
-    # https://qa.fastforwardlabs.com/no%20answer/null%20threshold/bert/distilbert/exact%20match/f1/robust%20predictions/2020/06/09/Evaluating_BERT_on_SQuAD.html#F1
-    # precision here is the number of shared words / len(predict)
-    # recall is the number of shared words / len(target)
-
 
         # Calculate precision and recall
         prec = 0.0
@@ -274,10 +258,13 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 # Format data and "tokenize" answer for the LLM and eval metrics
                 answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].half().to(device_llm)
 
+
+                answer_temp = answer_.clone()
+
                 print(answer_.size())
 
                 # Get MLLM prediction and NLL loss
-                output, loss= connector_llm(image_features.to(device_llm), question, answer_, answer_.size(1), count_t)
+                output, loss= connector_llm(image_features.to(device_llm), question, answer_temp, answer_temp.size(1), count_t)
 
                 # Eval
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
