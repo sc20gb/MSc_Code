@@ -231,8 +231,6 @@ class Connector_LLM(nn.Module):
 
         self.check_grad(image_features, "image_features")
 
-        image_features.to(self.device)
-
         # Tokenize the batch of questions with padding
         inputs = self.tokenizer(
             [" Question: " + q + " Answer: " for q in question],  # Batch of strings
@@ -241,7 +239,7 @@ class Connector_LLM(nn.Module):
             return_tensors='pt' 
         )
 
-        self.check_grad(inputs,"inputs")
+        self.check_grad(inputs.ids,"inputs")
 
         header = self.tokenizer(
             ["Image: "],  # Batch of strings
@@ -250,7 +248,7 @@ class Connector_LLM(nn.Module):
             return_tensors='pt'   
         )
 
-        self.check_grad(header, "header")
+        self.check_grad(header.ids, "header")
         
         # Remove the first token from each sequence in the batch (index 1 onwards)
         input_ids = inputs.input_ids[:, 1:].to(self.device)
