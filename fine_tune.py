@@ -241,13 +241,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
         for image_tensor, mask_tensor, question, answer in train_loader:
             try:
-                
-                print("Question:")
-                print(question)
-                
-                print("Answer:")
-                print(answer)
-
                 # Get image features from the img encoder
                 with torch.no_grad():
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
@@ -259,8 +252,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].to(device_llm)
 
                 answer_temp = answer_.clone()
-
-                print(answer_.size())
 
                 # Get MLLM prediction and NLL loss
                 output, loss= connector_llm(image_features.to(device_llm), question, answer_temp, answer_temp.size(1), count_t)

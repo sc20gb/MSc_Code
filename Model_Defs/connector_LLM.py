@@ -79,10 +79,6 @@ class Connector_LLM(nn.Module):
         # Wrap your model with LoRA
         self.vicuna = get_peft_model(self.vicuna, lora_config)
 
-        # Only the LoRA matrices in the specified modules will be trainable
-        for name, param in self.vicuna.named_parameters():
-            print(f"{name}: trainable={param.requires_grad}")
-
     #Initilises the weights for the MLP connector (visual embedder)
     def _initialize_weights(self):
             for m in self.connector.modules():
@@ -119,33 +115,23 @@ class Connector_LLM(nn.Module):
         #Deal with dfiffrent dims
         image_features = image_features.squeeze()
         batch_size, n_patches, *feature_dims = image_features.shape
-        print(batch_size, n_patches,*feature_dims)
-        print(image_features.size())
+
         if image_features.dim() < 3:
             # Add a batch dimension at the front
             image_features = image_features.unsqueeze(0)  # Adds a dimension of size 1 at index 0
 
-        self.check_grad(image_features, "image features after dim resizing")
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
         
-        self.check_grad(image_features, "image features after resize") # NO GRAD
-
         #embed the image features
         image_features = self.connector(image_features)
         image_features = image_features.view(batch_size,n_patches,-1)
 
-        self.check_grad(image_features,"image_features after connector and view") # GRAD
-
         # Encode text and images into the embedding expected by the LLM
         embeddings = self.encode_text_and_image(question, image_features)
-
-        self.check_grad(embeddings, "embeddings after combining both")
 
         # Ensure embeddings have a batch dimension
         if embeddings.dim() == 2:
             embeddings = embeddings.unsqueeze(0)  # Add batch dimension if missing
-
-        self.check_grad(embeddings, "embeddings after ensuring batch dim")
 
         log_probs_sum = torch.tensor([0.0], device=self.device, requires_grad=True)
         count = 0
@@ -160,15 +146,11 @@ class Connector_LLM(nn.Module):
                     outputs = self.vicuna(inputs_embeds=gen_embeddings)
             else:
                 outputs = self.vicuna(inputs_embeds=gen_embeddings)
-
-            self.check_grad(outputs.logits, "outputs of vicuna")
   
             temperature_ = torch.tensor(temperature, device=self.device).half()
 
             # Get the logits of the last token and apply temperature scaling
             new_tokens = outputs.logits[:, -1, :] / temperature_
-
-            self.check_grad(new_tokens, "new_tokens")
 
             # Generate the loss for the model based on the answer
             if target is not None:
@@ -182,21 +164,15 @@ class Connector_LLM(nn.Module):
             # Apply softmax
             prob_logits = torch.nn.functional.softmax(new_tokens, dim=1)
 
-            self.check_grad(prob_logits, "prob_logits")
-
             # Sample from the distribution to get the next token
             next_token_ids = torch.argmax(prob_logits, dim=1)
             gen_tokens.append(next_token_ids)
             next_embedding = self.vicuna.get_input_embeddings()(next_token_ids)
             next_embedding = next_embedding.unsqueeze(1)
-
-            self.check_grad(next_embedding, "next_embedding")
            
             next_embedding.requires_grad_()
 
             gen_embeddings = torch.cat((gen_embeddings, next_embedding), dim=1).clone()
-
-            self.check_grad(gen_embeddings, "genembeddings at the end")
 
             # Check output token for EOS if batch size is just one
             if next_embedding.size()[0] < 2:
@@ -224,12 +200,10 @@ class Connector_LLM(nn.Module):
             final_output = final_output.detach()
 
         # Return the generated tokens and the averaged negative log-likelihood (NLL loss)        
-        return torch.cat(gen_tokens), nll_loss.cpu().item()
+        return final_output, nll_loss.cpu().item()
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     def encode_text_and_image(self, question, image_features):
-
-        self.check_grad(image_features, "image_features")
 
         # Tokenize the batch of questions with padding
         inputs = self.tokenizer(
@@ -239,23 +213,16 @@ class Connector_LLM(nn.Module):
             return_tensors='pt' 
         )
 
-        self.check_grad(inputs.input_ids,"inputs")
-
         header = self.tokenizer(
             ["Image: "],  # Batch of strings
             padding='longest',    # Pad to the length of the longest sequence in the batch
             truncation=True,      
             return_tensors='pt'   
         )
-
-        self.check_grad(header.input_ids, "header")
         
         # Remove the first token from each sequence in the batch (index 1 onwards)
         input_ids = inputs.input_ids[:, 1:].to(self.device)
         header_ids = header.input_ids[:, 1:].to(self.device)
-
-        self.check_grad(input_ids, "input_ids")
-        self.check_grad(header_ids, "header_ids")
       
         embedded_text = self.vicuna.get_input_embeddings()(input_ids)
 
@@ -264,14 +231,8 @@ class Connector_LLM(nn.Module):
         batch_size = embedded_text.size(0) 
         embedded_header = embedded_header.repeat(batch_size, 1, 1).to(self.device) 
 
-        self.check_grad(input_ids, "inputs ids")
-        self.check_grad(header_ids, "header ids")
-        self.check_grad(image_features, "image features")
-
         # Concatenate the header and the text embeddings
         embeddings = torch.cat((embedded_header, image_features, embedded_text), dim=1)
-
-        self.check_grad(embeddings, "embeddings")
 
         return embeddings
 
