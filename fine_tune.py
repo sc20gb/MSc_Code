@@ -54,8 +54,8 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
         predicted_item = predicted[i]
         
         # Ensure the answer has its capitals and whitespace removed
-        predicted_string = process_string(tokenizer.decode(predicted_item.int(), skip_special_tokens=True))
-        target_string = process_string(tokenizer.decode(target_item.int(), skip_special_tokens=True))
+        predicted_string = process_string(tokenizer.decode(predicted_item.long(), skip_special_tokens=True))
+        target_string = process_string(tokenizer.decode(target_item.long(), skip_special_tokens=True))
 
         print(predicted_string)
         print(target_string)
