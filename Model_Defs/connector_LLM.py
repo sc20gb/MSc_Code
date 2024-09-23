@@ -117,19 +117,24 @@ class Connector_LLM(nn.Module):
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
 
         #Deal with dfiffrent dims
-        image_features = image_features.squeeze(0)
+        image_features = image_features.squeeze()
         batch_size, n_patches, *feature_dims = image_features.shape
         print(batch_size, n_patches,*feature_dims)
         print(image_features.size())
+        if tensor.dim() < 3:
+            # Add a batch dimension at the front
+            tensor = tensor.unsqueeze(0)  # Adds a dimension of size 1 at index 0
+
+        self.check_grad(image_features, "image features after dim resizing")
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
         
-        self.check_grad(image_features, "image features after resize")
+        self.check_grad(image_features, "image features after resize") # NO GRAD
 
         #embed the image features
         image_features = self.connector(image_features)
         image_features = image_features.view(batch_size,n_patches,-1)
 
-        self.check_grad(image_features,"image_features after connector and view")
+        self.check_grad(image_features,"image_features after connector and view") # GRAD
 
         # Encode text and images into the embedding expected by the LLM
         embeddings = self.encode_text_and_image(question, image_features)
