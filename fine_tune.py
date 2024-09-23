@@ -256,8 +256,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
 
                 # Format data and "tokenize" answer for the LLM and eval metrics
-                answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].half().to(device_llm)
-
+                answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].to(device_llm)
 
                 answer_temp = answer_.clone()
 
