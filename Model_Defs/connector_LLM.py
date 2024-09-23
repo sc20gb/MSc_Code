@@ -228,37 +228,43 @@ class Connector_LLM(nn.Module):
 
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     def encode_text_and_image(self, question, image_features):
-        # Initialize lists for split ids and text embeddings
-        split_ids = []
 
-        # Tokenize all text segments across the batch
-        tokenized_list = []
-        for q in question:
-            # Tokenize and prepare text
-            tokens = self.tokenizer("Image: ").input_ids
-            split_ids.append(len(tokens))
-            tokens.extend(self.tokenizer(" Question: " + q + " Answer: ").input_ids[1:])
-            tokenized_list.append(torch.tensor(tokens, dtype=torch.int64, device=self.device))
+        # Tokenize the batch of questions with padding
+        inputs = self.tokenizer(
+            [" Question: " + q + " Answer: " for q in question],  # Batch of strings
+            padding='longest',    # Pad to the length of the longest sequence in the batch
+            truncation=True,      
+            return_tensors='pt'   
+        )
 
-        # Embed all text tokens
-        embedded_text = []
-        for tokens in tokenized_list:
-            embedded_text.append(self.vicuna.get_input_embeddings()(tokens))
+        header = self.tokenizer(
+            ["Image: "],  # Batch of strings
+            padding='longest',    # Pad to the length of the longest sequence in the batch
+            truncation=True,      
+            return_tensors='pt'   
+        )
 
-        # Adding image embeddings
-        for i in range(len(image_features)):
-            # Split the embedded text at the appropriate index
-            s1 = embedded_text[i][:split_ids[i]]
-            s2 = embedded_text[i][split_ids[i]:]
+        # Remove the first token from each sequence in the batch (index 1 onwards)
+        input_ids = inputs.input_ids[:, 1:] 
+        header_ids = header.input_ids[:, 1:]
+      
+        embedded_text = self.vicuna.get_input_embeddings()(input_ids)
 
-            # Concatenate image features with embedded text
-            combined_embeddings = torch.cat((s1, image_features[i], s2), dim=0)
-            embedded_text[i] = combined_embeddings
+        # Place the header across the number of batches
+        embedded_header = self.vicuna.get_input_embeddings()(header_ids)
+        batch_size = embedded_text.size(0) 
+        embedded_header = embedded_header.expand(batch_size, -1, -1) 
 
-        # Concatenate embeddings across batches
-        #embeddings = torch.stack(embedded_text, dim=0)
+        self.check_grad(input_ids, "inputs ids")
+        self.check_grad(header_ids, "header ids")
+        self.check_grad(image_features, "image features")
 
-        return embedded_text[0]
+        # Concatenate the header and the text embeddings
+        embeddings = torch.cat((embedded_header, image_features, embedded_text), dim=1)
+
+        self.check_grad(embeddings, "embeddings")
+
+        return embeddings
 
     def forward(self, image_features, question, answer, max_length, itr):
         # Autoregressive prediction
