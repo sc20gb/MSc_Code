@@ -121,9 +121,9 @@ class Connector_LLM(nn.Module):
         batch_size, n_patches, *feature_dims = image_features.shape
         print(batch_size, n_patches,*feature_dims)
         print(image_features.size())
-        if tensor.dim() < 3:
+        if image_features.dim() < 3:
             # Add a batch dimension at the front
-            tensor = tensor.unsqueeze(0)  # Adds a dimension of size 1 at index 0
+            image_features = image_features.unsqueeze(0)  # Adds a dimension of size 1 at index 0
 
         self.check_grad(image_features, "image features after dim resizing")
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
