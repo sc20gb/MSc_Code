@@ -40,57 +40,77 @@ def process_string(s):
         return s.strip()  # Optionally, remove leading/trailing spaces
 
 def calc_loss_and_metrics(predicted, target, tokenizer):
-    # We need it to be a list of tensors instead
-    # Pad the predicted tensors after the </s> to the unk token [....,answer,2,44235,3153,...] -> [answer,2]
-    target = target[0]
 
-    # Calc accuracy
     accuracy = 0
+    bleu_scores = []
+    precisions = []
+    recalls = []
+    f1_scores = []
 
-    # we need to ensure that the answer has its captials and its whitespace removed
-    predcted_string = process_string(tokenizer.decode(predicted, skip_special_tokens=True))
+    # Iterate over each sample in the batch
+    for i in range(target.size(0)):  # Assuming target has shape (batch_size, ...)
+        # Extract the individual target and predicted for the current batch item
+        target_item = target[i]
+        predicted_item = predicted[i]
+        
+        # Ensure the answer has its capitals and whitespace removed
+        predicted_string = process_string(tokenizer.decode(predicted_item, skip_special_tokens=True))
+        target_string = process_string(tokenizer.decode(target_item, skip_special_tokens=True))
 
-    print(predcted_string)
+        print(predicted_string)
+        print(target_string)
 
-    target_string = process_string(tokenizer.decode(target, skip_special_tokens=True))
+        predicted_list = predicted_string.split()
+        target_list = target_string.split()
 
-    print(target_string)
+        print(predicted_list)
+        print(target_list)
 
-    predicted_list = predcted_string.split()
-    target_list = target_string.split()
+        if predicted_list == target_list:
+            accuracy += 1.0
 
-    print(predicted_list)
-    print(target_list)
+        if len(target_list) == 0 or len(predicted_list) == 0:
+            bleu_score_ = 0.0
+        else:
+            print(predicted_string, target_string)
+            bleu_score_ = bleu_score(predicted_string, [target_string], n_gram=1).item()
 
-    if predicted_list == target_list:
-        accuracy += 1.0
-
-    if len(target_list) == 0 or len(predicted_list) == 0:
-        bleu_score_ = 0.0
-    else:
-        print(predcted_string, target_string)
-        bleu_score_ = bleu_score(
-            predcted_string,
-            [target_string],
-            n_gram=1).item()
-
+    
     # https://qa.fastforwardlabs.com/no%20answer/null%20threshold/bert/distilbert/exact%20match/f1/robust%20predictions/2020/06/09/Evaluating_BERT_on_SQuAD.html#F1
     # precision here is the number of shared words / len(predict)
     # recall is the number of shared words / len(target)
 
-    prec = 0.0
-    rec = 0.0
-    if len(predcted_string) != 0 and len(target_string) != 0:
-        common_tokens = set(predicted_list) & set(target_list)
-        prec = len(common_tokens) / len(predicted_list)
-        rec = len(common_tokens) / len(target_list)
 
-    if prec + rec == 0.0:
-        f1 = 0.0
-    else:
-        f1 = 2 * (prec * rec) / (prec + rec)
+        # Calculate precision and recall
+        prec = 0.0
+        rec = 0.0
+        if len(predicted_string) != 0 and len(target_string) != 0:
+            common_tokens = set(predicted_list) & set(target_list)
+            prec = len(common_tokens) / len(predicted_list)
+            rec = len(common_tokens) / len(target_list)
 
-    return accuracy, bleu_score_, prec, rec, f1
+        if prec + rec == 0.0:
+            f1 = 0.0
+        else:
+            f1 = 2 * (prec * rec) / (prec + rec)
+
+        bleu_scores.append(bleu_score_)
+        precisions.append(prec)
+        recalls.append(rec)
+        f1_scores.append(f1)
+
+    # Average the accuracy, BLEU scores, precision, recall, and F1 score over the batch
+    accuracy /= target.size(0)  # Average accuracy
+    average_bleu_score = sum(bleu_scores) / len(bleu_scores) if bleu_scores else 0.0
+    average_prec = sum(precisions) / len(precisions) if precisions else 0.0
+    average_rec = sum(recalls) / len(recalls) if recalls else 0.0
+    average_f1 = sum(f1_scores) / len(f1_scores) if f1_scores else 0.0
+
+    return accuracy, average_bleu_score, average_prec, average_rec, average_f1
+
+  
+
+
 
 def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_transformer_width,
@@ -209,20 +229,20 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # Record the loss at the epoch
     for n in range(1, MAX_EPOC + 1):
-
+        
+        # Training the LLM is not needed in step 1
         if training_step == 2:
             connector_llm.train()
         else:
             connector_llm.connector.train()
 
-        trainng_loss_avg = torch.tensor([0.0])
+        trainng_loss_avg = 0.0
         train_accuracy_avg = 0.0
         train_precision_avg = 0.0
         train_recall_avg = 0.0
         train_f1_avg = 0.0
         train_bleu_score_avg = 0.0
         count_t = 0
-        count_q = 0
         optim.zero_grad()
 
         print(f"Memory allocated before loop: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -233,33 +253,21 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         for image_tensor, mask_tensor, question, answer in train_loader:
             try:
 
-                # Get image features from the img encoder (on GPU 0)
+                # Get image features from the img encoder
                 with torch.no_grad():
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
-                #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
+                # We want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
-                
-                # Move image features to the second GPU for LLM processing
-                image_features = image_features.to(device_llm)
 
-                # Format data and "tokenize" inputs for the LLM
-                answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
+                # Format data and "tokenize" answer for the LLM and eval metrics
+                answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].half().to(device_llm)
 
-                for i, a in enumerate(answer_):
-                    if len(a) < MAX_LENGTH:
-                        answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
+                # Get MLLM prediction and NLL loss
+                output, loss= connector_llm(image_features.to(device_llm), question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
 
-                answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
-
-                # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
-
-                accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
-                    output,
-                    [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
-                    tokenizer=connector_llm.tokenizer
-                )
+                # Eval
+                accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
 
                                
             except RuntimeError as e:
@@ -280,7 +288,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_f1_avg += f1
             train_bleu_score_avg += bleu_score
             count_t = count_t + 1
-            count_q += answer_.size(0)
 
             print("Diff in mem = ", mem_alloc - (torch.cuda.memory_allocated() / 1e6))
 
@@ -305,32 +312,21 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
                 try:
-                    # Get image features from the img encoder (on GPU 0)
+                    # Get image features from the img encoder
+                
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
-                    #we want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
+                    # We want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                     image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
-                    
-                    # Move image features to the second GPU for LLM processing
-                    image_features = image_features.to(device_llm)
 
-                    # Format data and "tokenize" inputs for the LLM
-                    answer_ = [connector_llm.tokenizer(a + "</s>", return_tensors="pt", max_length=MAX_LENGTH).input_ids for a in answer]
+                    # Format data and "tokenize" answer for the LLM and eval metrics
+                    answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].half().to(device_llm)
 
-                    for i, a in enumerate(answer_):
-                        if len(a) < MAX_LENGTH:
-                            answer_[i] = F.pad(a, (0, MAX_LENGTH - a.size(0)), 'constant', 0)
+                    # Get MLLM prediction and NLL loss
+                    output, loss= connector_llm(image_features.to(device_llm), question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
 
-                    answer_ = torch.cat(answer_, dim=0)[:, 1:].half().to(device_llm)
-
-                    # here max(len(s) for s in answer) + 2 ,ensures that there is an extra loss for not finding the eos token, while also reducing memory
-                    output, loss= connector_llm(image_features, question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
-
-                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(
-                        output,
-                        [connector_llm.tokenizer(a + "</s>", return_tensors="pt").input_ids[:, 1:].flatten().to(device_llm) for a in answer],
-                        tokenizer=connector_llm.tokenizer
-                    )
+                    # Eval
+                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
 
                 except RuntimeError as e:
                     if "out of memory" in str(e):
@@ -342,9 +338,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                         print(e)
                         print("Skipping batch")
                     continue
-                # dont worry about the metrics here the values should be the same as +=  0.0, also the count only increases after the continue so the loss avg is fine too
-
-                
 
                 validation_loss_avg += loss
                 val_accuracy_avg += accuracy
@@ -371,7 +364,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
                 "loss_training": trainng_loss_avg.to('cpu').detach().numpy()[0] / count_t,
                 "val_accuracy_avg": val_accuracy_avg / count,
-                "train_accuracy_avg": train_accuracy_avg / count_q,
+                "train_accuracy_avg": train_accuracy_avg / count_t,
                 "val_precision_avg": val_precision_avg / count,
                 "train_precision_avg": train_precision_avg / count_t,
                 "val_recall_avg": val_recall_avg / count,
