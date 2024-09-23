@@ -56,8 +56,10 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
         # Ensure the answer has its capitals and whitespace removed
         predicted_string = process_string(tokenizer.decode(predicted_item.long(), skip_special_tokens=True))
         target_string = process_string(tokenizer.decode(target_item.long(), skip_special_tokens=True))
-
+        
+        print("Predicted:")
         print(predicted_string)
+        print("Answer:")
         print(target_string)
 
         predicted_list = predicted_string.split()
@@ -416,7 +418,7 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":16,
+        "batch_size":8,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
