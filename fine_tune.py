@@ -100,10 +100,6 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
 
     return accuracy, average_bleu_score, average_prec, average_rec, average_f1
 
-  
-
-
-
 def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_transformer_width,
         clip_transformer_layers,
@@ -257,7 +253,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 output, loss= connector_llm(image_features.to(device_llm), question, answer_, answer_.size(1), count_t)
 
                 # Eval
-                accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
+                #accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
 
                                
             except RuntimeError as e:
@@ -290,7 +286,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         scheduler.step()
 
         # VALIDATE
-        validation_loss_avg = torch.tensor([0.0])
+        validation_loss_avg = 0.0
         val_accuracy_avg = 0.0
         val_precision_avg = 0.0
         val_recall_avg = 0.0
@@ -352,8 +348,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
         if count != 0 and count_t != 0:
             wandb.log({
-                "loss_validate": validation_loss_avg.to('cpu').detach().numpy()[0] / count,
-                "loss_training": trainng_loss_avg.to('cpu').detach().numpy()[0] / count_t,
+                "loss_validate": validation_loss_avg / count,
+                "loss_training": trainng_loss_avg / count_t,
                 "val_accuracy_avg": val_accuracy_avg / count,
                 "train_accuracy_avg": train_accuracy_avg / count_t,
                 "val_precision_avg": val_precision_avg / count,
