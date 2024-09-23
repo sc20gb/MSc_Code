@@ -109,9 +109,9 @@ class Connector_LLM(nn.Module):
     #A debuggging function to check the gradents of diffrent layers
     def check_grad(self,t,strv):
         if not t.requires_grad:
-            print("NO GRAD FOR ", strv, t.size())
+            print("NO GRAD FOR ", strv, t.size(), t.device)
         else:
-            print("Grad FOR ", strv, t.size())
+            print("Grad FOR ", strv, t.size(), t.device)
     
     #Auto-regresivly generates the output of the vicuna-LLM. Also generates loss and performs backwards()
     def generate_using_forward_method(self, max_length, temperature, target, question, image_features, itr):
@@ -229,6 +229,10 @@ class Connector_LLM(nn.Module):
     #This function takes the feature and question embeddings and combines them in the correct embedding format
     def encode_text_and_image(self, question, image_features):
 
+        self.check_grad(image_features, "image_features")
+
+        image_features.to(self.device)
+
         # Tokenize the batch of questions with padding
         inputs = self.tokenizer(
             [" Question: " + q + " Answer: " for q in question],  # Batch of strings
@@ -237,6 +241,8 @@ class Connector_LLM(nn.Module):
             return_tensors='pt' 
         )
 
+        self.check_grad(inputs,"inputs")
+
         header = self.tokenizer(
             ["Image: "],  # Batch of strings
             padding='longest',    # Pad to the length of the longest sequence in the batch
@@ -244,16 +250,21 @@ class Connector_LLM(nn.Module):
             return_tensors='pt'   
         )
 
+        self.check_grad(header, "header")
+        
         # Remove the first token from each sequence in the batch (index 1 onwards)
         input_ids = inputs.input_ids[:, 1:].to(self.device)
         header_ids = header.input_ids[:, 1:].to(self.device)
+
+        self.check_grad(input_ids, "input_ids")
+        self.check_grad(header_ids, "header_ids")
       
         embedded_text = self.vicuna.get_input_embeddings()(input_ids)
 
         # Place the header across the number of batches
         embedded_header = self.vicuna.get_input_embeddings()(header_ids)
         batch_size = embedded_text.size(0) 
-        embedded_header = embedded_header.expand(batch_size, -1, -1) 
+        embedded_header = embedded_header.repeat(batch_size, 1, 1).to(self.device) 
 
         self.check_grad(input_ids, "inputs ids")
         self.check_grad(header_ids, "header ids")
