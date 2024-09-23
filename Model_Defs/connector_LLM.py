@@ -239,7 +239,7 @@ class Connector_LLM(nn.Module):
             return_tensors='pt' 
         )
 
-        self.check_grad(inputs.ids,"inputs")
+        self.check_grad(inputs.input_ids,"inputs")
 
         header = self.tokenizer(
             ["Image: "],  # Batch of strings
@@ -248,7 +248,7 @@ class Connector_LLM(nn.Module):
             return_tensors='pt'   
         )
 
-        self.check_grad(header.ids, "header")
+        self.check_grad(header.input_ids, "header")
         
         # Remove the first token from each sequence in the batch (index 1 onwards)
         input_ids = inputs.input_ids[:, 1:].to(self.device)
