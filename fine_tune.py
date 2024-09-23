@@ -402,7 +402,9 @@ VIR_BATCH_SIZE_LIST = [64]
 HIDDEN_LAYER_LIST = [1,0]
 
 
-# batch_size 4 for step 2
+# batch_size 4 for step 2, 64 for step 1
+
+# 
 
 optim_list = [{
         "clip_transformer_width":512,
@@ -426,7 +428,7 @@ optim_list = [{
         "MAX_EPOC":30,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
-        "save":True,
+        "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
         "training_step":1
