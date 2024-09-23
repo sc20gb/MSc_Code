@@ -254,6 +254,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
                 # Eval
                 #accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
+                accuracy, bleu_score, precision, recall, f1 = 0.0,0.0,0.0,0.0,0.0
 
                                
             except RuntimeError as e:
