@@ -234,7 +234,7 @@ class Connector_LLM(nn.Module):
             [" Question: " + q + " Answer: " for q in question],  # Batch of strings
             padding='longest',    # Pad to the length of the longest sequence in the batch
             truncation=True,      
-            return_tensors='pt'   
+            return_tensors='pt' 
         )
 
         header = self.tokenizer(
@@ -245,8 +245,8 @@ class Connector_LLM(nn.Module):
         )
 
         # Remove the first token from each sequence in the batch (index 1 onwards)
-        input_ids = inputs.input_ids[:, 1:] 
-        header_ids = header.input_ids[:, 1:]
+        input_ids = inputs.input_ids[:, 1:].to(self.device)
+        header_ids = header.input_ids[:, 1:].to(self.device)
       
         embedded_text = self.vicuna.get_input_embeddings()(input_ids)
 
