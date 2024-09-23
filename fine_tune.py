@@ -389,7 +389,7 @@ path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" +
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(1) + ".pth")
 
-LR_LIST = [0.00001,0.0001,0.001]
+LR_LIST = [0.00001,0.001]
 
 WEIGHT_DECAY_LIST = [0.0001]
 
@@ -400,6 +400,9 @@ PERC_WARM_LIST = [0.2]
 VIR_BATCH_SIZE_LIST = [32]
 
 HIDDEN_LAYER_LIST = [1,0]
+
+
+# batch_size 4 for step 2
 
 optim_list = [{
         "clip_transformer_width":512,
@@ -417,16 +420,16 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":4,
+        "batch_size":16,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
-        "VERSION":2000,
+        "VERSION":3000,
         "pre_trained_connector_path":path3,
-        "save":False,
+        "save":True,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
-        "training_step":2
+        "training_step":1
             }
             for lr in LR_LIST 
             for wd in WEIGHT_DECAY_LIST 
