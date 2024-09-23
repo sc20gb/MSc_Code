@@ -41,6 +41,12 @@ def process_string(s):
 
 def calc_loss_and_metrics(predicted, target, tokenizer):
 
+    print("Is contguous ", target.is_contiguous())
+
+    predicted = predicted.contiguous()
+
+    target = target.contiguous()
+
     accuracy = 0
     bleu_scores = []
     precisions = []
@@ -120,7 +126,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_vision_patch_size,
         clip_vision_layers,
         clip_model_path,
-        MAX_LENGTH,
         vicuna_path,
         connector_layers,
         embed_dim,
@@ -252,6 +257,12 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
         for image_tensor, mask_tensor, question, answer in train_loader:
             try:
+                
+                print("Question:")
+                print(question)
+                
+                print("Answer:")
+                print(answer)
 
                 # Get image features from the img encoder
                 with torch.no_grad():
@@ -263,8 +274,10 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 # Format data and "tokenize" answer for the LLM and eval metrics
                 answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].half().to(device_llm)
 
+                print(answer_.size())
+
                 # Get MLLM prediction and NLL loss
-                output, loss= connector_llm(image_features.to(device_llm), question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
+                output, loss= connector_llm(image_features.to(device_llm), question, answer_, answer_.size(1), count_t)
 
                 # Eval
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
@@ -430,7 +443,6 @@ optim_list = [{
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
-        "MAX_LENGTH":48,
         "VERSION":2000,
         "pre_trained_connector_path":path3,
         "save":False,
