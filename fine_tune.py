@@ -397,7 +397,7 @@ CONNECTOR_LAYERS_LIST = [2,3]
 
 PERC_WARM_LIST = [0.2]
 
-VIR_BATCH_SIZE_LIST = [32]
+VIR_BATCH_SIZE_LIST = [64]
 
 HIDDEN_LAYER_LIST = [1,0]
 
@@ -420,7 +420,7 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":16,
+        "batch_size":64,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
