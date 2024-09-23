@@ -230,6 +230,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         train_f1_avg = 0.0
         train_bleu_score_avg = 0.0
         count_t = 0
+        count_tq = 0
         optim.zero_grad()
 
         print(f"Memory allocated before loop: {torch.cuda.memory_allocated() / 1e6} MB")
@@ -275,6 +276,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_f1_avg += f1
             train_bleu_score_avg += bleu_score
             count_t = count_t + 1
+            count_tq = count_tq + image_tensor.size(0)
 
             print("Diff in mem = ", mem_alloc - (torch.cuda.memory_allocated() / 1e6))
 
@@ -350,7 +352,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         if count != 0 and count_t != 0:
             wandb.log({
                 "loss_validate": validation_loss_avg / count,
-                "loss_training": trainng_loss_avg / count_t,
+                "loss_training": trainng_loss_avg / count_tq,
                 "val_accuracy_avg": val_accuracy_avg / count,
                 "train_accuracy_avg": train_accuracy_avg / count_t,
                 "val_precision_avg": val_precision_avg / count,
@@ -419,7 +421,7 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":32,
+        "batch_size":16,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
