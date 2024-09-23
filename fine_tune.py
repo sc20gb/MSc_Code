@@ -253,10 +253,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 # Format data and "tokenize" answer for the LLM and eval metrics
                 answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].to(device_llm)
 
-                answer_temp = answer_.clone()
-
                 # Get MLLM prediction and NLL loss
-                output, loss= connector_llm(image_features.to(device_llm), question, answer_temp, answer_temp.size(1), count_t)
+                output, loss= connector_llm(image_features.to(device_llm), question, answer_, answer_.size(1), count_t)
 
                 # Eval
                 accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
@@ -311,10 +309,12 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
 
                     # Format data and "tokenize" answer for the LLM and eval metrics
-                    answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].half().to(device_llm)
+                    answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].to(device_llm)
+
+                    answer_temp = answer_.clone()
 
                     # Get MLLM prediction and NLL loss
-                    output, loss= connector_llm(image_features.to(device_llm), question, answer_, max([len(connector_llm.tokenizer(s).input_ids) for s in answer]), count_t)
+                    output, loss= connector_llm(image_features.to(device_llm), question, answer_temp, answer_temp.size(1), count_t)
 
                     # Eval
                     accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
@@ -399,7 +399,7 @@ PERC_WARM_LIST = [0.2]
 
 VIR_BATCH_SIZE_LIST = [32]
 
-HIDDEN_LAYER_LIST = [0,1]
+HIDDEN_LAYER_LIST = [1,0]
 
 optim_list = [{
         "clip_transformer_width":512,
