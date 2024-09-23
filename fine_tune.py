@@ -305,7 +305,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             for image_tensor, mask_tensor, question, answer in validate_loader:
                 try:
                     # Get image features from the img encoder
-                
                     image_features, hidden_states = img_encoder(image_tensor.half().to(device_vit),return_hidden_states=True)
 
                     # We want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
@@ -418,7 +417,7 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":8,
+        "batch_size":4,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
