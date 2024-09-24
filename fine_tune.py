@@ -1,6 +1,7 @@
 import torchvision.transforms as transforms
 import os
-from Data_Loading.data_loading import load_data
+from Data_Loading.data_loading import load_data, load_data_cross_val
+from torch.utils.data import DataLoader, Subset
 import torch
 import numpy as np
 from Model_Defs.CLIP import VisionTransformer, CLIP
@@ -14,6 +15,10 @@ import wandb
 import math
 import gc
 import string
+from sklearn.model_selection import KFold
+from collections import defaultdict
+
+
 
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
@@ -100,6 +105,38 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
 
     return accuracy, average_bleu_score, average_prec, average_rec, average_f1
 
+# At the end of each epoch, append the calculated values
+def log_metrics(metrics_dict, validation_loss_avg, trainng_loss_avg, val_accuracy_avg, train_accuracy_avg,
+                val_precision_avg, train_precision_avg, val_recall_avg, train_recall_avg, val_f1_avg, train_f1_avg,
+                train_bleu_score_avg, val_bleu_score_avg, count_q, count_tq, count, count_t):
+    
+    if count_q == 0 or count_tq == 0 or count==0 or count_t == 0:
+        metrics_dict["loss_validate"].append(-1)
+        metrics_dict["loss_training"].append(-1)
+        metrics_dict["val_accuracy_avg"].append(-1)
+        metrics_dict["train_accuracy_avg"].append(-1)
+        metrics_dict["val_precision_avg"].append(-1)
+        metrics_dict["train_precision_avg"].append(-1)
+        metrics_dict["val_recall_avg"].append(-1)
+        metrics_dict["train_recall_avg"].append(-1)
+        metrics_dict["val_f1_avg"].append(-1)
+        metrics_dict["train_f1_avg"].append(-1)
+        metrics_dict["train_bleu_score_avg"].append(-1)
+        metrics_dict["val_bleu_score_avg"].append(-1)
+    else:
+        metrics_dict["loss_validate"].append(validation_loss_avg / count_q)
+        metrics_dict["loss_training"].append(trainng_loss_avg / count_tq)
+        metrics_dict["val_accuracy_avg"].append(val_accuracy_avg / count)
+        metrics_dict["train_accuracy_avg"].append(train_accuracy_avg / count_t)
+        metrics_dict["val_precision_avg"].append(val_precision_avg / count)
+        metrics_dict["train_precision_avg"].append(train_precision_avg / count_t)
+        metrics_dict["val_recall_avg"].append(val_recall_avg / count)
+        metrics_dict["train_recall_avg"].append(train_recall_avg / count_t)
+        metrics_dict["val_f1_avg"].append(val_f1_avg / count)
+        metrics_dict["train_f1_avg"].append(train_f1_avg / count_t)
+        metrics_dict["train_bleu_score_avg"].append(train_bleu_score_avg / count_t)
+        metrics_dict["val_bleu_score_avg"].append(val_bleu_score_avg / count)
+
 def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_transformer_width,
         clip_transformer_layers,
@@ -125,7 +162,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         save=False,
         cpu_only=False,
         hidden_layer_from_end=0,
-        training_step=1
+        training_step=1, 
+        val_dataset = None,
+        train_dataset = None
         ):
     # CHECK GPU SUPPORT AND ASSIGN DEVICES
     if torch.cuda.is_available() and not cpu_only:
@@ -157,12 +196,16 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     accumulation_steps = vir_batch_size // batch_size
 
     # LOAD DATA
-    train_loader, validate_loader = load_data(
-        transforms.Compose([
-            transforms.Resize((image_resolution, image_resolution)),
-            transforms.ToTensor()
-        ]), batch_size, rand_seed, os.path.join(os.getcwd(), 'Slake1.0')
-    )
+    if val_dataset == None or train_dataset == None:
+        train_loader, validate_loader = load_data(
+            transforms.Compose([
+                transforms.Resize((image_resolution, image_resolution)),
+                transforms.ToTensor()
+            ]), batch_size, rand_seed, os.path.join(os.getcwd(), 'Slake1.0')
+        )
+    else:
+        train_loader = train_dataset
+        validate_loader = val_dataset
 
     # Load connector and vicuna model on the second GPU
     connector_llm = Connector_LLM(embed_dim=embed_dim,vicuna_path=vicuna_path,connector_layers=connector_layers, device=device_llm, accumulation_steps=accumulation_steps)
@@ -214,7 +257,23 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
     connector_llm.set_optim_scheduler(optim,scheduler)
 
-    # Record the loss at the epoch
+
+    # to store metrics if the function is being used with cross_val
+    metrics_dict = {
+    "loss_validate": [],
+    "loss_training": [],
+    "val_accuracy_avg": [],
+    "train_accuracy_avg": [],
+    "val_precision_avg": [],
+    "train_precision_avg": [],
+    "val_recall_avg": [],
+    "train_recall_avg": [],
+    "val_f1_avg": [],
+    "train_f1_avg": [],
+    "train_bleu_score_avg": [],
+    "val_bleu_score_avg": []
+    }
+
     for n in range(1, MAX_EPOC + 1):
         
         # Training the LLM is not needed in step 1
@@ -232,11 +291,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         count_t = 0
         count_tq = 0
         optim.zero_grad()
-
-        print(f"Memory allocated before loop: {torch.cuda.memory_allocated() / 1e6} MB")
-
-        mem_alloc = torch.cuda.memory_allocated() / 1e6
-        
 
         for image_tensor, mask_tensor, question, answer in train_loader:
             try:
@@ -277,8 +331,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_bleu_score_avg += bleu_score
             count_t = count_t + 1
             count_tq = count_tq + image_tensor.size(0)
-
-            print("Diff in mem = ", mem_alloc - (torch.cuda.memory_allocated() / 1e6))
 
         # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
@@ -351,40 +403,87 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     os.makedirs(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION)))
                 torch.save(connector_llm.connector.state_dict(), os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION), "connector_LLM_model" + str(n) + ".pth"))
 
+        # we need to record thes as well
 
-        if count != 0 and count_t != 0:
-            wandb.log({
-                "loss_validate": validation_loss_avg / count_q,
-                "loss_training": trainng_loss_avg / count_tq,
-                "val_accuracy_avg": val_accuracy_avg / count,
-                "train_accuracy_avg": train_accuracy_avg / count_t,
-                "val_precision_avg": val_precision_avg / count,
-                "train_precision_avg": train_precision_avg / count_t,
-                "val_recall_avg": val_recall_avg / count,
-                "train_recall_avg": train_recall_avg / count_t,
-                "val_f1_avg": val_f1_avg / count,
-                "train_f1_avg": train_f1_avg / count_t,
-                "train_bleu_score_avg": train_bleu_score_avg / count_t,
-                "val_bleu_score_avg": val_bleu_score_avg / count
-            })
+        if  val_dataset == None or train_dataset == None:
+            if count != 0 and count_t != 0:
+                    wandb.log({
+                        "loss_validate": validation_loss_avg / count_q,
+                        "loss_training": trainng_loss_avg / count_tq,
+                        "val_accuracy_avg": val_accuracy_avg / count,
+                        "train_accuracy_avg": train_accuracy_avg / count_t,
+                        "val_precision_avg": val_precision_avg / count,
+                        "train_precision_avg": train_precision_avg / count_t,
+                        "val_recall_avg": val_recall_avg / count,
+                        "train_recall_avg": train_recall_avg / count_t,
+                        "val_f1_avg": val_f1_avg / count,
+                        "train_f1_avg": train_f1_avg / count_t,
+                        "train_bleu_score_avg": train_bleu_score_avg / count_t,
+                        "val_bleu_score_avg": val_bleu_score_avg / count
+                    })
+            else:
+                wandb.log({
+                    "loss_validate": -1,
+                    "loss_training": -1,
+                    "val_accuracy_avg": -1,
+                    "train_accuracy_avg": -1,
+                    "val_precision_avg": -1,
+                    "train_precision_avg": -1,
+                    "val_recall_avg": -1,
+                    "train_recall_avg": -1,
+                    "val_f1_avg": -1,
+                    "train_f1_avg": -1,
+                    "train_bleu_score_avg": -1,
+                    "val_bleu_score_avg": -1
+                })
         else:
-             wandb.log({
-                "loss_validate": -1,
-                "loss_training": -1,
-                "val_accuracy_avg": -1,
-                "train_accuracy_avg": -1,
-                "val_precision_avg": -1,
-                "train_precision_avg": -1,
-                "val_recall_avg": -1,
-                "train_recall_avg": -1,
-                "val_f1_avg": -1,
-                "train_f1_avg": -1,
-                "train_bleu_score_avg": -1,
-                "val_bleu_score_avg": -1
-            })
+            log_metrics(metrics_dict,validation_loss_avg, trainng_loss_avg, val_accuracy_avg, train_accuracy_avg,
+            val_precision_avg, train_precision_avg, val_recall_avg, train_recall_avg, val_f1_avg, train_f1_avg,
+            train_bleu_score_avg, val_bleu_score_avg, count_q, count_tq, count, count_t)
+    return metrics_dict
 
-    return 0
 
+
+
+def cross_val_train(para, n_splits=3):
+
+    # Load the train and val datasets concatnated
+    dataset = load_data_cross_val( transforms.Compose([
+            transforms.Resize((para["image_resolution"],para["image_resolution"] )),
+            transforms.ToTensor()
+        ]), os.path.join(os.getcwd(), 'Slake1.0'))
+    
+    #Make sure to shuffle the data with the seed
+    kfold = KFold(n_splits=n_splits, shuffle=True, random_state=para["rand_seed"])
+    metrics_list = []
+    for fold, (train_idx, val_idx) in enumerate(kfold.split(dataset)):
+        print(f'Fold {fold + 1}/{n_splits}')
+        
+        # Create data loaders for training and validation
+        train_subset = Subset(dataset, train_idx)
+        val_subset = Subset(dataset, val_idx)
+        
+        train_loader = DataLoader(train_subset, batch_size=para["batch_size"], shuffle=True, generator=torch.Generator().manual_seed(para["rand_seed"]))
+        val_loader = DataLoader(val_subset, batch_size=para["batch_size"])
+        metrics_list.append(feature_aliginment_training_step_2_GPU_SPLIT(**para, train_dataset=train_loader, val_dataset=val_loader))
+
+
+
+    # Initialize a dictionary with lists to accumulate sums for each metric
+    accumulated_metrics = defaultdict(list)
+    
+    # Loop through each metrics_dict in the list
+    for metrics_dict in metrics_list:
+        for key, value in metrics_dict.items():
+            accumulated_metrics[key].append(value)
+    
+    # Calculate the average for each metric
+    avg_metrics = {}
+    for key, values in accumulated_metrics.items():
+        avg_metrics[key] = sum(values) / len(values) if values else None  # Compute average
+
+    wandb.log(avg_metrics)
+        
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
 path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 #path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")

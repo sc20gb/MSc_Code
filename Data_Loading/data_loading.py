@@ -7,6 +7,8 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 import re
+from torch.utils.data import ConcatDataset
+
 
 class CustomMaskTransform(transforms.Compose):
     def __init__(self, transforms_list):
@@ -235,6 +237,17 @@ def load_data(transform,batchSize,seed, dataDir):
     validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
     return train_loader, validate_loader
+
+
+def load_data_cross_val(transform, dataDir):
+    train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
+    validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
+
+    # Create Dataset objects
+    train_dataset = JsonDataset(train_json_path, transform)
+    validate_dataset = JsonDataset(validate_json_path, transform)
+
+    return ConcatDataset(train_dataset, validate_dataset)
 
 
 
