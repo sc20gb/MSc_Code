@@ -401,9 +401,7 @@ VIR_BATCH_SIZE_LIST = [32]
 HIDDEN_LAYER_LIST = [1,0]
 
 
-# batch_size 4 for step 2, 64 for step 1
-
-# 
+# batch_size 4 for step 2, 8 for step 1
 
 optim_list = [{
         "clip_transformer_width":512,
@@ -421,10 +419,10 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":4,
+        "batch_size":8,
         "vir_batch_size":vb,
         "rand_seed":42,
-        "MAX_EPOC":30,
+        "MAX_EPOC":10,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
         "save":False,
