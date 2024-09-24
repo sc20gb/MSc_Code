@@ -421,7 +421,7 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":8,
+        "batch_size":4,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":30,
