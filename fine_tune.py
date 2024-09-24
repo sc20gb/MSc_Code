@@ -298,6 +298,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         count = 0
         connector_llm.eval()
 
+        count_q = 0
+
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
                 try:
@@ -336,6 +338,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 val_f1_avg += f1
                 val_bleu_score_avg += bleu_score
                 count = count + 1
+                count_q += image_tensor.size(0)
 
         # SAVE RESULTS
         if save:
@@ -351,7 +354,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
         if count != 0 and count_t != 0:
             wandb.log({
-                "loss_validate": validation_loss_avg / count,
+                "loss_validate": validation_loss_avg / count_q,
                 "loss_training": trainng_loss_avg / count_tq,
                 "val_accuracy_avg": val_accuracy_avg / count,
                 "train_accuracy_avg": train_accuracy_avg / count_t,
