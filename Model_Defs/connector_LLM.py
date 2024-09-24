@@ -21,7 +21,7 @@ def print_memory_usage():
     print(f"CPU Memory Usage - VMS: {cpu_memory_vms:.2f} GB")
 
 class Connector_LLM(nn.Module):
-    def __init__(self, embed_dim, connector_layers,vicuna_path,device,accumulation_steps=-1):
+    def __init__(self, embed_dim, connector_layers,vicuna_path,device,accumulation_steps=-1, seed=42):
         super(Connector_LLM, self).__init__()
         layers = []
         input_dim = embed_dim
@@ -49,7 +49,7 @@ class Connector_LLM(nn.Module):
         # Build the Sequential model
         self.connector = nn.Sequential(*layers).to(device)
 
-        self._initialize_weights()
+        self._initialize_weights(seed)
 
         self.vicuna_path = vicuna_path
 
@@ -80,7 +80,11 @@ class Connector_LLM(nn.Module):
         self.vicuna = get_peft_model(self.vicuna, lora_config)
 
     #Initilises the weights for the MLP connector (visual embedder)
-    def _initialize_weights(self):
+    def _initialize_weights(self, seed):
+            
+            if seed is not None:
+                torch.manual_seed(seed)  # Set seed for reproducibility
+    
             for m in self.connector.modules():
                 if isinstance(m, nn.Linear):
                     nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')  # Kaiming initialization
