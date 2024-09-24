@@ -391,17 +391,18 @@ path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" +
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(1) + ".pth")
 
-LR_LIST = [0.00001,0.001]
+LR_LIST = [0.00001,0.0005]
 
-WEIGHT_DECAY_LIST = [0.0001]
+HIDDEN_LAYER_LIST = [1,2]
 
 CONNECTOR_LAYERS_LIST = [2,3]
 
-PERC_WARM_LIST = [0.2]
+WEIGHT_DECAY_LIST = [0.0001]
+
+PERC_WARM_LIST = [1.0]
 
 VIR_BATCH_SIZE_LIST = [32]
 
-HIDDEN_LAYER_LIST = [1,0]
 
 
 # batch_size 4 for step 2, 8 for step 1
