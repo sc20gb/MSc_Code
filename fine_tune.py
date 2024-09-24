@@ -393,15 +393,15 @@ path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + s
 
 LR_LIST = [0.00001,0.0005]
 
-HIDDEN_LAYER_LIST = [1,2]
+HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2,3]
 
 WEIGHT_DECAY_LIST = [0.0001]
 
-PERC_WARM_LIST = [1.0]
+PERC_WARM_LIST = [0.4]
 
-VIR_BATCH_SIZE_LIST = [32]
+VIR_BATCH_SIZE_LIST = [32,64]
 
 
 
@@ -426,7 +426,7 @@ optim_list = [{
         "batch_size":8,
         "vir_batch_size":vb,
         "rand_seed":42,
-        "MAX_EPOC":10,
+        "MAX_EPOC":5,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
         "save":False,
