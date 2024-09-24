@@ -399,7 +399,7 @@ CONNECTOR_LAYERS_LIST = [2,3]
 
 WEIGHT_DECAY_LIST = [0.0001]
 
-PERC_WARM_LIST = [0.4]
+PERC_WARM_LIST = [0.66]
 
 VIR_BATCH_SIZE_LIST = [32,64]
 
@@ -426,7 +426,7 @@ optim_list = [{
         "batch_size":8,
         "vir_batch_size":vb,
         "rand_seed":42,
-        "MAX_EPOC":5,
+        "MAX_EPOC":3,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
         "save":False,
