@@ -492,17 +492,17 @@ path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + s
 
 LR_LIST = [0.00001,0.0005]
 
-HIDDEN_LAYER_LIST = [1,2]
+HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
 
-WEIGHT_DECAY_LIST = [0.0001]
+WEIGHT_DECAY_LIST = [0.0001, 0.001]
 
-PERC_WARM_LIST = [0.0, 0.33]
+PERC_WARM_LIST = [0.0]
 
 VIR_BATCH_SIZE_LIST = [32]
 
-
+# WHY was perc warm used?
 
 # batch_size 4 for step 2, 8 for step 1
 
