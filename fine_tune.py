@@ -442,9 +442,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_bleu_score_avg, val_bleu_score_avg, count_q, count_tq, count, count_t)
     return metrics_dict
 
-
-
-
 def cross_val_train(para, n_splits=3):
 
     # Load the train and val datasets concatnated
@@ -490,15 +487,17 @@ path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" +
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(1) + ".pth")
 
-LR_LIST = [0.00001,0.0005]
+#  If 
+
+LR_LIST = [0.0008,0.000001,0.0005]
 
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
 
-WEIGHT_DECAY_LIST = [0.0001, 0.001]
+WEIGHT_DECAY_LIST = [0.0,0.000001,0.0001]
 
-PERC_WARM_LIST = [0.0]
+PERC_WARM_LIST = [0.33,0.0]
 
 VIR_BATCH_SIZE_LIST = [32]
 
@@ -528,7 +527,7 @@ optim_list = [{
         "MAX_EPOC":3,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
-        "save":False,
+        "save":True,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
         "training_step":1
