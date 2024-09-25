@@ -492,15 +492,15 @@ path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + s
 
 LR_LIST = [0.00001,0.0005]
 
-HIDDEN_LAYER_LIST = [1]
+HIDDEN_LAYER_LIST = [1,2]
 
-CONNECTOR_LAYERS_LIST = [2,3]
+CONNECTOR_LAYERS_LIST = [2]
 
 WEIGHT_DECAY_LIST = [0.0001]
 
-PERC_WARM_LIST = [0.66]
+PERC_WARM_LIST = [0.0, 0.33]
 
-VIR_BATCH_SIZE_LIST = [32,64]
+VIR_BATCH_SIZE_LIST = [32]
 
 
 
