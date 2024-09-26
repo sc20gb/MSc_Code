@@ -159,6 +159,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         rand_seed,
         MAX_EPOC,
         pre_trained_connector_path,
+        lora_rank,
+        lora_dropout,
         save=False,
         cpu_only=False,
         hidden_layer_from_end=0,
@@ -217,7 +219,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         connector_llm.connector.load_state_dict(state_dict)
 
         #lora
-        connector_llm.apply_lora()
+        connector_llm.apply_lora(rank=lora_rank,dropout=lora_dropout)
 
     #Half the size of weights for the connector and LLM
     connector_llm.half()
@@ -488,8 +490,11 @@ path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
 
 
-LR_LIST = [0.00001,0.000001]
+LR_LIST = [1e-6, 1e-7]
 
+DROPOUT_LIST = [0.1]
+
+RANK_LIST = [8]
 
 HIDDEN_LAYER_LIST = [1]
 
@@ -497,7 +502,7 @@ CONNECTOR_LAYERS_LIST = [2]
 
 WEIGHT_DECAY_LIST = [0.0001]
 
-PERC_WARM_LIST = [0.33]
+PERC_WARM_LIST = [0.66]
 
 VIR_BATCH_SIZE_LIST = [32,64]
 
@@ -518,7 +523,7 @@ optim_list = [{
         "embed_dim":512,
         "image_resolution":224,
         "lr": lr,
-        "eps":0.0001,
+        "eps":1e-6,
         "weight_decay":wd,
         "per_warm": pw,
         "batch_size":4,
@@ -530,7 +535,9 @@ optim_list = [{
         "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
-        "training_step":2
+        "training_step":2,
+        "lora_dropout":do,
+        "lora_rank":r
             }
             for lr in LR_LIST 
             for wd in WEIGHT_DECAY_LIST 
@@ -538,6 +545,8 @@ optim_list = [{
             for pw in PERC_WARM_LIST
             for vb in VIR_BATCH_SIZE_LIST
             for hl in HIDDEN_LAYER_LIST
+            for do in DROPOUT_LIST
+            for r in  RANK_LIST
             ]
 
 for i, para in enumerate(optim_list):
