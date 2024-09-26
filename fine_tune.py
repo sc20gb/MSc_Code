@@ -488,17 +488,18 @@ path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
 
 
-LR_LIST = [0.0008,0.000001,0.0005]
+LR_LIST = [0.00001,0.000001]
 
-WEIGHT_DECAY_LIST = [0.0,0.000001,0.0001]
-
-PERC_WARM_LIST = [0.0]
-
-VIR_BATCH_SIZE_LIST = [32,64]
 
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
+
+WEIGHT_DECAY_LIST = [0.0,0.0001]
+
+PERC_WARM_LIST = [0.0]
+
+VIR_BATCH_SIZE_LIST = [32,64]
 
 # WHY was perc warm used?
 
