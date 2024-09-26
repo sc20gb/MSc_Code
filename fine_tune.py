@@ -485,21 +485,20 @@ def cross_val_train(para, n_splits=3):
 path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 #path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
-path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(1000), "connector_LLM_model" + str(1) + ".pth")
+path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
 
-#  If 
 
 LR_LIST = [0.0008,0.000001,0.0005]
+
+WEIGHT_DECAY_LIST = [0.0,0.000001,0.0001]
+
+PERC_WARM_LIST = [0.0]
+
+VIR_BATCH_SIZE_LIST = [32,64]
 
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
-
-WEIGHT_DECAY_LIST = [0.0,0.000001,0.0001]
-
-PERC_WARM_LIST = [0.33,0.0]
-
-VIR_BATCH_SIZE_LIST = [32]
 
 # WHY was perc warm used?
 
@@ -521,16 +520,16 @@ optim_list = [{
         "eps":0.0001,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":8,
+        "batch_size":4,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":3,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
-        "save":True,
+        "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
-        "training_step":1
+        "training_step":2
             }
             for lr in LR_LIST 
             for wd in WEIGHT_DECAY_LIST 
