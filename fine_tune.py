@@ -212,9 +212,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     if training_step == 2:
         #Load the pre_trained connector stat_dict
-        state_dict = torch.load(pre_trained_connector_path)
+        #state_dict = torch.load(pre_trained_connector_path)
 
-        connector_llm.connector.load_state_dict(state_dict)
+        #connector_llm.connector.load_state_dict(state_dict)
 
         #lora
         connector_llm.apply_lora()
