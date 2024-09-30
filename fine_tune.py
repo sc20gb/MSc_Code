@@ -17,6 +17,9 @@ import gc
 import string
 from sklearn.model_selection import KFold
 from collections import defaultdict
+from collections import Counter
+from torch.utils.data import random_split
+
 
 
 
@@ -52,8 +55,10 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
     recalls = []
     f1_scores = []
 
+    print(predicted)
+
     # Iterate over each sample in the batch
-    for i in range(target.size(0)):  # Assuming target has shape (batch_size, ...)
+    for i in range(len(target)):  # Assuming target has shape (batch_size, ...)
         # Extract the individual target and predicted for the current batch item
         target_item = target[i]
         predicted_item = predicted[i]
@@ -70,6 +75,9 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
         predicted_list = predicted_string.split()
         target_list = target_string.split()
 
+        print(predicted_list)
+        print(target_list)
+
         if predicted_list == target_list:
             accuracy += 1.0
 
@@ -82,9 +90,24 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
         prec = 0.0
         rec = 0.0
         if len(predicted_string) != 0 and len(target_string) != 0:
-            common_tokens = set(predicted_list) & set(target_list)
-            prec = len(common_tokens) / len(predicted_list)
-            rec = len(common_tokens) / len(target_list)
+            predicted_count = Counter(predicted_list)
+            target_count = Counter(target_list)
+
+          # Calculate the number of common tokens (one-to-one matching)
+            common_count = 0
+            for token in predicted_count:
+                if token in target_count:
+                    # Take the minimum of the occurrences in both lists for exact matches
+                    common_count += min(predicted_count[token], target_count[token])
+
+            print(common_count)
+            # Precision: proportion of predicted tokens that are correct
+            prec = common_count / len(predicted_list)
+            
+            # Recall: proportion of target tokens that were predicted
+            rec = common_count / len(target_list)
+
+
 
         if prec + rec == 0.0:
             f1 = 0.0
@@ -97,7 +120,7 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
         f1_scores.append(f1)
 
     # Average the accuracy, BLEU scores, precision, recall, and F1 score over the batch
-    accuracy /= target.size(0)  # Average accuracy
+    accuracy = accuracy / len(target)  # Average accuracy
     average_bleu_score = sum(bleu_scores) / len(bleu_scores) if bleu_scores else 0.0
     average_prec = sum(precisions) / len(precisions) if precisions else 0.0
     average_rec = sum(recalls) / len(recalls) if recalls else 0.0
@@ -310,8 +333,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 output, loss= connector_llm(image_features.to(device_llm), question, answer_, answer_.size(1), count_t)
 
                 # Eval
-                #accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
-                accuracy, bleu_score, precision, recall, f1 = 0.0,0.0,0.0,0.0,0.0
+                accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics([batch_tensor for batch_tensor in output],[batch_tensor for batch_tensor in answer_],tokenizer=connector_llm.tokenizer)
 
                                
             except RuntimeError as e:
@@ -366,13 +388,11 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     # Format data and "tokenize" answer for the LLM and eval metrics
                     answer_ =  connector_llm.tokenizer([a + "</s>" for a in answer],padding='longest',truncation=True,return_tensors='pt').input_ids[:,1:].to(device_llm)
 
-                    answer_temp = answer_.clone()
-
                     # Get MLLM prediction and NLL loss
-                    output, loss= connector_llm(image_features.to(device_llm), question, answer_temp, answer_temp.size(1), count_t)
+                    output, loss= connector_llm(image_features.to(device_llm), question, answer_, answer_.size(1), count_t)
 
                     # Eval
-                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics(output,answer_,tokenizer=connector_llm.tokenizer)
+                    accuracy, bleu_score, precision, recall, f1 = calc_loss_and_metrics([batch_tensor for batch_tensor in output],[batch_tensor for batch_tensor in answer_],tokenizer=connector_llm.tokenizer)
 
                 except RuntimeError as e:
                     if "out of memory" in str(e):
@@ -444,13 +464,24 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_bleu_score_avg, val_bleu_score_avg, count_q, count_tq, count, count_t)
     return metrics_dict
 
-def cross_val_train(para, n_splits=3):
+def cross_val_train(para, n_splits=3, per_data=1.0):
 
     # Load the train and val datasets concatnated
     dataset = load_data_cross_val( transforms.Compose([
             transforms.Resize((para["image_resolution"],para["image_resolution"] )),
             transforms.ToTensor()
         ]), os.path.join(os.getcwd(), 'Slake1.0'))
+    
+    if per_data != 1.0:
+    
+        # Define the split sizes
+        train_size = int(per_data * len(dataset))
+        discard_size = len(dataset) - train_size
+
+        # Split the dataset into two parts (e.g., 80% and 20%)
+        dataset, _ = random_split(dataset, [train_size, discard_size],torch.Generator().manual_seed(para["rand_seed"]))
+
+
     
     #Make sure to shuffle the data with the seed
     kfold = KFold(n_splits=n_splits, shuffle=True, random_state=para["rand_seed"])
@@ -552,7 +583,5 @@ optim_list = [{
 for i, para in enumerate(optim_list):
     para['VERSION'] += i
     wandb.init(project="MSc_fine_tuning_step_2",config=para)
-    feature_aliginment_training_step_2_GPU_SPLIT(**para)
+    cross_val_train(**para,n_splits=3,per_data=0.2)
     wandb.finish()
-
-
