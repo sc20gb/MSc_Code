@@ -583,5 +583,5 @@ optim_list = [{
 for i, para in enumerate(optim_list):
     para['VERSION'] += i
     wandb.init(project="MSc_fine_tuning_step_2",config=para)
-    cross_val_train(**para,n_splits=3,per_data=0.2)
+    cross_val_train(para,n_splits=3,per_data=0.2)
     wandb.finish()
