@@ -496,24 +496,7 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
         
         train_loader = DataLoader(train_subset, batch_size=para["batch_size"], shuffle=True, generator=torch.Generator().manual_seed(para["rand_seed"]))
         val_loader = DataLoader(val_subset, batch_size=para["batch_size"])
-        #metrics_list.append(feature_aliginment_training_step_2_GPU_SPLIT(**para, train_dataset=train_loader, val_dataset=val_loader))
-
-
-
-        metrics_list.append({
-                        "loss_validate": [1.0,1.0,1.0],
-                        "loss_training":  [2.0,2.0,2.0],
-                        "val_accuracy_avg":  [1.0,1.0,1.0],
-                        "train_accuracy_avg":  [1.0,1.0,1.0],
-                        "val_precision_avg":  [1.0,1.0,1.0] ,
-                        "train_precision_avg":  [1.0,1.0,1.0],
-                        "val_recall_avg": [1.0,1.0,1.0] ,
-                        "train_recall_avg":  [1.0,1.0,1.0] ,
-                        "val_f1_avg":  [1.0,1.0,1.0] ,
-                        "train_f1_avg":  [1.0,1.0,1.0] ,
-                        "train_bleu_score_avg":  [1.0,1.0,1.0] ,
-                        "val_bleu_score_avg":  [10.0,10.5,10.0*fold]
-                    })
+        metrics_list.append(feature_aliginment_training_step_2_GPU_SPLIT(**para, train_dataset=train_loader, val_dataset=val_loader))
 
     # Initialize a dictionary with lists to accumulate sums for each metric
     accumulated_metrics = defaultdict(list)
