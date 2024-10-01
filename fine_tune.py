@@ -462,6 +462,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             log_metrics(metrics_dict,validation_loss_avg, trainng_loss_avg, val_accuracy_avg, train_accuracy_avg,
             val_precision_avg, train_precision_avg, val_recall_avg, train_recall_avg, val_f1_avg, train_f1_avg,
             train_bleu_score_avg, val_bleu_score_avg, count_q, count_tq, count, count_t)
+
     return metrics_dict
 
 def cross_val_train(para, n_splits=3, per_data=1.0):
@@ -495,9 +496,24 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
         
         train_loader = DataLoader(train_subset, batch_size=para["batch_size"], shuffle=True, generator=torch.Generator().manual_seed(para["rand_seed"]))
         val_loader = DataLoader(val_subset, batch_size=para["batch_size"])
-        metrics_list.append(feature_aliginment_training_step_2_GPU_SPLIT(**para, train_dataset=train_loader, val_dataset=val_loader))
+        #metrics_list.append(feature_aliginment_training_step_2_GPU_SPLIT(**para, train_dataset=train_loader, val_dataset=val_loader))
 
 
+
+        metrics_list.append({
+                        "loss_validate": [1.0,1.0,1.0],
+                        "loss_training":  [2.0,2.0,2.0],
+                        "val_accuracy_avg":  [1.0,1.0,1.0],
+                        "train_accuracy_avg":  [1.0,1.0,1.0],
+                        "val_precision_avg":  [1.0,1.0,1.0] ,
+                        "train_precision_avg":  [1.0,1.0,1.0],
+                        "val_recall_avg": [1.0,1.0,1.0] ,
+                        "train_recall_avg":  [1.0,1.0,1.0] ,
+                        "val_f1_avg":  [1.0,1.0,1.0] ,
+                        "train_f1_avg":  [1.0,1.0,1.0] ,
+                        "train_bleu_score_avg":  [1.0,1.0,1.0] ,
+                        "val_bleu_score_avg":  [10.0,10.5,10.0*fold]
+                    })
 
     # Initialize a dictionary with lists to accumulate sums for each metric
     accumulated_metrics = defaultdict(list)
@@ -510,9 +526,20 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
     # Calculate the average for each metric
     avg_metrics = {}
     for key, values in accumulated_metrics.items():
-        avg_metrics[key] = sum(values) / len(values) if values else None  # Compute average
+        avg_metrics[key] = [sum(x) / len(values) for x in zip(*values)] if values else None  # Compute average
 
-    wandb.log(avg_metrics)
+    num_indices = len(next(iter(avg_metrics.values())))
+
+    split_data = []
+
+    # Loop over the range of indices
+    for i in range(num_indices):
+        # Create a new dictionary for each index
+        dict_at_index = {key: value[i] for key, value in avg_metrics.items()}
+        split_data.append(dict_at_index)
+
+    for step in split_data:
+        wandb.log(step)
         
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
 path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")

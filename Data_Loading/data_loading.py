@@ -247,7 +247,7 @@ def load_data_cross_val(transform, dataDir):
     train_dataset = JsonDataset(train_json_path, transform)
     validate_dataset = JsonDataset(validate_json_path, transform)
 
-    return ConcatDataset(train_dataset, validate_dataset)
+    return ConcatDataset([train_dataset, validate_dataset])
 
 
 
