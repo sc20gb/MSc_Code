@@ -189,7 +189,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         hidden_layer_from_end=0,
         training_step=1, 
         val_dataset = None,
-        train_dataset = None
+        train_dataset = None,
+        norm=False
         ):
     # CHECK GPU SUPPORT AND ASSIGN DEVICES
     if torch.cuda.is_available() and not cpu_only:
@@ -233,7 +234,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         validate_loader = val_dataset
 
     # Load connector and vicuna model on the second GPU
-    connector_llm = Connector_LLM(embed_dim=embed_dim,vicuna_path=vicuna_path,connector_layers=connector_layers, device=device_llm, accumulation_steps=accumulation_steps)
+    connector_llm = Connector_LLM(embed_dim=embed_dim,vicuna_path=vicuna_path,connector_layers=connector_layers, device=device_llm, accumulation_steps=accumulation_steps,norm=norm)
 
     if training_step == 2:
         #Load the pre_trained connector stat_dict
@@ -531,7 +532,15 @@ path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
 
 
-LR_LIST = [1e-6, 1e-7]
+LR_LIST = [1e-5,1e-6, 1e-7]
+
+WEIGHT_DECAY_LIST = [1e-4, 1e-5]
+
+PERC_WARM_LIST = [0.0, 0.5]
+
+VIR_BATCH_SIZE_LIST = [32,64]
+
+NORM_LIST = [True,False]
 
 DROPOUT_LIST = [0.1]
 
@@ -541,11 +550,6 @@ HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
 
-WEIGHT_DECAY_LIST = [0.0001]
-
-PERC_WARM_LIST = [0.66]
-
-VIR_BATCH_SIZE_LIST = [32,64]
 
 # WHY was perc warm used?
 
@@ -570,7 +574,7 @@ optim_list = [{
         "batch_size":4,
         "vir_batch_size":vb,
         "rand_seed":42,
-        "MAX_EPOC":3,
+        "MAX_EPOC":2,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
         "save":False,
@@ -578,7 +582,8 @@ optim_list = [{
         "hidden_layer_from_end": hl,
         "training_step":2,
         "lora_dropout":do,
-        "lora_rank":r
+        "lora_rank":r,
+        "norm":  norm
             }
             for lr in LR_LIST 
             for wd in WEIGHT_DECAY_LIST 
@@ -588,10 +593,11 @@ optim_list = [{
             for hl in HIDDEN_LAYER_LIST
             for do in DROPOUT_LIST
             for r in  RANK_LIST
+            for norm in NORM_LIST
             ]
 
 for i, para in enumerate(optim_list):
     para['VERSION'] += i
-    wandb.init(project="MSc_fine_tuning_step_2",config=para)
+    wandb.init(project="MSc_fine_tuning_step_1",config=para)
     cross_val_train(para,n_splits=3,per_data=0.2)
     wandb.finish()
