@@ -20,8 +20,17 @@ def print_memory_usage():
     print(f"Memory cuda: {torch.cuda.memory_allocated() / 1e6} MB")
     print(f"CPU Memory Usage - VMS: {cpu_memory_vms:.2f} GB")
 
+
+class LayerNorm(nn.LayerNorm):
+    """Subclass torch's LayerNorm to handle fp16."""
+
+    def forward(self, x: torch.Tensor):
+        orig_type = x.dtype
+        ret = super().forward(x.type(torch.float32))
+        return ret.type(orig_type)
+
 class Connector_LLM(nn.Module):
-    def __init__(self, embed_dim, connector_layers,vicuna_path,device,accumulation_steps=-1, seed=42):
+    def __init__(self, embed_dim, connector_layers,vicuna_path,device,accumulation_steps=-1, seed=42,norm=False):
         super(Connector_LLM, self).__init__()
         layers = []
         input_dim = embed_dim
@@ -45,6 +54,9 @@ class Connector_LLM(nn.Module):
 
         # Add the final output layer
         layers.append(nn.Linear(self.embedding_size, self.embedding_size))
+
+        if norm:
+            layers.append(LayerNorm)
 
         # Build the Sequential model
         self.connector = nn.Sequential(*layers).to(device)
@@ -248,30 +260,3 @@ class Connector_LLM(nn.Module):
         torch.cuda.empty_cache()  # Clear the CUDA cache
 
         return gen, loss
-
-# freeze all mlp layers .mlp
-
-#  11 Named Parameters in Vicuna:
-#  12 net.model.embed_tokens.weight
-#  13 net.model.layers.0.self_attn.q_proj.weight
-#  14 net.model.layers.0.self_attn.k_proj.weight
-#  15 net.model.layers.0.self_attn.v_proj.weight
-#  16 net.model.layers.0.self_attn.o_proj.weight
-#  17 net.model.layers.0.mlp.gate_proj.weight
-#  18 net.model.layers.0.mlp.up_proj.weight
-#  19 net.model.layers.0.mlp.down_proj.weight
-#  20 net.model.layers.0.input_layernorm.weight
-#  21 net.model.layers.0.post_attention_layernorm.weight
-#  ...
-# 292 net.model.layers.31.self_attn.q_proj.weight
-# 293 net.model.layers.31.self_attn.k_proj.weight
-# 294 net.model.layers.31.self_attn.v_proj.weight
-# 295 net.model.layers.31.self_attn.o_proj.weight
-# 296 net.model.layers.31.mlp.gate_proj.weight
-# 297 net.model.layers.31.mlp.up_proj.weight
-# 298 net.model.layers.31.mlp.down_proj.weight
-# 299 net.model.layers.31.input_layernorm.weight
-# 300 net.model.layers.31.post_attention_layernorm.weight
-# 301 net.model.norm.weight
-# 302 net.lm_head.weight
-# 303 End of named parameters
