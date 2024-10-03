@@ -54,9 +54,9 @@ class Connector_LLM(nn.Module):
 
         # Add the final output layer
         layers.append(nn.Linear(self.embedding_size, self.embedding_size))
-
+        
         if norm:
-            layers.append(LayerNorm)
+            layers.append(LayerNorm(self.embedding_size))
 
         # Build the Sequential model
         self.connector = nn.Sequential(*layers).to(device)
