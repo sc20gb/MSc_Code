@@ -580,7 +580,7 @@ optim_list = [{
         "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
-        "training_step":2,
+        "training_step":1,
         "lora_dropout":do,
         "lora_rank":r,
         "norm":  norm
