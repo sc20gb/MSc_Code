@@ -19,6 +19,7 @@ from sklearn.model_selection import KFold
 from collections import defaultdict
 from collections import Counter
 from torch.utils.data import random_split
+from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
 
 
 
@@ -190,7 +191,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         training_step=1, 
         val_dataset = None,
         train_dataset = None,
-        norm=False
+        norm=False,
+        visual_encoder_type="CLIP-trained"
         ):
     # CHECK GPU SUPPORT AND ASSIGN DEVICES
     if torch.cuda.is_available() and not cpu_only:
@@ -248,20 +250,33 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     #Half the size of weights for the connector and LLM
     connector_llm.half()
     
-    # LOAD ViT encoder from the CLIP model on the first GPU
-    img_encoder = load_ViT_img_encoder(
-        device=device_vit,
-        tokenizer=connector_llm.tokenizer,
-        transformer_width=clip_transformer_width,
-        transformer_layers=clip_transformer_layers,
-        transformer_heads=clip_transformer_heads,
-        embed_dim=embed_dim,
-        vision_width=clip_vision_width,
-        image_resolution=image_resolution,
-        vision_patch_size=clip_vision_patch_size,
-        vision_layers=clip_vision_layers,
-        clip_model_path=clip_model_path
-        )
+
+    if visual_encoder_type == "CLIP-trained":
+        # LOAD ViT encoder from the CLIP model on the first GPU
+        img_encoder = load_ViT_img_encoder(
+            device=device_vit,
+            tokenizer=connector_llm.tokenizer,
+            transformer_width=clip_transformer_width,
+            transformer_layers=clip_transformer_layers,
+            transformer_heads=clip_transformer_heads,
+            embed_dim=embed_dim,
+            vision_width=clip_vision_width,
+            image_resolution=image_resolution,
+            vision_patch_size=clip_vision_patch_size,
+            vision_layers=clip_vision_layers,
+            clip_model_path=clip_model_path
+            )
+        
+    elif visual_encoder_type == "CLIP-pretrained":
+        clip = CLIPWithLoRA()
+        img_encoder = clip.get_visual_encoder()
+    else:
+        clip = CLIPWithLoRA()
+        clip.apply_LORA(lora_r=8, lora_alpha=32, lora_dropout=0.1)
+        clip.load_model(clip_model_path)
+        img_encoder = clip.get_visual_encoder()
+
+
     
     # FREEZE CLIP TRAINING (should save memory and computation as well)
     img_encoder.eval()
