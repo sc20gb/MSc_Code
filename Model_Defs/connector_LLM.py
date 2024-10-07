@@ -26,8 +26,16 @@ class LayerNorm(nn.LayerNorm):
 
     def forward(self, x: torch.Tensor):
         orig_type = x.dtype
+
+        print("Type if input to LayerNorm = ", orig_type)
         ret = super().forward(x.type(torch.float32))
-        return ret.type(orig_type)
+        print("ret type:", ret.dtype)
+
+        ret = ret.type(orig_type)
+
+        print("ret type:", ret.dtype)
+        
+        return ret
 
 class Connector_LLM(nn.Module):
     def __init__(self, embed_dim, connector_layers,vicuna_path,device,accumulation_steps=-1, seed=42,norm=False):
@@ -137,10 +145,18 @@ class Connector_LLM(nn.Module):
             image_features = image_features.unsqueeze(0)  # Adds a dimension of size 1 at index 0
 
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
+
+
+        print("Type of Image features in = ", image_features.dtype)
         
         #embed the image features
         image_features = self.connector(image_features)
+
+        print("Type of image_features after connector = ", image_features.dtype)
+
         image_features = image_features.view(batch_size,n_patches,-1)
+
+        print("Type of image_features after view = ", image_features.dtype)
 
         # Encode text and images into the embedding expected by the LLM
         embeddings = self.encode_text_and_image(question, image_features)
