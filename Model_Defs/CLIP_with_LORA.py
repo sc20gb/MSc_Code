@@ -6,12 +6,7 @@ import os
 
 class CLIPWithLoRA(nn.Module):
     def __init__(self, 
-                 clip_model_name="openai/clip-vit-base-patch32", 
-                 fine_tune=False, 
-                 use_lora=False, 
-                 lora_r=8, 
-                 lora_alpha=32, 
-                 lora_dropout=0.1):
+                 clip_model_name="openai/clip-vit-base-patch32"):
         super(CLIPWithLoRA, self).__init__()
         
         # Load the full CLIP model (both vision and text encoders)
@@ -20,30 +15,18 @@ class CLIPWithLoRA(nn.Module):
         # Separate access to vision and text encoders
         self.visual_encoder = self.clip_model.vision_model
         self.text_encoder = self.clip_model.text_model
-        
-        # Fine-tuning flag
-        self.fine_tune = fine_tune
-        
-        if not self.fine_tune:
-            # Freeze all the parameters in both encoders
-            for param in self.visual_encoder.parameters():
-                param.requires_grad = False
-            for param in self.text_encoder.parameters():
-                param.requires_grad = False
 
-        # LoRA integration for both encoders
-        self.use_lora = use_lora
-        if self.use_lora:
-            # LoRA config for both encoders
-            lora_config = LoraConfig(
-                r=lora_r,
-                lora_alpha=lora_alpha,
-                target_modules=["query", "key", "value"],  # Target attention layers
-                lora_dropout=lora_dropout
-            )
-            # Apply LoRA to both vision and text encoders
-            self.visual_encoder = get_peft_model(self.visual_encoder, lora_config)
-            self.text_encoder = get_peft_model(self.text_encoder, lora_config)
+    def apply_LORA(self,lora_r=8,lora_alpha=32,lora_dropout=0.1):
+        # LoRA config for both encoders
+        lora_config = LoraConfig(
+            r=lora_r,
+            lora_alpha=lora_alpha,
+            target_modules=["query", "key", "value"],  # Target attention layers
+            lora_dropout=lora_dropout
+        )
+        # Apply LoRA to both vision and text encoders
+        self.visual_encoder = get_peft_model(self.visual_encoder, lora_config)
+        self.text_encoder = get_peft_model(self.text_encoder, lora_config)
 
     def forward(self, pixel_values=None, input_ids=None):
         vision_output, text_output = None, None
