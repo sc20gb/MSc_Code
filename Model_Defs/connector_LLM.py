@@ -28,10 +28,11 @@ class LayerNorm(nn.LayerNorm):
         orig_type = x.dtype
 
         print("Type if input to LayerNorm = ", orig_type)
-        ret = super().forward(x.type(torch.float32))
+        x = x.to(torch.float32)
+        ret = super().forward(x)
         print("ret type:", ret.dtype)
 
-        ret = ret.type(orig_type)
+        ret = ret.to(orig_type)
 
         print("ret type:", ret.dtype)
         
