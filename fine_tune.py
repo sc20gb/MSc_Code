@@ -161,6 +161,9 @@ def log_metrics(metrics_dict, validation_loss_avg, trainng_loss_avg, val_accurac
         metrics_dict["train_bleu_score_avg"].append(train_bleu_score_avg / count_t)
         metrics_dict["val_bleu_score_avg"].append(val_bleu_score_avg / count)
 
+
+#TODO: we need to make it so that only LORA weights get saved if they are used
+#TODO:Training plan
 def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_transformer_width,
         clip_transformer_layers,
@@ -239,6 +242,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     connector_llm = Connector_LLM(embed_dim=embed_dim,vicuna_path=vicuna_path,connector_layers=connector_layers, device=device_llm, accumulation_steps=accumulation_steps,norm=norm)
 
     if training_step == 2:
+        print("Loading the connector MLP")
         #Load the pre_trained connector stat_dict
         state_dict = torch.load(pre_trained_connector_path)
 
@@ -253,6 +257,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     if visual_encoder_type == "CLIP-trained":
         # LOAD ViT encoder from the CLIP model on the first GPU
+        print("loading our visual encoder")
         img_encoder = load_ViT_img_encoder(
             device=device_vit,
             tokenizer=connector_llm.tokenizer,
@@ -268,16 +273,16 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             )
         
     elif visual_encoder_type == "CLIP-pretrained":
+        print("loading pretrained CLIP visual encoder")
         clip = CLIPWithLoRA()
         img_encoder = clip.get_visual_encoder()
     else:
+        print("loading fine-tuned CLIP model")
         clip = CLIPWithLoRA()
         clip.apply_LORA(lora_r=8, lora_alpha=32, lora_dropout=0.1)
         clip.load_model(clip_model_path)
         img_encoder = clip.get_visual_encoder()
 
-
-    
     # FREEZE CLIP TRAINING (should save memory and computation as well)
     img_encoder.eval()
 
@@ -441,8 +446,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                     os.makedirs(os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION)))
                 torch.save(connector_llm.connector.state_dict(), os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(VERSION), "connector_LLM_model" + str(n) + ".pth"))
 
-        # we need to record thes as well
-
+        # we need to record these as well
         if  val_dataset == None or train_dataset == None:
             if count != 0 and count_t != 0:
                     wandb.log({
@@ -547,7 +551,7 @@ path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
 
 
-LR_LIST = [1e-5,1e-6, 1e-7]
+LR_LIST = [1e-4,1e-5,1e-6]
 
 WEIGHT_DECAY_LIST = [1e-4, 1e-5]
 
@@ -614,5 +618,6 @@ optim_list = [{
 for i, para in enumerate(optim_list):
     para['VERSION'] += i
     wandb.init(project="MSc_fine_tuning_step_1",config=para)
+    print("Cross Validation for VERSION ", para["VERSION"])
     cross_val_train(para,n_splits=3,per_data=0.2)
     wandb.finish()
