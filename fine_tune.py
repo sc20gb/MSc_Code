@@ -250,7 +250,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         print("Loading the connector MLP")
         #Load the pre_trained connector stat_dict
         state_dict = torch.load(pre_trained_connector_path)
-
         connector_llm.connector.load_state_dict(state_dict)
 
         #lora
@@ -306,9 +305,12 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         #freeze vicuna training
         connector_llm.vicuna.eval()
 
+    total_training_steps = len(train_loader) * MAX_EPOC
+    num_warmup_steps = math.ceil(total_training_steps * per_warm)
+
     # Optimizer and learning rate scheduling
     optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
-    scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=math.ceil(MAX_EPOC * per_warm), num_training_steps=MAX_EPOC)
+    scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps)
     connector_llm.set_optim_scheduler(optim,scheduler)
 
 
