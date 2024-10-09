@@ -161,6 +161,11 @@ def log_metrics(metrics_dict, validation_loss_avg, trainng_loss_avg, val_accurac
         metrics_dict["train_bleu_score_avg"].append(train_bleu_score_avg / count_t)
         metrics_dict["val_bleu_score_avg"].append(val_bleu_score_avg / count)
 
+def handle_half_for_layerNorm(model):
+    # Half does not work with some layers
+    for layer in model.modules():
+        if isinstance(layer, torch.nn.LayerNorm):
+            layer.float()
 
 #TODO: we need to make it so that only LORA weights get saved if they are used
 #TODO:Training plan
@@ -254,6 +259,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     #Half the size of weights for the connector and LLM
     connector_llm.half()
     
+    # Half does not work with some layers
+    handle_half_for_layerNorm(connector_llm.connector)
+    
 
     if visual_encoder_type == "CLIP-trained":
         # LOAD ViT encoder from the CLIP model on the first GPU
@@ -288,11 +296,11 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # half the size of its weights to save memory
     img_encoder.half()
-    
+
     # Half does not work with some layers
-    for layer in img_encoder.modules():
-        if isinstance(layer, torch.nn.LayerNorm):
-            layer.float()
+    handle_half_for_layerNorm(img_encoder)
+    
+   
 
     if training_step == 1:
         #freeze vicuna training
