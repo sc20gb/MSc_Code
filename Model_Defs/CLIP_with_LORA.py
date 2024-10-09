@@ -4,6 +4,18 @@ from transformers import CLIPModel
 from peft import LoraConfig, get_peft_model
 import os
 
+class visual_encoder(nn.Module):
+    def __init__(self,encoder):
+        super(visual_encoder, self).__init__()
+        self.visual_encoder = encoder
+
+    def forward(self,x,return_hidden_states=True):
+        vision_outputs = self.visual_encoder(x, output_hidden_states=return_hidden_states)
+
+        return vision_outputs.pooler_output, vision_outputs.hidden_states
+    
+
+
 class CLIPWithLoRA(nn.Module):
     def __init__(self, 
                  clip_model_name="openai/clip-vit-base-patch32"):
@@ -58,8 +70,8 @@ class CLIPWithLoRA(nn.Module):
         print(f"Model loaded from {load_path}")
         
     def get_visual_encoder(self):
-
-        return self.visual_encoder
+        ve = visual_encoder(self.visual_encoder)
+        return ve
 
     def get_text_encoder(self):
 
