@@ -27,14 +27,10 @@ class LayerNorm(nn.LayerNorm):
     def forward(self, x: torch.Tensor):
         orig_type = x.dtype
 
-        print("Type if input to LayerNorm = ", orig_type)
         x = x.to(torch.float32)
         ret = super().forward(x)
-        print("ret type:", ret.dtype)
 
         ret = ret.to(orig_type)
-
-        print("ret type:", ret.dtype)
         
         return ret
 
@@ -114,9 +110,14 @@ class Connector_LLM(nn.Module):
 
     # Loads pretrained weights into the vicuna model
     def load_vicuna(self,model_path,device):
-        tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"),do_sample=True, padding_side='left')
+        tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"), padding_side='left')
 
         model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
+
+        # Update generation config to avoid sampling warnings if you're not using it
+        model.generation_config.do_sample = False  # Ensure sampling is disabled
+        model.generation_config.temperature = None  # Unset temperature since not using sampling
+        model.generation_config.top_p = None  # Unset top_p since not using sampling
 
         return model, tokenizer
     
@@ -147,17 +148,11 @@ class Connector_LLM(nn.Module):
 
         image_features = image_features.view(batch_size * n_patches, *feature_dims)
 
-
-        print("Type of Image features in = ", image_features.dtype)
         
         #embed the image features
         image_features = self.connector(image_features)
 
-        print("Type of image_features after connector = ", image_features.dtype)
-
         image_features = image_features.view(batch_size,n_patches,-1)
-
-        print("Type of image_features after view = ", image_features.dtype)
 
         # Encode text and images into the embedding expected by the LLM
         embeddings = self.encode_text_and_image(question, image_features)
@@ -221,6 +216,7 @@ class Connector_LLM(nn.Module):
             if not self.accumulation_steps < 1:
                 if ((itr + 1) % self.accumulation_steps == 0):
                     self.optim.step()
+                    print("step count = ",self.scheduler._step_count)  
                     self.optim.zero_grad()
                     if self.vicuna.training:
                         self.vicuna.zero_grad()  # Clear all gradients
