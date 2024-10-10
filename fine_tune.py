@@ -149,7 +149,7 @@ def log_metrics(metrics_dict, validation_loss_avg, trainng_loss_avg, val_accurac
         metrics_dict["val_bleu_score_avg"].append(-1)
     else:
         metrics_dict["loss_validate"].append(validation_loss_avg / count_q)
-        metrics_dict["loss_training"].append(trainng_loss_avg / count_tq)
+        metrics_dict["loss_training"].append(trainng_loss_avg / count_t)
         metrics_dict["val_accuracy_avg"].append(val_accuracy_avg / count)
         metrics_dict["train_accuracy_avg"].append(train_accuracy_avg / count_t)
         metrics_dict["val_precision_avg"].append(val_precision_avg / count)
@@ -168,7 +168,8 @@ def handle_half_for_layerNorm(model):
             layer.float()
 
 #TODO: we need to make it so that only LORA weights get saved if they are used
-#TODO:Training plan
+#TODO: Training plan
+#TODO: Add hyperparameter checks to make sure non conflict
 def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_transformer_width,
         clip_transformer_layers,
@@ -298,8 +299,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # Half does not work with some layers
     handle_half_for_layerNorm(img_encoder)
-    
-   
 
     if training_step == 1:
         #freeze vicuna training
@@ -307,6 +306,17 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     total_training_steps = len(train_loader) * MAX_EPOC
     num_warmup_steps = math.ceil(total_training_steps * per_warm)
+
+    
+    print(num_warmup_steps , " warmup steps")
+    print(total_training_steps, " total steps")
+
+    total_training_steps = math.ceil(len(train_loader.dataset) / vir_batch_size) * MAX_EPOC
+    num_warmup_steps = math.ceil(total_training_steps *  per_warm)
+
+    print(num_warmup_steps , " warmup steps")
+    print(total_training_steps, " total steps")
+
 
     # Optimizer and learning rate scheduling
     optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
@@ -460,8 +470,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         if  val_dataset == None or train_dataset == None:
             if count != 0 and count_t != 0:
                     wandb.log({
-                        "loss_validate": validation_loss_avg / count_q,
-                        "loss_training": trainng_loss_avg / count_tq,
+                        "loss_validate": validation_loss_avg / count,
+                        "loss_training": trainng_loss_avg / count_t,
                         "val_accuracy_avg": val_accuracy_avg / count,
                         "train_accuracy_avg": train_accuracy_avg / count_t,
                         "val_precision_avg": val_precision_avg / count,
@@ -578,7 +588,6 @@ RANK_LIST = [8]
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
-
 
 # WHY was perc warm used?
 
