@@ -132,9 +132,9 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
 # At the end of each epoch, append the calculated values
 def log_metrics(metrics_dict, validation_loss_avg, trainng_loss_avg, val_accuracy_avg, train_accuracy_avg,
                 val_precision_avg, train_precision_avg, val_recall_avg, train_recall_avg, val_f1_avg, train_f1_avg,
-                train_bleu_score_avg, val_bleu_score_avg, count_q, count_tq, count, count_t):
+                train_bleu_score_avg, val_bleu_score_avg, count, count_t):
     
-    if count_q == 0 or count_tq == 0 or count==0 or count_t == 0:
+    if count==0 or count_t == 0:
         metrics_dict["loss_validate"].append(-1)
         metrics_dict["loss_training"].append(-1)
         metrics_dict["val_accuracy_avg"].append(-1)
@@ -148,7 +148,7 @@ def log_metrics(metrics_dict, validation_loss_avg, trainng_loss_avg, val_accurac
         metrics_dict["train_bleu_score_avg"].append(-1)
         metrics_dict["val_bleu_score_avg"].append(-1)
     else:
-        metrics_dict["loss_validate"].append(validation_loss_avg / count_q)
+        metrics_dict["loss_validate"].append(validation_loss_avg / count)
         metrics_dict["loss_training"].append(trainng_loss_avg / count_t)
         metrics_dict["val_accuracy_avg"].append(val_accuracy_avg / count)
         metrics_dict["train_accuracy_avg"].append(train_accuracy_avg / count_t)
@@ -167,9 +167,36 @@ def handle_half_for_layerNorm(model):
         if isinstance(layer, torch.nn.LayerNorm):
             layer.float()
 
+# Handle the assigining of model to the GPUs
+def handle_devices(cpu_only=False):
+    if torch.cuda.is_available() and not cpu_only:
+        gpu_count = torch.cuda.device_count()
+        if gpu_count >= 2:
+            print(f"CUDA is available with {gpu_count} GPU(s)!")
+            
+            # Assign the first GPU for the visual encoder
+            device_vit = torch.device("cuda:0")
+            print(f"Visual encoder will run on GPU 0: {torch.cuda.get_device_name(0)}")
+
+            # Assign the second GPU for the connector LLM
+            device_llm = torch.device("cuda:1")
+            print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
+        else:
+            print("Only one GPU available, models are split between GPU 0")
+            device_vit = torch.device("cuda:0")
+            device_llm = torch.device("cuda:0")
+    else:
+        print("CUDA is not available. Training will proceed on CPU.")
+        device_vit = torch.device("cpu")
+        device_llm = torch.device("cpu")
+
+    return device_vit, device_llm
+
+
 #TODO: we need to make it so that only LORA weights get saved if they are used
 #TODO: Training plan
 #TODO: Add hyperparameter checks to make sure non conflict
+#TODO: take a look at using biomed as well
 def feature_aliginment_training_step_2_GPU_SPLIT(
         clip_transformer_width,
         clip_transformer_layers,
@@ -204,31 +231,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         visual_encoder_type="CLIP-trained"
         ):
     # CHECK GPU SUPPORT AND ASSIGN DEVICES
-    if torch.cuda.is_available() and not cpu_only:
-        gpu_count = torch.cuda.device_count()
-        if gpu_count >= 2:
-            print(f"CUDA is available with {gpu_count} GPU(s)!")
-            
-            # Assign the first GPU for the visual encoder
-            device_vit = torch.device("cuda:0")
-            print(f"Visual encoder will run on GPU 0: {torch.cuda.get_device_name(0)}")
-
-            # Assign the second GPU for the connector LLM
-            device_llm = torch.device("cuda:1")
-            print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
-        else:
-            print("Only one GPU available, models are split between GPU 0")
-            device_vit = torch.device("cuda:0")
-            device_llm = torch.device("cuda:0")
-    else:
-        print("CUDA is not available. Training will proceed on CPU.")
-        device_vit = torch.device("cpu")
-        device_llm = torch.device("cpu")
-
-
-    if training_step != 1 and training_step !=2:
-        print("Training Step must be 1 or 2 not ", training_step)
-        return 0
+    device_vit, device_llm = handle_devices(cpu_only)
     
     accumulation_steps = vir_batch_size // batch_size
 
@@ -244,7 +247,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         train_loader = train_dataset
         validate_loader = val_dataset
 
-    # Load connector and vicuna model on the second GPU
+    # Load connector and vicuna model
     connector_llm = Connector_LLM(embed_dim=embed_dim,vicuna_path=vicuna_path,connector_layers=connector_layers, device=device_llm, accumulation_steps=accumulation_steps,norm=norm)
 
     if training_step == 2:
@@ -355,7 +358,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         train_f1_avg = 0.0
         train_bleu_score_avg = 0.0
         count_t = 0
-        count_tq = 0
         optim.zero_grad()
 
         for image_tensor, mask_tensor, question, answer in train_loader:
@@ -395,15 +397,12 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             train_f1_avg += f1
             train_bleu_score_avg += bleu_score
             count_t = count_t + 1
-            count_tq = count_tq + image_tensor.size(0)
 
         # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
             connector_llm.zero_grad()
-
-        scheduler.step()
 
         # VALIDATE
         validation_loss_avg = 0.0
@@ -414,8 +413,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         val_bleu_score_avg = 0.0
         count = 0
         connector_llm.eval()
-
-        count_q = 0
 
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
@@ -453,7 +450,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
                 val_f1_avg += f1
                 val_bleu_score_avg += bleu_score
                 count = count + 1
-                count_q += image_tensor.size(0)
 
         # SAVE RESULTS
         if save:
@@ -501,7 +497,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         else:
             log_metrics(metrics_dict,validation_loss_avg, trainng_loss_avg, val_accuracy_avg, train_accuracy_avg,
             val_precision_avg, train_precision_avg, val_recall_avg, train_recall_avg, val_f1_avg, train_f1_avg,
-            train_bleu_score_avg, val_bleu_score_avg, count_q, count_tq, count, count_t)
+            train_bleu_score_avg, val_bleu_score_avg, count, count_t)
 
     return metrics_dict
 
