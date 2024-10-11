@@ -193,7 +193,7 @@ def handle_devices(cpu_only=False):
     return device_vit, device_llm
 
 
-#TODO: we need to make it so that only LORA weights get saved if they are used
+#TODO: we need to make it so that only LORA weights get saved/loaded if they are used
 #TODO: Training plan
 #TODO: Add hyperparameter checks to make sure non conflict
 #TODO: take a look at using biomed as well
@@ -567,11 +567,11 @@ path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
 
 
-LR_LIST = [1e-4,1e-5,1e-6]
+LR_LIST = [1e-3,1e-4,1e-5]
 
 WEIGHT_DECAY_LIST = [1e-4, 1e-5]
 
-PERC_WARM_LIST = [0.0, 0.5]
+PERC_WARM_LIST = [0.0, 0.2]
 
 VIR_BATCH_SIZE_LIST = [32,64]
 
@@ -584,8 +584,6 @@ RANK_LIST = [8]
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
-
-# WHY was perc warm used?
 
 # batch_size 4 for step 2, 8 for step 1
 
