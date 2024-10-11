@@ -208,7 +208,7 @@ class Connector_LLM(nn.Module):
                     break
         
         # Return the generated tokens and the loss
-        nll_loss = -log_probs_sum / float(count)
+        nll_loss = -(log_probs_sum / float(count))/target.size(0)
 
         if torch.is_grad_enabled():
             nll_loss.backward()
