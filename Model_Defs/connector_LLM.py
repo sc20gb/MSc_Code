@@ -216,6 +216,7 @@ class Connector_LLM(nn.Module):
             if not self.accumulation_steps < 1:
                 if ((itr + 1) % self.accumulation_steps == 0):
                     self.optim.step()
+                    self.scheduler.step()
                     print("step count = ",self.scheduler._step_count)  
                     self.optim.zero_grad()
                     if self.vicuna.training:
