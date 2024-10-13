@@ -20,8 +20,22 @@ from collections import defaultdict
 from collections import Counter
 from torch.utils.data import random_split
 from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
+from torch.optim.lr_scheduler import LambdaLR
 
+class CustomCosineSchedulerWithWarmup(LambdaLR):
+    def __init__(self, optimizer, num_warmup_steps, num_training_steps, training_step):
+        self.training_step = training_step
+        self.num_warmup_steps = num_warmup_steps
+        self.num_training_steps = num_training_steps
 
+        def lr_lambda(current_step):
+            if self.training_step == 1:
+                return 1.0  # Keep learning rate constant when layers are frozen
+            else:
+                # Use the normal cosine scheduler when training_step == 2
+                return get_cosine_schedule_with_warmup(optimizer, self.num_warmup_steps,self.num_training_steps).lr_lambda(current_step)
+
+        super().__init__(optimizer, lr_lambda)
 
 
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
@@ -323,8 +337,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # Optimizer and learning rate scheduling
     optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
-    scheduler = get_cosine_schedule_with_warmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps)
-    connector_llm.set_optim_scheduler(optim,scheduler)
+    scheduler = CustomCosineSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
+    connector_llm.set_optim_scheduler(optim, scheduler)
+
 
 
     # to store metrics if the function is being used with cross_val
@@ -402,6 +417,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
+            scheduler.step()
             connector_llm.zero_grad()
 
         # VALIDATE
