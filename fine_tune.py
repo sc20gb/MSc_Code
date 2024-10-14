@@ -583,15 +583,15 @@ path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
 
 
-LR_LIST = [1e-3,1e-4,1e-5]
+LR_LIST = [1e-4]
 
-WEIGHT_DECAY_LIST = [1e-4, 1e-5]
+WEIGHT_DECAY_LIST = [1e-4]
 
-PERC_WARM_LIST = [0.0, 0.2]
+PERC_WARM_LIST = [0.0]
 
-VIR_BATCH_SIZE_LIST = [32,64]
+VIR_BATCH_SIZE_LIST = [32]
 
-NORM_LIST = [True,False]
+NORM_LIST = [False]
 
 DROPOUT_LIST = [0.1]
 
@@ -625,7 +625,7 @@ optim_list = [{
         "MAX_EPOC":2,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
-        "save":False,
+        "save":True,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
         "training_step":1,
@@ -647,6 +647,7 @@ optim_list = [{
 for i, para in enumerate(optim_list):
     para['VERSION'] += i
     wandb.init(project="MSc_fine_tuning_step_1",config=para)
-    print("Cross Validation for VERSION ", para["VERSION"])
-    cross_val_train(para,n_splits=3,per_data=0.2)
+    #print("Cross Validation for VERSION ", para["VERSION"])
+    feature_aliginment_training_step_2_GPU_SPLIT(**para)
+    #cross_val_train(para,n_splits=3,per_data=0.2)
     wandb.finish()
