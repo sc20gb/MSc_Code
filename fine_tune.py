@@ -580,14 +580,34 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
 path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 #path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
-path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(3) + ".pth")
+path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + ".pth")
 
 
-LR_LIST = [1e-4]
 
-WEIGHT_DECAY_LIST = [1e-4]
+# LR_LIST = [1e-4]
 
-PERC_WARM_LIST = [0.0]
+# WEIGHT_DECAY_LIST = [1e-4]
+
+# PERC_WARM_LIST = [0.0]
+
+# VIR_BATCH_SIZE_LIST = [32]
+
+# NORM_LIST = [False]
+
+# DROPOUT_LIST = [0.1]
+
+# RANK_LIST = [8]
+
+# HIDDEN_LAYER_LIST = [1]
+
+# CONNECTOR_LAYERS_LIST = [2]
+
+
+LR_LIST = [1e-4,1e-5,1e-6]
+
+WEIGHT_DECAY_LIST = [1e-4, 1e-6]
+
+PERC_WARM_LIST = [0.2,0.0]
 
 VIR_BATCH_SIZE_LIST = [32]
 
@@ -595,7 +615,7 @@ NORM_LIST = [False]
 
 DROPOUT_LIST = [0.1]
 
-RANK_LIST = [8]
+RANK_LIST = [8,10]
 
 HIDDEN_LAYER_LIST = [1]
 
@@ -622,13 +642,13 @@ optim_list = [{
         "batch_size":4,
         "vir_batch_size":vb,
         "rand_seed":42,
-        "MAX_EPOC":2,
+        "MAX_EPOC":4,
         "VERSION":3000,
         "pre_trained_connector_path":path3,
-        "save":True,
+        "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
-        "training_step":1,
+        "training_step":2,
         "lora_dropout":do,
         "lora_rank":r,
         "norm":  norm
@@ -646,8 +666,8 @@ optim_list = [{
 
 for i, para in enumerate(optim_list):
     para['VERSION'] += i
-    wandb.init(project="MSc_fine_tuning_step_1",config=para)
+    wandb.init(project="MSc_fine_tuning_step_2",config=para)
     #print("Cross Validation for VERSION ", para["VERSION"])
-    feature_aliginment_training_step_2_GPU_SPLIT(**para)
-    #cross_val_train(para,n_splits=3,per_data=0.2)
+    #feature_aliginment_training_step_2_GPU_SPLIT(**para)
+    cross_val_train(para,n_splits=3,per_data=0.2)
     wandb.finish()
