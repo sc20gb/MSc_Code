@@ -580,7 +580,7 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
 path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 #path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
 path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
-path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + ".pth")
+path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(2) + ".pth")
 
 
 
