@@ -22,18 +22,19 @@ from torch.utils.data import random_split
 from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
 from torch.optim.lr_scheduler import LambdaLR
 
+# Import the CustomCosineSchedulerWithWarmup class
 class CustomCosineSchedulerWithWarmup(LambdaLR):
     def __init__(self, optimizer, num_warmup_steps, num_training_steps, training_step):
         self.training_step = training_step
         self.num_warmup_steps = num_warmup_steps
         self.num_training_steps = num_training_steps
+        self.cosine_scheduler = get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_steps)
 
         def lr_lambda(current_step):
             if self.training_step == 1:
-                return 1.0  # Keep learning rate constant when layers are frozen
+                return 1.0  # Constant learning rate when layers are frozen
             else:
-                # Use the normal cosine scheduler when training_step == 2
-                return get_cosine_schedule_with_warmup(optimizer, self.num_warmup_steps,self.num_training_steps).lr_lambda(current_step)
+                return self.cosine_scheduler.lr_lambdas[0](current_step)
 
         super().__init__(optimizer, lr_lambda)
 
