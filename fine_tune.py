@@ -266,10 +266,13 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     connector_llm = Connector_LLM(embed_dim=embed_dim,vicuna_path=vicuna_path,connector_layers=connector_layers, device=device_llm, accumulation_steps=accumulation_steps,norm=norm)
 
     if training_step == 2:
-        print("Loading the connector MLP")
-        #Load the pre_trained connector stat_dict
-        state_dict = torch.load(pre_trained_connector_path)
-        connector_llm.connector.load_state_dict(state_dict)
+        if pre_trained_connector_path != None:
+            print("Loading the connector MLP")
+            #Load the pre_trained connector stat_dict
+            state_dict = torch.load(pre_trained_connector_path)
+            connector_llm.connector.load_state_dict(state_dict)
+        else:
+            print("No connector given, training from scratch")
 
         #lora
         connector_llm.apply_lora(rank=lora_rank,dropout=lora_dropout)
@@ -321,13 +324,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     if training_step == 1:
         #freeze vicuna training
         connector_llm.vicuna.eval()
-
-    total_training_steps = len(train_loader) * MAX_EPOC
-    num_warmup_steps = math.ceil(total_training_steps * per_warm)
-
-    
-    print(num_warmup_steps , " warmup steps")
-    print(total_training_steps, " total steps")
 
     total_training_steps = math.ceil(len(train_loader.dataset) / vir_batch_size) * MAX_EPOC
     num_warmup_steps = math.ceil(total_training_steps *  per_warm)
@@ -604,11 +600,11 @@ path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + s
 # CONNECTOR_LAYERS_LIST = [2]
 
 
-LR_LIST = [1e-7, 1e-6]
+LR_LIST = [1e-7,5e-7]
 
-WEIGHT_DECAY_LIST = [1e-4, 1e-6]
+WEIGHT_DECAY_LIST = [1e-4,1e-2]
 
-PERC_WARM_LIST = [0.2,0.0]
+PERC_WARM_LIST = [0.1]
 
 VIR_BATCH_SIZE_LIST = [32]
 
@@ -616,11 +612,13 @@ NORM_LIST = [False]
 
 DROPOUT_LIST = [0.1]
 
-RANK_LIST = [8,10]
+RANK_LIST = [10,12]
 
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
+
+CONNECTOR_LIST = [path3,None]
 
 # batch_size 4 for step 2, 8 for step 1
 
@@ -643,9 +641,9 @@ optim_list = [{
         "batch_size":4,
         "vir_batch_size":vb,
         "rand_seed":42,
-        "MAX_EPOC":4,
+        "MAX_EPOC":8,
         "VERSION":3000,
-        "pre_trained_connector_path":path3,
+        "pre_trained_connector_path":cp,
         "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
@@ -663,6 +661,7 @@ optim_list = [{
             for do in DROPOUT_LIST
             for r in  RANK_LIST
             for norm in NORM_LIST
+            for cp in CONNECTOR_LIST
             ]
 
 for i, para in enumerate(optim_list):
@@ -670,5 +669,5 @@ for i, para in enumerate(optim_list):
     wandb.init(project="MSc_fine_tuning_step_2",config=para)
     #print("Cross Validation for VERSION ", para["VERSION"])
     #feature_aliginment_training_step_2_GPU_SPLIT(**para)
-    cross_val_train(para,n_splits=3,per_data=0.2)
+    cross_val_train(para,n_splits=3,per_data=0.1)
     wandb.finish()
