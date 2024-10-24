@@ -642,7 +642,7 @@ optim_list = [{
         "MAX_EPOC":8,
         "VERSION":3000,
         "pre_trained_connector_path":cp,
-        "save":False,
+        "save":True,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
         "training_step":2,
