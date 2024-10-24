@@ -4,7 +4,7 @@
 #$ -V -cwd
 
 #Request some time- min 15 mins - max 48 hours
-#$ -l h_rt=16:00:00
+#$ -l h_rt=08:00:00
 
 #$ -l coproc_v100=1
 
