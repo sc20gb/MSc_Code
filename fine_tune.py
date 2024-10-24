@@ -337,8 +337,6 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     scheduler = CustomCosineSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
     connector_llm.set_optim_scheduler(optim, scheduler)
 
-
-
     # to store metrics if the function is being used with cross_val
     metrics_dict = {
     "loss_validate": [],
@@ -602,7 +600,7 @@ path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + s
 
 LR_LIST = [1e-7,5e-7]
 
-WEIGHT_DECAY_LIST = [1e-4,1e-2]
+WEIGHT_DECAY_LIST = [1e-4]
 
 PERC_WARM_LIST = [0.1]
 
@@ -612,13 +610,13 @@ NORM_LIST = [False]
 
 DROPOUT_LIST = [0.1]
 
-RANK_LIST = [10,12]
+RANK_LIST = [10]
 
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
 
-CONNECTOR_LIST = [path3,None]
+CONNECTOR_LIST = [path3]
 
 # batch_size 4 for step 2, 8 for step 1
 
@@ -668,6 +666,6 @@ for i, para in enumerate(optim_list):
     para['VERSION'] += i
     wandb.init(project="MSc_fine_tuning_step_2",config=para)
     #print("Cross Validation for VERSION ", para["VERSION"])
-    #feature_aliginment_training_step_2_GPU_SPLIT(**para)
-    cross_val_train(para,n_splits=3,per_data=0.1)
+    feature_aliginment_training_step_2_GPU_SPLIT(**para)
+    #cross_val_train(para,n_splits=3,per_data=0.1)
     wandb.finish()
