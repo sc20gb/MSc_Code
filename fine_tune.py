@@ -236,6 +236,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         pre_trained_connector_path,
         lora_rank,
         lora_dropout,
+        lora_alpha,
         save=False,
         cpu_only=False,
         hidden_layer_from_end=0,
@@ -275,7 +276,7 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
             print("No connector given, training from scratch")
 
         #lora
-        connector_llm.apply_lora(rank=lora_rank,dropout=lora_dropout)
+        connector_llm.apply_lora(rank=lora_rank,dropout=lora_dropout,alpha=lora_alpha)
 
     #Half the size of weights for the connector and LLM
     connector_llm.half()
@@ -598,17 +599,17 @@ path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + s
 # CONNECTOR_LAYERS_LIST = [2]
 
 
-LR_LIST = [1e-7]
+LR_LIST = [1e-7,1e-6]
 
 WEIGHT_DECAY_LIST = [1e-4]
 
-PERC_WARM_LIST = [0.2,0.5]
+PERC_WARM_LIST = [0.2]
 
 VIR_BATCH_SIZE_LIST = [32]
 
 NORM_LIST = [False]
 
-DROPOUT_LIST = [0.3]
+DROPOUT_LIST = [0.3,0.5]
 
 RANK_LIST = [10]
 
@@ -617,6 +618,12 @@ HIDDEN_LAYER_LIST = [1]
 CONNECTOR_LAYERS_LIST = [2]
 
 CONNECTOR_LIST = [path3]
+
+LORA_ALPHA_LIST =  [32,16]
+
+#TODO:Trying to increase the mdoel stability on all of the data by fine-tuning lora parameters
+#TODO:Decrase the ALPHA value decreases the effect of the adapted weights W' = W + a/r * (A dot B)
+#TODO:The dropout can stop the adaptation from becoming too specific to the training data. This is especially beneficial when fine-tuning with LoRA on smaller datasets, where overfitting is more likely.
 
 # batch_size 4 for step 2, 8 for step 1
 
@@ -648,7 +655,8 @@ optim_list = [{
         "training_step":2,
         "lora_dropout":do,
         "lora_rank":r,
-        "norm":  norm
+        "norm":  norm,
+        "lora_alpha": a
             }
             for lr in LR_LIST 
             for wd in WEIGHT_DECAY_LIST 
@@ -660,6 +668,7 @@ optim_list = [{
             for r in  RANK_LIST
             for norm in NORM_LIST
             for cp in CONNECTOR_LIST
+            for a in LORA_ALPHA_LIST
             ]
 
 for i, para in enumerate(optim_list):
