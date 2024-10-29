@@ -599,7 +599,7 @@ path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + s
 # CONNECTOR_LAYERS_LIST = [2]
 
 
-LR_LIST = [1e-7,1e-6]
+LR_LIST = [1e-6,1e-5,1e-4]
 
 WEIGHT_DECAY_LIST = [1e-4]
 
@@ -609,7 +609,7 @@ VIR_BATCH_SIZE_LIST = [32]
 
 NORM_LIST = [False]
 
-DROPOUT_LIST = [0.3,0.5]
+DROPOUT_LIST = [0.3]
 
 RANK_LIST = [10]
 
@@ -619,7 +619,7 @@ CONNECTOR_LAYERS_LIST = [2]
 
 CONNECTOR_LIST = [path3]
 
-LORA_ALPHA_LIST =  [32,16]
+LORA_ALPHA_LIST =  [24,16,8]
 
 #TODO:Trying to increase the mdoel stability on all of the data by fine-tuning lora parameters
 #TODO:Decrase the ALPHA value decreases the effect of the adapted weights W' = W + a/r * (A dot B)
@@ -649,7 +649,7 @@ optim_list = [{
         "MAX_EPOC":8,
         "VERSION":3000,
         "pre_trained_connector_path":cp,
-        "save":True,
+        "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
         "training_step":2,
