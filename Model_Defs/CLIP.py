@@ -179,6 +179,10 @@ class CLIP(nn.Module):
             nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
             nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
 
+        self.max_length = None
+        self.tokenizer = None
+
+        self.to(device)
 
     @property
     def dtype(self):
@@ -226,6 +230,23 @@ class CLIP(nn.Module):
         # shape = [global_batch_size, global_batch_size]
         return image_features, text_features
 
+    def pre_process_images(self, images):
+
+        images = images.to(self.device)
+
+        # this is not needeed for this class
+
+        return images
+
+    def pre_process_texts(self, texts):
+        text_tensor = torch.cat([self.tokenizer(a + "</s>",return_tensors="pt",padding='max_length', max_length = self.max_length).input_ids for a in texts],0).to(self.device)
+
+        return text_tensor
+    
+    def set_tokenizer(self,tokenizer, max_length):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
 def convert_weights(model: nn.Module):
     """Convert applicable model parameters to fp16"""
 
@@ -248,5 +269,4 @@ def convert_weights(model: nn.Module):
                     attr.data = attr.data.half()
 
     model.apply(_convert_weights_to_fp16)
-
 
