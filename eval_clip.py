@@ -3,12 +3,12 @@ import os
 from transformers import AutoTokenizer
 from Model_Defs.CLIP import CLIP
 import torchvision.transforms as transforms
-from Data_Loading.data_loading import load_combined_text_data, load_test_data
+from Data_Loading.data_loading import load_combined_text_data, load_test_data, load_clip_eval_test_data, load_chest_mnist_data
 from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 
 #evaluate the clip modelson the dataset provided
-def universal_eval(model, dataset):
+def universal_eval_not_classification(model, dataset):
     results = {"accuracy": 0.0, "prec": 0.0, "recall": 0.0, "f1": 0.0}
     all_preds = []
     all_labels = []
@@ -21,10 +21,18 @@ def universal_eval(model, dataset):
                 images, masks, questions, answers, categories = batch
                 # Concatenate questions and answers for text input
                 texts = [q + " " + a for q, a in zip(questions, answers)]
+                # True labels as indices, assuming each (image, text) pair should match positionally
+                true_class_indices = torch.arange(len(texts)).cpu()
             
             # Otherwise, assume it's the second dataloader format
             elif len(batch) == 3:
                 images, masks, texts = batch
+                # True labels as indices, assuming each (image, text) pair should match positionally
+                true_class_indices = torch.arange(len(texts)).cpu()
+
+            elif len(batch) == 2:
+                images, true_class_indices = batch
+                texts = dataset.dataset.get_classes()
 
             #tokenisation
             texts_pre = model.pre_process_texts(texts)
@@ -41,15 +49,14 @@ def universal_eval(model, dataset):
             # Predicted class is the index with the highest similarity score
             predicted_class_indices = similarities.argmax(dim=1).cpu().tolist()
             
-            # True labels as indices, assuming each (image, text) pair should match positionally
-            true_class_indices = torch.arange(len(texts)).cpu()
-            
             # Append predictions and true labels for metrics
             all_preds.extend(predicted_class_indices)
             all_labels.extend(true_class_indices)
 
     # Calculate metrics
     results["accuracy"] = accuracy_score(all_labels, all_preds) * 100
+    results["f1"] = f1_score(all_labels, all_preds, average='weighted')  # Use 'macro' or 'micro' if appropriate
+
 
     return results
 
@@ -84,6 +91,9 @@ if __name__ == "__main__":
     MAX_LENGTH = 256
     IMAGESIZE = 224
 
+
+
+
     #Devices
     device, _ = handle_devices()
 
@@ -102,23 +112,49 @@ if __name__ == "__main__":
     #Initilise the pre-trained model
     pretrained_model = CLIPWithLoRA(device=device)
 
-    #Load data
+    #Load single record test data
     data_path = os.path.join(os.getcwd(), 'Slake1.0')
     test_dataset_pre = load_test_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
     test_dataset_no_pre = load_test_data(transforms.Compose([pretrained_model.pre_process_images]),BATCHSIZE,42,data_path)
 
     # Load the evaluation dataset (image-text pairs)
-    eval_loader_pre, _ = load_combined_text_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
-    eval_dataset_no_pre, _ = load_combined_text_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
+    train_loader_pre, eval_loader_pre= load_combined_text_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
+    train_loader_no_pre, eval_dataset_no_pre = load_combined_text_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
   
-    # Run the evals
-    pretrained_model_results_eval = universal_eval(pretrained_model,eval_dataset_no_pre)
-    pretrained_model_results_test =  universal_eval(pretrained_model,test_dataset_no_pre)
-    slake_trained_model_results = universal_eval(clip,eval_loader_pre)
-    slake_trained_model_results_test = universal_eval(clip,test_dataset_pre)
 
-    # Outpput results
-    print(pretrained_model_results_test)
-    print(pretrained_model_results_eval)
-    print(slake_trained_model_results)
-    print(slake_trained_model_results_test)
+    #load combined records test data
+    test_dataset_combined_pre = load_clip_eval_test_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
+    test_dataset_combined_no_pre = load_clip_eval_test_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
+
+    #Load external data from https://github.com/MedMNIST/MedMNIST we use the chest version of size 224 by 224
+    external_data_pre = load_chest_mnist_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor(),transforms.Lambda(lambda x: x.repeat(3, 1, 1))]), 14, 42)
+    external_data_no_pre = load_chest_mnist_data(transforms.Compose([pretrained_model.pre_process_images]), 14, 42)
+
+    # Run the evals
+    pretrained_model_results_eval = universal_eval_not_classification(pretrained_model,eval_dataset_no_pre)
+    pretrained_model_results_test =  universal_eval_not_classification(pretrained_model,test_dataset_no_pre)
+    pretrained_model_results_combined_test = universal_eval_not_classification(pretrained_model,test_dataset_combined_no_pre)
+    pretrained_model_results_train = universal_eval_not_classification(pretrained_model,train_loader_no_pre)
+    pretrained_model_results_MINST = universal_eval_not_classification(pretrained_model,external_data_no_pre)
+    slake_trained_model_results = universal_eval_not_classification(clip,eval_loader_pre)
+    slake_trained_model_results_test = universal_eval_not_classification(clip,test_dataset_pre)
+    slake_trained_model_results_combined_test = universal_eval_not_classification(clip,test_dataset_combined_pre)
+    slake_trained_model_results_train = universal_eval_not_classification(clip,train_loader_pre)
+    slake_trained_model_results_MINST = universal_eval_not_classification(clip,external_data_pre)
+
+
+    # Output results
+    print("Pretrained Clip model:")
+    print("eval combined:", pretrained_model_results_eval)
+    print("test single records:", pretrained_model_results_test)
+    print("test combined records:", pretrained_model_results_combined_test)
+    print("train combined records:", pretrained_model_results_train)
+    print("external data minst:", pretrained_model_results_MINST)
+    
+     # Output results
+    print("Slake Trained Clip model:")
+    print("eval combined:", slake_trained_model_results)
+    print("test single records:", slake_trained_model_results_test)
+    print("test combined records:", slake_trained_model_results_combined_test)
+    print("train combined records:", slake_trained_model_results_train)
+    print("external data  minst:", slake_trained_model_results_MINST)

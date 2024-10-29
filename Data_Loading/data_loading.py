@@ -250,7 +250,6 @@ def load_data_cross_val(transform, dataDir):
     return ConcatDataset([train_dataset, validate_dataset])
 
 
-
 def load_test_data(transform,batchSize,seed, dataDir):
 
     test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
@@ -325,6 +324,94 @@ class CLIPTrainJsonDataset(JsonDataset):
         mask_tensor = self.load_image_as_tensor(mask_path, mt)
                 
         return image_tensor, mask_tensor, text
+
+
+from medmnist import ChestMNIST
+
+class CustomChestMNISTDataset(Dataset):
+    def __init__(self, split='train', transform=None):
+        self.dataset = ChestMNIST(split=split, download=True)
+        self.transform = transform if transform else transforms.Compose([
+            transforms.ToTensor()  # Default to just converting to tensor if no transform is provided
+        ])
+       
+        
+        # Map numeric labels to class names
+        self.class_names = (
+            "Atelectasis", "Cardiomegaly", "Consolidation", 
+            "Edema", "Effusion", "Emphysema", 
+            "Fibrosis", "Hernia", "Mass", 
+            "Nodule", "Pleural_Thickening", "Pneumonia", 
+            "Pneumothorax", "Normal"  # List all possible classes
+        )
+
+         # Define the number of classes
+        self.num_classes = len(self.class_names)
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitem__(self, idx):
+        image, label = self.dataset[idx]
+        
+        # Convert image to tensor
+        #image = torch.tensor(image, dtype=torch.float32)
+
+        # Apply transformation
+        image = self.transform(image)
+
+        # Convert label to one-hot encoding
+        #target = self._to_one_hot(label)
+        label = int(torch.argmax(torch.tensor(label)))
+        
+        return image, label
+
+    def get_classes(self):
+        # Return the class names directly
+        return self.class_names
+
+    def _to_one_hot(self, label):
+        # Create a one-hot encoded tensor for the label
+        one_hot = torch.zeros(self.num_classes)
+        one_hot[label] = 1.0
+        return one_hot
+    
+
+def load_chest_mnist_data(transform, batch_size, seed, split='test'):
+    """
+    Load the ChestMNIST dataset as a DataLoader.
+    
+    Parameters:
+        transform: The transformations to apply to the dataset.
+        batch_size: The batch size for the DataLoader.
+        seed: The random seed for shuffling.
+        split: The dataset split ('train' or 'test').
+        
+    Returns:
+        DataLoader: DataLoader object for the ChestMNIST dataset.
+    """
+    # Create an instance of the dataset
+    dataset = CustomChestMNISTDataset(split=split, transform=transform)
+
+    # Create DataLoader object
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=batch_size, 
+        shuffle=True, 
+        generator=torch.Generator().manual_seed(seed)
+    )
+
+    return dataloader
+
+
+def load_clip_eval_test_data(transform,batchSize,seed, dataDir):
+    test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
+    test_dataset = CLIPTrainJsonDataset(test_json_path, transform)
+
+    # Create DataLoader objects
+    train_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+
+    return train_loader
+
 
 
 def load_combined_text_data(transform,batchSize,seed, dataDir):
