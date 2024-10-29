@@ -44,8 +44,20 @@ class CLIPWithLoRA(nn.Module):
          return image_inputs['pixel_values'].squeeze()
     
     def pre_process_texts(self, texts):
-        text_inputs = self.processor(text=texts, return_tensors="pt", padding=True)
+        # Get the tokenizer from the processor
+        tokenizer = self.processor.tokenizer
+
+        # Get the maximum sequence length from the tokenizer
+        max_length = tokenizer.model_max_length
+
+        # Tokenize texts with a maximum length limit
+        text_inputs = self.processor(text=texts, return_tensors="pt", padding=True,
+                                    max_length=max_length, truncation=True)
+
         return text_inputs['input_ids']  # Returns only input IDs
+
+
+
 
     def apply_LORA(self,lora_r=8,lora_alpha=32,lora_dropout=0.1):
         # LoRA config for both encoders

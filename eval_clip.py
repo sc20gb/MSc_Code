@@ -1,90 +1,11 @@
 import torch
 import os
-import csv
-from transformers import AutoTokenizer, CLIPProcessor
+from transformers import AutoTokenizer
 from Model_Defs.CLIP import CLIP
-import torch.nn.functional as F
 import torchvision.transforms as transforms
 from Data_Loading.data_loading import load_combined_text_data, load_test_data
 from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-
-
-def evaluate_clip_model(model_path, data_path, clip_path, BATCHSIZE=16, MAX_LENGTH=256, IMAGESIZE=224, device='cuda'):
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"), do_sample=False)
-
-    clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=512, context_length=MAX_LENGTH, transformer_layers=6,
-                transformer_heads=8, embed_dim=512, vision_width=512, image_resolution=IMAGESIZE, vision_patch_size=56,
-                vision_layers=6, device=device)
-
-    # Load trained model weights
-    state_dict = torch.load(clip_path)
-    clip.load_state_dict(state_dict,strict=True)
-    clip.to(device)
-    clip.eval()
-
-    # Load the evaluation dataset (image-text pairs)
-    eval_loader, _ = load_combined_text_data(transforms.Compose([
-        transforms.Resize((IMAGESIZE, IMAGESIZE)),
-        transforms.ToTensor()
-    ]), BATCHSIZE, 42, data_path)
-
-    correct_predictions = 0
-    total_samples = 0
-
-    # Evaluate the model on image-text pairs
-    with torch.no_grad():
-        for image_tensor, mask_tensor, text in eval_loader:
-            # Tokenize text
-            text_tensor = torch.cat([tokenizer(a + "</s>", return_tensors="pt", padding='max_length', max_length=MAX_LENGTH).input_ids for a in text], 0).to(device)
-            image_tensor = image_tensor.to(device)
-
-            # Get image and text features from CLIP model
-            image_features, text_features = clip(image_tensor, text_tensor)
-
-            # Normalize the features
-            image_features = image_features / image_features.norm(dim=1, keepdim=True)
-            text_features = text_features / text_features.norm(dim=1, keepdim=True)
-
-            # Cosine similarity
-            logit_scale = clip.logit_scale.exp()
-            logits_per_image = logit_scale * image_features @ text_features.t()
-
-            # Get the top predictions (argmax of the cosine similarity matrix)
-            predicted_labels = torch.argmax(logits_per_image, dim=1)
-            true_labels = torch.arange(len(logits_per_image)).to(device)
-
-            # Count correct predictions
-            correct_predictions += (predicted_labels == true_labels).sum().item()
-            total_samples += len(image_tensor)
-
-    # Calculate accuracy
-    accuracy = correct_predictions / total_samples
-    print(f"Evaluation Accuracy: {accuracy * 100:.2f}%")
-
-    return accuracy
-
-def save_eval_results(version, accuracy):
-    # Save evaluation results to a CSV file
-    results_dir = os.path.join(os.getcwd(), "Eval_Results", f"V_{version}")
-    if not os.path.exists(results_dir):
-        os.makedirs(results_dir)
-    
-    filename = os.path.join(results_dir, "eval_results.csv")
-    
-    with open(filename, mode='w', newline='\n') as file:
-        writer = csv.writer(file)
-        # Write header
-        writer.writerow(['Version', 'Accuracy'])
-        # Write data
-        writer.writerow([version, accuracy])
-
-    print(f"Evaluation results saved to '{filename}'.")
-
-import torch
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from transformers import CLIPProcessor, CLIPModel
+from sklearn.metrics import accuracy_score
 
 #evaluate the clip modelson the dataset provided
 def universal_eval(model, dataset):
@@ -115,8 +36,7 @@ def universal_eval(model, dataset):
             text_embeddings = text_embeddings / text_embeddings.norm(dim=-1, keepdim=True)
             
             # Compute similarity scores between each image and text embedding
-            logit_scale = model.logit_scale.exp()
-            similarities = logit_scale * image_embeddings @ text_embeddings.T  # (batch_size, batch_size)
+            similarities = image_embeddings @ text_embeddings.T  # (batch_size, batch_size)
             
             # Predicted class is the index with the highest similarity score
             predicted_class_indices = similarities.argmax(dim=1).cpu().tolist()
@@ -189,11 +109,11 @@ if __name__ == "__main__":
 
     # Load the evaluation dataset (image-text pairs)
     eval_loader_pre, _ = load_combined_text_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
-    test_dataset_no_pre, _ = load_combined_text_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
+    eval_dataset_no_pre, _ = load_combined_text_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
   
     # Run the evals
+    pretrained_model_results_eval = universal_eval(pretrained_model,eval_dataset_no_pre)
     pretrained_model_results_test =  universal_eval(pretrained_model,test_dataset_no_pre)
-    pretrained_model_results_eval = universal_eval(pretrained_model,test_dataset_no_pre)
     slake_trained_model_results = universal_eval(clip,eval_loader_pre)
     slake_trained_model_results_test = universal_eval(clip,test_dataset_pre)
 
