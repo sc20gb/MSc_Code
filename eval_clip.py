@@ -122,10 +122,9 @@ if __name__ == "__main__":
     test_dataset_no_pre = load_test_data(transforms.Compose([pretrained_model.pre_process_images]),BATCHSIZE,42,data_path)
 
     # Load the evaluation dataset (image-text pairs)
-    train_loader_pre, eval_loader_pre= load_combined_text_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
+    train_loader_pre1, eval_loader_pre= load_combined_text_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
     train_loader_no_pre, eval_dataset_no_pre = load_combined_text_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
   
-
     #load combined records test data
     test_dataset_combined_pre = load_clip_eval_test_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
     test_dataset_combined_no_pre = load_clip_eval_test_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
@@ -138,7 +137,6 @@ if __name__ == "__main__":
     train_loader_pre, validate_loader_pre = load_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
     train_loader_no_pre, validate_loader_no_pre = load_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
 
-
     # Run the evals
     pretrained_model_results_eval = universal_eval_not_classification(pretrained_model,eval_dataset_no_pre)
     pretrained_model_results_test =  universal_eval_not_classification(pretrained_model,test_dataset_no_pre)
@@ -146,17 +144,15 @@ if __name__ == "__main__":
     pretrained_model_results_train = universal_eval_not_classification(pretrained_model,train_loader_no_pre)
     pretrained_model_results_not_combined_train = universal_eval_not_classification(pretrained_model,train_loader_no_pre)
     pretrained_model_results_not_combined_eval = universal_eval_not_classification(pretrained_model,validate_loader_no_pre)
-
     pretrained_model_results_MINST = universal_eval_not_classification(pretrained_model,external_data_no_pre)
+
     slake_trained_model_results = universal_eval_not_classification(clip,eval_loader_pre)
     slake_trained_model_results_test = universal_eval_not_classification(clip,test_dataset_pre)
     slake_trained_model_results_combined_test = universal_eval_not_classification(clip,test_dataset_combined_pre)
-    slake_trained_model_results_train = universal_eval_not_classification(clip,train_loader_pre)
+    slake_trained_model_results_train = universal_eval_not_classification(clip,train_loader_pre1)
     slake_trained_model_results_MINST = universal_eval_not_classification(clip,external_data_pre)
-    slake_trained_model_results_not_combined_train = universal_eval_not_classification(pretrained_model,train_loader_no_pre)
-    slake_trained_model_results_not_combined_eval = universal_eval_not_classification(pretrained_model,validate_loader_no_pre)
-
-
+    slake_trained_model_results_not_combined_train = universal_eval_not_classification(pretrained_model,train_loader_pre)
+    slake_trained_model_results_not_combined_eval = universal_eval_not_classification(pretrained_model,validate_loader_pre)
 
     # Output results
     print("Pretrained Clip model:")
@@ -177,9 +173,6 @@ if __name__ == "__main__":
     print("external data  minst:", slake_trained_model_results_MINST)
     print("train data single records",slake_trained_model_results_not_combined_train)
     print("eval data single records", slake_trained_model_results_not_combined_eval)
-
-
-
 
 # Pretrained Clip model:
 # eval combined: {'accuracy': 13.541666666666666, 'prec': 0.0, 'recall': 0.0, 'f1': 0.0963837568520231}
