@@ -3,7 +3,7 @@ import os
 from transformers import AutoTokenizer
 from Model_Defs.CLIP import CLIP
 import torchvision.transforms as transforms
-from Data_Loading.data_loading import load_combined_text_data, load_test_data, load_clip_eval_test_data, load_chest_mnist_data
+from Data_Loading.data_loading import load_combined_text_data, load_test_data, load_clip_eval_test_data, load_chest_mnist_data, load_data
 from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
 from sklearn.metrics import accuracy_score, f1_score
 
@@ -33,6 +33,13 @@ def universal_eval_not_classification(model, dataset):
             elif len(batch) == 2:
                 images, true_class_indices = batch
                 texts = dataset.dataset.get_classes()
+
+            elif len(batch) == 4:
+                images, masks, question, answer = batch
+                texts = [q + " " + a  for q,a in zip(question,answer)]
+                true_class_indices = torch.arange(len(texts)).cpu()
+
+                
 
             #tokenisation
             texts_pre = model.pre_process_texts(texts)
@@ -91,9 +98,6 @@ if __name__ == "__main__":
     MAX_LENGTH = 256
     IMAGESIZE = 224
 
-
-
-
     #Devices
     device, _ = handle_devices()
 
@@ -130,17 +134,28 @@ if __name__ == "__main__":
     external_data_pre = load_chest_mnist_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor(),transforms.Lambda(lambda x: x.repeat(3, 1, 1))]), 14, 42)
     external_data_no_pre = load_chest_mnist_data(transforms.Compose([pretrained_model.pre_process_images]), 14, 42)
 
+    #Load train and eval single record data
+    train_loader_pre, validate_loader_pre = load_data(transforms.Compose([transforms.Resize((IMAGESIZE, IMAGESIZE)),transforms.ToTensor()]), BATCHSIZE, 42, data_path)
+    train_loader_no_pre, validate_loader_no_pre = load_data(transforms.Compose([pretrained_model.pre_process_images]), BATCHSIZE, 42, data_path)
+
+
     # Run the evals
     pretrained_model_results_eval = universal_eval_not_classification(pretrained_model,eval_dataset_no_pre)
     pretrained_model_results_test =  universal_eval_not_classification(pretrained_model,test_dataset_no_pre)
     pretrained_model_results_combined_test = universal_eval_not_classification(pretrained_model,test_dataset_combined_no_pre)
     pretrained_model_results_train = universal_eval_not_classification(pretrained_model,train_loader_no_pre)
+    pretrained_model_results_not_combined_train = universal_eval_not_classification(pretrained_model,train_loader_no_pre)
+    pretrained_model_results_not_combined_eval = universal_eval_not_classification(pretrained_model,validate_loader_no_pre)
+
     pretrained_model_results_MINST = universal_eval_not_classification(pretrained_model,external_data_no_pre)
     slake_trained_model_results = universal_eval_not_classification(clip,eval_loader_pre)
     slake_trained_model_results_test = universal_eval_not_classification(clip,test_dataset_pre)
     slake_trained_model_results_combined_test = universal_eval_not_classification(clip,test_dataset_combined_pre)
     slake_trained_model_results_train = universal_eval_not_classification(clip,train_loader_pre)
     slake_trained_model_results_MINST = universal_eval_not_classification(clip,external_data_pre)
+    slake_trained_model_results_not_combined_train = universal_eval_not_classification(pretrained_model,train_loader_no_pre)
+    slake_trained_model_results_not_combined_eval = universal_eval_not_classification(pretrained_model,validate_loader_no_pre)
+
 
 
     # Output results
@@ -150,11 +165,35 @@ if __name__ == "__main__":
     print("test combined records:", pretrained_model_results_combined_test)
     print("train combined records:", pretrained_model_results_train)
     print("external data minst:", pretrained_model_results_MINST)
+    print("train data single records",pretrained_model_results_not_combined_train)
+    print("eval data single records", pretrained_model_results_not_combined_eval)
     
-     # Output results
+    # Output results
     print("Slake Trained Clip model:")
     print("eval combined:", slake_trained_model_results)
     print("test single records:", slake_trained_model_results_test)
     print("test combined records:", slake_trained_model_results_combined_test)
     print("train combined records:", slake_trained_model_results_train)
     print("external data  minst:", slake_trained_model_results_MINST)
+    print("train data single records",slake_trained_model_results_not_combined_train)
+    print("eval data single records", slake_trained_model_results_not_combined_eval)
+
+
+
+
+# Pretrained Clip model:
+# eval combined: {'accuracy': 13.541666666666666, 'prec': 0.0, 'recall': 0.0, 'f1': 0.0963837568520231}
+# test single records: {'accuracy': 8.011310084825636, 'prec': 0.0, 'recall': 0.0, 'f1': 0.07739885808284036}     
+# test combined records: {'accuracy': 11.458333333333332, 'prec': 0.0, 'recall': 0.0, 'f1': 0.07262806637806636}  
+# train combined records: {'accuracy': 7.277902012604189, 'prec': 0.0, 'recall': 0.0, 'f1': 0.07170543410702383}  
+# external data minst: {'accuracy': 1.306111532117862, 'prec': 0.0, 'recall': 0.0, 'f1': 0.004407566555936079}    
+# train data single records {'accuracy': 7.501524700142305, 'prec': 0.0, 'recall': 0.0, 'f1': 0.07353493514439682}
+# eval data single records {'accuracy': 7.502374169040836, 'prec': 0.0, 'recall': 0.0, 'f1': 0.07140372979427836} 
+# Slake Trained Clip model:
+# eval combined: {'accuracy': 11.458333333333332, 'prec': 0.0, 'recall': 0.0, 'f1': 0.09771669302919302}
+# test single records: {'accuracy': 3.016022620169651, 'prec': 0.0, 'recall': 0.0, 'f1': 0.02868925005250092}
+# test combined records: {'accuracy': 2.083333333333333, 'prec': 0.0, 'recall': 0.0, 'f1': 0.021875000000000002}
+# train combined records: {'accuracy': 2.8664362675340516, 'prec': 0.0, 'recall': 0.0, 'f1': 0.028327924177837496}
+# external data  minst: {'accuracy': 0.7399812775821335, 'prec': 0.0, 'recall': 0.0, 'f1': 0.00015080903719492622}
+# train data single records {'accuracy': 7.745476722911161, 'prec': 0.0, 'recall': 0.0, 'f1': 0.07653284629603808}
+# eval data single records {'accuracy': 7.977207977207977, 'prec': 0.0, 'recall': 0.0, 'f1': 0.07913604810606456}
