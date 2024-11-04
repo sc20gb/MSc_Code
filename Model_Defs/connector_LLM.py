@@ -110,6 +110,7 @@ class Connector_LLM(nn.Module):
 
     # Loads pretrained weights into the vicuna model
     def load_vicuna(self,model_path,device):
+
         tokenizer = AutoTokenizer.from_pretrained(os.path.join(model_path, "tokenizer"), padding_side='left')
 
         model = LlamaForCausalLM.from_pretrained(os.path.join(model_path, "model")).to(device)
@@ -212,12 +213,10 @@ class Connector_LLM(nn.Module):
 
         if torch.is_grad_enabled():
             nll_loss.backward()
-            print_memory_usage()
             if not self.accumulation_steps < 1:
                 if ((itr + 1) % self.accumulation_steps == 0):
                     self.optim.step()
                     self.scheduler.step()
-                    print("step count = ",self.scheduler._step_count)  
                     self.optim.zero_grad()
                     if self.vicuna.training:
                         self.vicuna.zero_grad()  # Clear all gradients
