@@ -63,15 +63,15 @@ def process_string(s):
 
         return s.strip()  # Optionally, remove leading/trailing spaces
 
-def calc_loss_and_metrics(predicted, target, tokenizer):
+def calc_loss_and_metrics(predicted, target, tokenizer, print_=False):
 
     accuracy = 0
     bleu_scores = []
     precisions = []
     recalls = []
     f1_scores = []
-
-    print(predicted)
+    if print_:
+        print(predicted)
 
     # Iterate over each sample in the batch
     for i in range(len(target)):  # Assuming target has shape (batch_size, ...)
@@ -82,17 +82,18 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
         # Ensure the answer has its capitals and whitespace removed
         predicted_string = process_string(tokenizer.decode(predicted_item.long(), skip_special_tokens=True))
         target_string = process_string(tokenizer.decode(target_item.long(), skip_special_tokens=True))
-        
-        print("Predicted:")
-        print(predicted_string)
-        print("Answer:")
-        print(target_string)
+        if print_:
+            print("Predicted:")
+            print(predicted_string)
+            print("Answer:")
+            print(target_string)
 
         predicted_list = predicted_string.split()
         target_list = target_string.split()
 
-        print(predicted_list)
-        print(target_list)
+        if print_:
+            print(predicted_list)
+            print(target_list)
 
         if predicted_list == target_list:
             accuracy += 1.0
@@ -115,8 +116,8 @@ def calc_loss_and_metrics(predicted, target, tokenizer):
                 if token in target_count:
                     # Take the minimum of the occurrences in both lists for exact matches
                     common_count += min(predicted_count[token], target_count[token])
-
-            print(common_count)
+            if print_:
+                print(common_count)
             # Precision: proportion of predicted tokens that are correct
             prec = common_count / len(predicted_list)
             
@@ -176,11 +177,23 @@ def log_metrics(metrics_dict, validation_loss_avg, trainng_loss_avg, val_accurac
         metrics_dict["train_bleu_score_avg"].append(train_bleu_score_avg / count_t)
         metrics_dict["val_bleu_score_avg"].append(val_bleu_score_avg / count)
 
+#A container for layernorms with .half
+class CustomLayerNorm(torch.nn.LayerNorm):
+    def forward(self, input):
+        # Convert input to float32 for LayerNorm calculation, then cast back to the original dtype
+        return super().forward(input.float()).to(input.dtype)
+
 def handle_half_for_layerNorm(model):
-    # Half does not work with some layers
-    for layer in model.modules():
-        if isinstance(layer, torch.nn.LayerNorm):
-            layer.float()
+    for name, module in model.named_modules():
+        if isinstance(module, torch.nn.LayerNorm):
+                parent = model
+                name_parts = name.split('.')
+                for part in name_parts[:-1]:  # Traverse to the parent module
+                    parent = getattr(parent, part)
+                
+                # Replace with CustomLayerNorm
+                setattr(parent, name_parts[-1], CustomLayerNorm(module.normalized_shape))
+
 
 # Handle the assigining of model to the GPUs
 def handle_devices(cpu_only=False):
@@ -283,6 +296,9 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     
     # Half does not work with some layers
     handle_half_for_layerNorm(connector_llm.connector)
+
+    # Need to send the new layers to the correct device, TODO: This and the whole handel_half needs to be implemented inside the intialiser of the connector_LLM
+    connector_llm.to(device_llm)
     
 
     if visual_encoder_type == "CLIP-trained":
@@ -306,12 +322,15 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
         print("loading pretrained CLIP visual encoder")
         clip = CLIPWithLoRA()
         img_encoder = clip.get_visual_encoder()
+        img_encoder = img_encoder.to(device_vit)
     else:
         print("loading fine-tuned CLIP model")
         clip = CLIPWithLoRA()
         clip.apply_LORA(lora_r=8, lora_alpha=32, lora_dropout=0.1)
         clip.load_model(clip_model_path)
         img_encoder = clip.get_visual_encoder()
+        img_encoder = img_encoder.to(device_vit)
+
 
     # FREEZE CLIP TRAINING (should save memory and computation as well)
     img_encoder.eval()
@@ -321,6 +340,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
 
     # Half does not work with some layers
     handle_half_for_layerNorm(img_encoder)
+
+    img_encoder.to(device_vit)
 
     if training_step == 1:
         #freeze vicuna training
@@ -337,6 +358,8 @@ def feature_aliginment_training_step_2_GPU_SPLIT(
     optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
     scheduler = CustomCosineSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
     connector_llm.set_optim_scheduler(optim, scheduler)
+
+    connector_llm.tokenizer.pad_token = connector_llm.tokenizer.eos_token
 
     # to store metrics if the function is being used with cross_val
     metrics_dict = {
@@ -573,12 +596,23 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
         wandb.log(step)
         
 #path1 = os.path.join(os.getcwd(), "Models_to_upload","v_2000", "clip_model_30.pth")
-path1 = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
+clip_PATH_ARC = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" , "V_" + str(10320005),"clip_model_" + str(23) + ".pth")
 #path = os.path.join(os.getcwd(), "Models", "vicuna-7b-v1.5")
-path = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
-path3 = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(2) + ".pth")
+#vicuna_path_ARC = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
+connector_path_ARC = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(2) + ".pth")
 
+path_TinyLLama = os.path.join(os.getcwd(),"Models\TinyLLama-v0")
 
+path = path_TinyLLama
+
+# Dos not matter if you are in step 1
+connector_path = connector_path_ARC
+
+# only if visual_encoder_type is set to be a local model
+clip_model_path = clip_PATH_ARC
+
+# The path of the LLM to use. Must be a LlamaForCausalLM model
+lamaCausalLM_path = path_TinyLLama
 
 # LR_LIST = [1e-4]
 
@@ -603,23 +637,23 @@ LR_LIST = [1e-6,1e-5,1e-4]
 
 WEIGHT_DECAY_LIST = [1e-4]
 
-PERC_WARM_LIST = [0.2]
+PERC_WARM_LIST = [0.2,0.4]
 
-VIR_BATCH_SIZE_LIST = [32]
+VIR_BATCH_SIZE_LIST = [32,64]
 
 NORM_LIST = [False]
 
-DROPOUT_LIST = [0.3]
+DROPOUT_LIST = [0.3,0.1,0.0]
 
-RANK_LIST = [10]
+RANK_LIST = [10,8]
 
 HIDDEN_LAYER_LIST = [1]
 
 CONNECTOR_LAYERS_LIST = [2]
 
-CONNECTOR_LIST = [path3]
+CONNECTOR_LIST = [connector_path]
 
-LORA_ALPHA_LIST =  [24,16,8]
+LORA_ALPHA_LIST =  [32,24,16,8]
 
 #TODO:Trying to increase the mdoel stability on all of the data by fine-tuning lora parameters
 #TODO:Decrase the ALPHA value decreases the effect of the adapted weights W' = W + a/r * (A dot B)
@@ -634,16 +668,16 @@ optim_list = [{
         "clip_vision_width":512,
         "clip_vision_patch_size":56,
         "clip_vision_layers":6,
-        "clip_model_path":path1,
-        "vicuna_path":path,
+        "clip_model_path":clip_model_path,
+        "vicuna_path":lamaCausalLM_path,
         "connector_layers":cl,
-        "embed_dim":512,
+        "embed_dim":768,
         "image_resolution":224,
         "lr": lr,
         "eps":1e-6,
         "weight_decay":wd,
         "per_warm": pw,
-        "batch_size":4,
+        "batch_size":32,
         "vir_batch_size":vb,
         "rand_seed":42,
         "MAX_EPOC":8,
@@ -652,11 +686,12 @@ optim_list = [{
         "save":False,
         "cpu_only":False,
         "hidden_layer_from_end": hl,
-        "training_step":2,
+        "training_step":1,
         "lora_dropout":do,
         "lora_rank":r,
         "norm":  norm,
-        "lora_alpha": a
+        "lora_alpha": a,
+        "visual_encoder_type": "CLIP-pretrained"
             }
             for lr in LR_LIST 
             for wd in WEIGHT_DECAY_LIST 
@@ -673,8 +708,8 @@ optim_list = [{
 
 for i, para in enumerate(optim_list):
     para['VERSION'] += i
-    wandb.init(project="MSc_fine_tuning_step_2",config=para)
+    wandb.init(project="path_TinyLLama",config=para)
     #print("Cross Validation for VERSION ", para["VERSION"])
-    feature_aliginment_training_step_2_GPU_SPLIT(**para)
-    #cross_val_train(para,n_splits=3,per_data=0.1)
+    #feature_aliginment_training_step_2_GPU_SPLIT(**para)
+    cross_val_train(para,n_splits=3,per_data=1.0)
     wandb.finish()
