@@ -601,9 +601,12 @@ clip_PATH_ARC = os.path.join("/nobackup","sc20gwb","Models", "Models_to_upload" 
 #vicuna_path_ARC = os.path.join("/nobackup","sc20gwb","Models", "vicuna-7b-v1.5")
 connector_path_ARC = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", "C_V_" + str(3000), "connector_LLM_model" + str(2) + ".pth")
 
-path_TinyLLama = os.path.join(os.getcwd(),"Models\TinyLLama-v0")
+path_TinyLLama_LOCAL = os.path.join(os.getcwd(),"Models\TinyLLama-v0")
+path_TinyLLama_ARC = os.path.join("/nobackup", "sc20gwb", "Models", "TinyLLama-v0")
 
-path = path_TinyLLama
+path_TinyLLama_ARC
+
+path = path_TinyLLama_ARC
 
 # Dos not matter if you are in step 1
 connector_path = connector_path_ARC
@@ -612,7 +615,7 @@ connector_path = connector_path_ARC
 clip_model_path = clip_PATH_ARC
 
 # The path of the LLM to use. Must be a LlamaForCausalLM model
-lamaCausalLM_path = path_TinyLLama
+lamaCausalLM_path = path_TinyLLama_ARC
 
 # LR_LIST = [1e-4]
 
