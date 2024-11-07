@@ -634,19 +634,19 @@ lamaCausalLM_path = path_TinyLLama_ARC
 # CONNECTOR_LAYERS_LIST = [2]
 
 
-LR_LIST = [1e-6,1e-5,1e-4]
+LR_LIST = [1e-4,1e-3,1e-2]
 
 WEIGHT_DECAY_LIST = [1e-4]
 
-PERC_WARM_LIST = [0.2,0.4]
+PERC_WARM_LIST = [0.2]
 
-VIR_BATCH_SIZE_LIST = [32,64]
+VIR_BATCH_SIZE_LIST = [32]
 
 NORM_LIST = [False]
 
-DROPOUT_LIST = [0.3,0.1,0.0]
+DROPOUT_LIST = [0.3,0.1]
 
-RANK_LIST = [10,8]
+RANK_LIST = [8]
 
 HIDDEN_LAYER_LIST = [1]
 
@@ -654,7 +654,7 @@ CONNECTOR_LAYERS_LIST = [2]
 
 CONNECTOR_LIST = [connector_path]
 
-LORA_ALPHA_LIST =  [32,24,16,8]
+LORA_ALPHA_LIST =  [32,16]
 
 #TODO:Trying to increase the mdoel stability on all of the data by fine-tuning lora parameters
 #TODO:Decrase the ALPHA value decreases the effect of the adapted weights W' = W + a/r * (A dot B)
@@ -681,7 +681,7 @@ optim_list = [{
         "batch_size":32,
         "vir_batch_size":vb,
         "rand_seed":42,
-        "MAX_EPOC":8,
+        "MAX_EPOC":30,
         "VERSION":3000,
         "pre_trained_connector_path":cp,
         "save":False,
