@@ -4,7 +4,7 @@ Welcome to the project’s weekly progress updates. Here, you’ll find summarie
 
 ## Weekly Progress
 
-- [Week 1](week-01.md): Summary.
+- [Week starting 08-11-24](week-08-11-24.md): Summary.
 
 
 Each link above provides details for that week’s work.
