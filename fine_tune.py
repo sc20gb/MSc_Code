@@ -634,7 +634,7 @@ lamaCausalLM_path = path_TinyLLama_ARC
 # CONNECTOR_LAYERS_LIST = [2]
 
 
-LR_LIST = [1e-4,1e-3,1e-2]
+LR_LIST = [1e-3,1e-2]
 
 WEIGHT_DECAY_LIST = [1e-4]
 
@@ -654,7 +654,7 @@ CONNECTOR_LAYERS_LIST = [2]
 
 CONNECTOR_LIST = [connector_path]
 
-LORA_ALPHA_LIST =  [32,16]
+LORA_ALPHA_LIST =  [32,24,16]
 
 #TODO:Trying to increase the mdoel stability on all of the data by fine-tuning lora parameters
 #TODO:Decrase the ALPHA value decreases the effect of the adapted weights W' = W + a/r * (A dot B)
@@ -712,5 +712,5 @@ for i, para in enumerate(optim_list):
     wandb.init(project="path_TinyLLama",config=para)
     #print("Cross Validation for VERSION ", para["VERSION"])
     #feature_aliginment_training_step_2_GPU_SPLIT(**para)
-    cross_val_train(para,n_splits=3,per_data=1.0)
+    cross_val_train(para,n_splits=3,per_data=0.8)
     wandb.finish()
