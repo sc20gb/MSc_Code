@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import re
 from torch.utils.data import ConcatDataset
 
-
 class CustomMaskTransform(transforms.Compose):
     def __init__(self, transforms_list):
         super().__init__(transforms_list.transforms)
@@ -21,7 +20,7 @@ class CustomMaskTransform(transforms.Compose):
                 continue  # Skip color jitter and normalization transformations
             transformed_mask = transform(transformed_mask)
         return transformed_mask
-    
+
 # Custom Dataset class
 class JsonDataset(Dataset):
 
@@ -39,6 +38,15 @@ class JsonDataset(Dataset):
         self.data = self.load_json(json_file)
         self.data_frame = pd.DataFrame(self.data)        
         self.data_frame = self.data_frame[self.data_frame['q_lang'] == 'en']
+
+          
+        # Process and clean question and answer fields
+        self.data_frame['question'] = self.data_frame['question'].apply(self.process_string)
+        self.data_frame['answer'] = self.data_frame['answer'].apply(self.process_string)
+        
+        # Remove entries where question or answer is empty after processing
+        self.data_frame = self.data_frame[(self.data_frame['question'] != '') & (self.data_frame['answer'] != '')].reset_index(drop=True)
+
         self.transform = transform
         dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
         self.img_dir = os.path.normpath(dir)
@@ -77,11 +85,6 @@ class JsonDataset(Dataset):
         # Get the row from the DataFrame as a dictionary
         df_row_dict = self.data_frame.iloc[idx].to_dict()
 
-        # word tokenization
-        question_tensor = self.process_string(df_row_dict['question'])
-
-        answer_tensor = self.process_string(df_row_dict['answer'])
-
         # Get the img
         img_directory = os.path.dirname(img_path)
 
@@ -92,9 +95,7 @@ class JsonDataset(Dataset):
         # Load the mask and convert it to a tensor
         mask_tensor = self.load_image_as_tensor(mask_path, mt)
                 
-        return image_tensor, mask_tensor, question_tensor, answer_tensor
-
-
+        return image_tensor, mask_tensor, df_row_dict['question'], df_row_dict['answer']
 
 # Custom Dataset class
 class JsonDatasetTest(Dataset):
@@ -170,7 +171,6 @@ class JsonDatasetTest(Dataset):
                 
         return image_tensor, mask_tensor, question_tensor, answer_tensor, catogory
 
-
 def display_sample(image_tensor, mask_tensor, question, answer, batchsize=1, save_path=None):
     """
     Display the image, its mask, the question, and the answer using Matplotlib.
@@ -223,7 +223,6 @@ def display_sample(image_tensor, mask_tensor, question, answer, batchsize=1, sav
         # Show the plot
         plt.show()
 
-
 def load_data(transform,batchSize,seed, dataDir):
     train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
     validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
@@ -233,11 +232,10 @@ def load_data(transform,batchSize,seed, dataDir):
     validate_dataset = JsonDataset(validate_json_path, transform)
 
     # Create DataLoader objects
-    train_loader = DataLoader(train_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
-    validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
+    train_loader = DataLoader(train_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed),num_workers=1, prefetch_factor=1, pin_memory=False)
+    validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed),num_workers=1, prefetch_factor=1, pin_memory=False)
 
     return train_loader, validate_loader
-
 
 def load_data_cross_val(transform, dataDir):
     train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
@@ -248,7 +246,6 @@ def load_data_cross_val(transform, dataDir):
     validate_dataset = JsonDataset(validate_json_path, transform)
 
     return ConcatDataset([train_dataset, validate_dataset])
-
 
 def load_test_data(transform,batchSize,seed, dataDir):
 
@@ -263,7 +260,6 @@ def load_test_data(transform,batchSize,seed, dataDir):
     test_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
     return test_loader
-
 
 class CLIPTrainJsonDataset(JsonDataset):
     def __init__(self, json_file, transform=transforms.ToTensor()):
@@ -325,7 +321,6 @@ class CLIPTrainJsonDataset(JsonDataset):
                 
         return image_tensor, mask_tensor, text
 
-
 from medmnist import ChestMNIST
 
 class CustomChestMNISTDataset(Dataset):
@@ -375,7 +370,6 @@ class CustomChestMNISTDataset(Dataset):
         one_hot[label] = 1.0
         return one_hot
     
-
 def load_chest_mnist_data(transform, batch_size, seed, split='test'):
     """
     Load the ChestMNIST dataset as a DataLoader.
@@ -402,7 +396,6 @@ def load_chest_mnist_data(transform, batch_size, seed, split='test'):
 
     return dataloader
 
-
 def load_clip_eval_test_data(transform,batchSize,seed, dataDir):
     test_json_path = os.path.normpath(os.path.join(dataDir, 'test.json'))
     test_dataset = CLIPTrainJsonDataset(test_json_path, transform)
@@ -411,8 +404,6 @@ def load_clip_eval_test_data(transform,batchSize,seed, dataDir):
     train_loader = DataLoader(test_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
     return train_loader
-
-
 
 def load_combined_text_data(transform,batchSize,seed, dataDir):
 
