@@ -971,7 +971,7 @@ class CustomGeneration(GenerationMixin):
             streamer.end()
 
         if return_dict_in_generate:
-            loss_avg = cumulative_loss / model_kwargs["labels"].size(1)
+            loss_avg = cumulative_loss / gen_len
             return GenerateDecoderOnlyOutput(
                 sequences=input_ids,
                 scores=scores,
