@@ -119,7 +119,7 @@ class Connector_LLM_With_Gen(nn.Module):
         # Tokenize batch text with padding and truncation
         inputs = self.tokenizer(batch_text,padding='longest',truncation=True,return_tensors='pt').to(self.device)  # Move tokenized inputs to the target device
        
-        attention_mask = inputs["attention_mask"]
+        attention_mask = inputs["attention_mask"][:,1:]
         input_ids = inputs.input_ids[:, 1:]
 
         # Embed the text input IDs, excluding the first token to match the input format
@@ -128,7 +128,7 @@ class Connector_LLM_With_Gen(nn.Module):
         # Embed the static header ("Image:") once and expand across the batch
         header_tokens = self.tokenizer("Image: ", return_tensors='pt')
 
-        header_ids = header_tokens.input_ids[:, :-1].to(self.device)
+        header_ids = header_tokens.input_ids.to(self.device)
 
         header_mask = header_tokens["attention_mask"]
 
@@ -140,7 +140,7 @@ class Connector_LLM_With_Gen(nn.Module):
         # Concatenate the header padding, embedded header, image features, and embedded text
         embeddings = torch.cat((embedded_header, image_embeddings, embedded_text), dim=1)
 
-        attention_mask  = torch.cat((header_mask,torch.ones(embeddings.shape[:2], dtype=torch.long, device=embeddings.device),attention_mask), dim=1)
+        attention_mask  = torch.cat((header_mask,torch.ones(image_embeddings.shape[:2], dtype=torch.long, device=embeddings.device),attention_mask), dim=1)
 
         return embeddings, attention_mask
 
@@ -155,7 +155,7 @@ class Connector_LLM_With_Gen(nn.Module):
         
 
         # Autoregressive prediction
-        outputs = self.llm.generate(inputs_embeds=embeddings,labels=answer, max_length=self.max_length, generation_config=self.llm.generation_config)
+        outputs = self.llm.generate(inputs_embeds=embeddings,labels=answer, attention_mask=attention_mask, max_length=self.max_length, generation_config=self.llm.generation_config)
 
         return outputs.sequences, outputs.loss
     
