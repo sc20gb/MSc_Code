@@ -301,6 +301,7 @@ def feature_aliginment_training(
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
                 connector_llm.connector.zero_grad()
+                print(loss)
 
 
         # Ensure to perform a step if we have leftover gradients
@@ -349,7 +350,7 @@ def feature_aliginment_training(
             if count != 0 and count_t != 0:
                     wandb.log((metrics_training/count_t).get_log("training_") | (metrics_validate/count).get_log("validate_"))
             else:
-                wandb.log(wandb.log(Metrics(-1,-1,-1,-1,-1,-1,-1).get_log("training_") | Metrics(-1,-1,-1,-1,-1,-1).get_log("validate_")))
+                wandb.log(Metrics(-1,-1,-1,-1,-1,-1).get_log("training_") | Metrics(-1,-1,-1,-1,-1,-1).get_log("validate_"))
         else:
             training_list.append(metrics_training/count_t)
             validate_list.append(metrics_validate/count)
@@ -422,9 +423,9 @@ if __name__ == '__main__':
 
     WEIGHT_DECAY_LIST = [1e-4]
 
-    PERC_WARM_LIST = [0.0]
+    PERC_WARM_LIST = [0.2]
 
-    VIR_BATCH_SIZE_LIST = [64,256]
+    VIR_BATCH_SIZE_LIST = [16]
 
     NORM_LIST = [False]
 
