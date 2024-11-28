@@ -10,6 +10,7 @@ import torch.nn.functional as F
 
 from torch.utils.checkpoint import checkpoint
 from peft import get_peft_model, LoraConfig
+from contextlib import nullcontext
 
 import psutil
 def print_memory_usage():
@@ -153,9 +154,16 @@ class Connector_LLM_With_Gen(nn.Module):
         # embed the text into the VAQ format, and concatnate them for llm generation
         embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
         
+       # Autoregressive prediction
+        with torch.no_grad() if not self.llm.training else nullcontext():
+            outputs = self.llm.generate(
+                inputs_embeds=embeddings,
+                labels=answer,
+                attention_mask=attention_mask,
+                max_length=self.max_length,
+                generation_config=self.llm.generation_config,
+            )
 
-        # Autoregressive prediction
-        outputs = self.llm.generate(inputs_embeds=embeddings,labels=answer, attention_mask=attention_mask, max_length=self.max_length, generation_config=self.llm.generation_config)
 
         return outputs.sequences, outputs.loss
     
