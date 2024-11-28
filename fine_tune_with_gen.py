@@ -92,7 +92,7 @@ def handle_devices(cpu_only=False):
             print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
         else:
             print("Only one GPU available, models are split between GPU 0")
-            device_vit = torch.device("cuda:0")
+            device_vit = torch.device("cpu")
             device_llm = torch.device("cuda:0")
     else:
         print("CUDA is not available. Training will proceed on CPU.")
@@ -448,13 +448,13 @@ if __name__ == '__main__':
             "eps":1e-6,
             "weight_decay":wd,
             "per_warm": pw,
-            "batch_size":2,
+            "batch_size":1,
             "vir_batch_size":vb,
             "rand_seed":42,
             "MAX_EPOC":30,
             "VERSION":3000,
             "save":False,
-            "cpu_only":True,
+            "cpu_only":False,
             "hidden_layer_from_end": hl,
             "training_step":1,
             "lora_dropout":do,
@@ -463,7 +463,7 @@ if __name__ == '__main__':
             "pre_trained_connector_path":None,
             "lora_alpha": a,
             "visual_encoder_type": "CLIP-pretrained",
-            "use_half" : False
+            "use_half" : True
                 }
                 for lr in LR_LIST 
                 for wd in WEIGHT_DECAY_LIST 
