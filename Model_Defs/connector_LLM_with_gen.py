@@ -148,11 +148,16 @@ class Connector_LLM_With_Gen(nn.Module):
     def forward(self, image_embeddings, question, answer):
 
         # Project the image embeddings
-        projected_img_embeddings = self.connector(image_embeddings)
+        #projected_img_embeddings = self.connector(image_embeddings)
         
+        ids = self.tokenizer(["Hello?"],padding='longest',truncation=True,return_tensors='pt')
+        embeddings = self.llm.get_input_embeddings()(ids.input_ids.to(self.device))
+        attention_mask = ids["attention_mask"].to(self.device)
+        answer = self.tokenizer(["Hello? How are you today etc tect ..         ...  ... ... ... .. .. . . .. . . .."],padding='longest',truncation=True,return_tensors='pt').input_ids.to(self.device)
+
 
         # embed the text into the VAQ format, and concatnate them for llm generation
-        embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
+        #embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
         
        # Autoregressive prediction
         with torch.no_grad() if not self.llm.training else nullcontext():
@@ -163,6 +168,12 @@ class Connector_LLM_With_Gen(nn.Module):
                 max_length=self.max_length,
                 generation_config=self.llm.generation_config,
             )
+
+
+        
+        print(self.tokenizer.decode(outputs.sequences[0]))
+
+
 
 
         return outputs.sequences, outputs.loss
