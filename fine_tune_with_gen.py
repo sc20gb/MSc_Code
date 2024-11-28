@@ -288,7 +288,7 @@ def feature_aliginment_training(
             output, loss  = connector_llm(image_features.to(device_llm), question, answer_)
 
             # Eval
-            metrics = Metrics(loss,**calc_loss_and_metrics(list(output),list(answer_),tokenizer=connector_llm.tokenizer))
+            metrics = Metrics(loss,**calc_loss_and_metrics(list(output.to('cpu')),list(answer_.to('cpu')),tokenizer=connector_llm.tokenizer))
             metrics_training += metrics     
             count_t = count_t + 1
 
@@ -419,7 +419,7 @@ if __name__ == '__main__':
     # The path of the LLM to use. Must be a LlamaForCausalLM model
     lamaCausalLM_path = path_TinyLLama_LOCAL
 
-    LR_LIST = [1e-6,1e-3,1e-4]
+    LR_LIST = [1e-4,1e-6,1e-3]
 
     WEIGHT_DECAY_LIST = [1e-4]
 
@@ -448,13 +448,13 @@ if __name__ == '__main__':
             "eps":1e-6,
             "weight_decay":wd,
             "per_warm": pw,
-            "batch_size":1,
+            "batch_size":2,
             "vir_batch_size":vb,
             "rand_seed":42,
             "MAX_EPOC":30,
             "VERSION":3000,
             "save":False,
-            "cpu_only":False,
+            "cpu_only":True,
             "hidden_layer_from_end": hl,
             "training_step":1,
             "lora_dropout":do,
@@ -462,7 +462,8 @@ if __name__ == '__main__':
             "norm":  norm,
             "pre_trained_connector_path":None,
             "lora_alpha": a,
-            "visual_encoder_type": "CLIP-pretrained"
+            "visual_encoder_type": "CLIP-pretrained",
+            "use_half" : False
                 }
                 for lr in LR_LIST 
                 for wd in WEIGHT_DECAY_LIST 
