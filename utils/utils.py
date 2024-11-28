@@ -1090,19 +1090,31 @@ class LlamaForCausalLMCustom(LlamaPreTrainedModel, CustomGeneration):
     # This overrides the LlamaPreTrainedModel as the loss calculation there does not support generation
     #TODO: change this if anouther loss is needed
     def loss_function_for_gen(
-        self, logits, labels, vocab_size: int, num_items_in_batch: int = None, ignore_index: int = -100, **kwargs
-    ):
-        
-        # Upcast to float if we need to compute the loss to avoid potential precision issues
+    self, logits, labels, vocab_size: int, num_items_in_batch: int = None, ignore_index: int = -100, **kwargs
+):
+        """
+        Compute the loss for token generation, handling both float16 and float32 precision.
+        """
+        # Upcast logits to float32 for loss computation to avoid precision issues
+        original_dtype = logits.dtype
+        logits = logits.float()
 
         # Flatten the tokens
         shift_logits = logits.view(-1, vocab_size)
         shift_labels = labels.view(-1)
-        # Enable model parallelism
+
+        # Ensure labels are on the same device as logits
         shift_labels = shift_labels.to(shift_logits.device)
 
+        # Compute loss
         loss = fixed_cross_entropy(shift_logits, shift_labels, num_items_in_batch, ignore_index, **kwargs)
+
+        # Restore the original dtype of logits
+        if original_dtype == torch.float16:
+            loss = loss.half()
+
         return loss
+
 
 
     @add_start_docstrings_to_model_forward(LLAMA_INPUTS_DOCSTRING)
