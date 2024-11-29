@@ -145,38 +145,43 @@ class Connector_LLM_With_Gen(nn.Module):
 
         return embeddings, attention_mask
 
+    def freeze_llm(self):
+         # Freeze LLM  parameters if needed
+            for param in self.llm.parameters():
+                param.requires_grad = False
+
+    def are_all_llm_params_frozen(self):
+        return all(param.requires_grad == False for param in self.llm.parameters())
+
+    
     def forward(self, image_embeddings, question, answer):
 
+        if self.llm.dtype == torch.float16:
+            image_embeddings = image_embeddings.half()  # Match LLaMA's precision
+
         # Project the image embeddings
-        #projected_img_embeddings = self.connector(image_embeddings)
+        projected_img_embeddings = self.connector(image_embeddings)
         
-        ids = self.tokenizer(["Hello?"],padding='longest',truncation=True,return_tensors='pt')
-        embeddings = self.llm.get_input_embeddings()(ids.input_ids.to(self.device))
-        attention_mask = ids["attention_mask"].to(self.device)
-        answer = self.tokenizer(["Hello? How are you today etc tect ..         ...  ... ... ... .. .. . . .. . . .."],padding='longest',truncation=True,return_tensors='pt').input_ids.to(self.device)
-
-
         # embed the text into the VAQ format, and concatnate them for llm generation
-        #embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
-        
-       # Autoregressive prediction
-        with torch.no_grad() if not self.llm.training else nullcontext():
-            outputs = self.llm.generate(
-                inputs_embeds=embeddings,
-                labels=answer,
-                attention_mask=attention_mask,
-                max_length=self.max_length,
-                generation_config=self.llm.generation_config,
-            )
+        embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
 
+        #TODO:Make sure that graient tracking works
+        # Autoregressive prediction
+        #with torch.no_grad() if not self.llm.training else nullcontext():
+        outputs = self.llm.generate(
+            inputs_embeds=embeddings,
+            labels=answer,
+            attention_mask=attention_mask,
+            max_length=self.max_length,
+            generation_config=self.llm.generation_config
+        )
 
-        
-        print(self.tokenizer.decode(outputs.sequences[0]))
+        loss = outputs.loss
+        if not self.llm.training:
+            loss.requires_grad_(True)
+            
 
-
-
-
-        return outputs.sequences, outputs.loss
+        return outputs.sequences, loss
     
 
     #loads the connector from a file 
