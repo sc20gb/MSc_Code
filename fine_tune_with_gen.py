@@ -20,6 +20,7 @@ from utils.metrics import Metrics, calc_loss_and_metrics,  MetricsList
 
 #I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
 # Import the CustomCosineSchedulerWithWarmup class
@@ -258,17 +259,25 @@ def feature_aliginment_training(
 
     # Optimizer and learning rate scheduling
     optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
-    scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
+    #scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
+
+    initial_weights = {name: param.detach().clone() for name, param in connector_llm.llm.named_parameters()}
+
+    
 
     # to store metrics
-    metrics_training = Metrics()
-    metrics_validate = Metrics()
     training_list = MetricsList()
     validate_list = MetricsList()
     for n in range(1, MAX_EPOC + 1):
+        metrics_training = Metrics()
+        metrics_validate = Metrics()
         
         # Training the LLM is not needed in step 1
-        connector_llm.train() if training_step == 2 else connector_llm.connector.train()
+        if training_step == 2:
+            connector_llm.train() 
+        else:
+            connector_llm.connector.train()
+            connector_llm.freeze_llm()
 
         count_t = 0
         optim.zero_grad()
@@ -276,13 +285,17 @@ def feature_aliginment_training(
         for image_tensor, mask_tensor, question, answer in train_loader:
             # Get image features from the img encoder
             with torch.no_grad():
-                _, hidden_states = img_encoder(image_tensor.half().to(device_image_encoder),return_hidden_states=True)                    
+                _, hidden_states = img_encoder(image_tensor.to(device_image_encoder),return_hidden_states=True)                    
 
             # We want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
             image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
 
             # Tokenize answer
             answer_ = connector_llm.tokenizer(answer, padding='longest', truncation=True, return_tensors='pt', add_special_tokens=True).input_ids.to(device_llm)[:, 1:]
+
+            # Manually add the <EOS> token to each sequence in the batch
+            eos_tensor = torch.full((answer_.size(0), 1), connector_llm.tokenizer.eos_token_id, dtype=torch.long, device=device_llm)  # Shape: (batch_size, 1)
+            answer_ = torch.cat([answer_, eos_tensor], dim=1)
 
             # Get MLLM prediction and NLL loss
             output, loss  = connector_llm(image_features.to(device_llm), question, answer_)
@@ -296,20 +309,20 @@ def feature_aliginment_training(
             loss.backward()
             if ((count_t) % accumulation_steps == 0):
                 optim.step()
-                scheduler.step()
+                #scheduler.step()
                 optim.zero_grad()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
-                connector_llm.connector.zero_grad()
-                print(loss)
 
+                print(loss)
+                #connector_llm.connector.zero_grad()
 
         # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
-            scheduler.step()
-            connector_llm.zero_grad()
+            #scheduler.step()
+            #connector_llm.zero_grad()
 
         # VALIDATE
         count = 0
@@ -317,7 +330,7 @@ def feature_aliginment_training(
         with torch.no_grad():
             for image_tensor, mask_tensor, question, answer in validate_loader:
                 # Get image features from the img encoder
-                _, hidden_states = img_encoder(image_tensor.half().to(device_image_encoder),return_hidden_states=True)                    
+                _, hidden_states = img_encoder(image_tensor.to(device_image_encoder),return_hidden_states=True)                    
 
                 # We want the hidden state at the specified layer (len(hidden_states) - 1) is the last layer, so 0 is 0 from the end, 1 one from the end
                 image_features = hidden_states[(len(hidden_states) - 1) - hidden_layer_from_end]
@@ -332,6 +345,19 @@ def feature_aliginment_training(
                 metrics = Metrics(loss,**calc_loss_and_metrics(list(output),list(answer_),tokenizer=connector_llm.tokenizer))
                 metrics_validate += metrics     
                 count = count + 1
+
+
+        all_same = True  # Flag to track if all parameters are the same
+
+        for name, param in connector_llm.llm.named_parameters():
+            if not torch.equal(param, initial_weights[name]):
+                all_same = False  # If any parameter is updated, set the flag to False
+                break  # Exit the loop early if one mismatch is found
+
+        if all_same:
+            print("All parameters are the same.")
+        else:
+            print("At least one parameter has been updated.")
 
 
         # SAVE RESULTS
@@ -419,24 +445,19 @@ if __name__ == '__main__':
     # The path of the LLM to use. Must be a LlamaForCausalLM model
     lamaCausalLM_path = path_TinyLLama_LOCAL
 
-    LR_LIST = [1e-4,1e-6,1e-3]
-
-    WEIGHT_DECAY_LIST = [1e-4]
-
-    PERC_WARM_LIST = [0.2]
-
-    VIR_BATCH_SIZE_LIST = [16]
-
-    NORM_LIST = [False]
-
-    DROPOUT_LIST = [0.3]
-
-    RANK_LIST = [8]
-
+    #Connector parameters
     HIDDEN_LAYER_LIST = [1]
-
     CONNECTOR_LAYERS_LIST = [2]
 
+    #Training parameters
+    LR_LIST = [0.01, 0.001, 0.0001]
+    WEIGHT_DECAY_LIST = [0.01, 0.001,  0.0001]
+    PERC_WARM_LIST = [0.0]
+    VIR_BATCH_SIZE_LIST = [64]
+
+    #LoRA parameters
+    DROPOUT_LIST = [0.3]
+    RANK_LIST = [8]
     LORA_ALPHA_LIST =  [32]
 
     optim_list = [{
@@ -445,25 +466,24 @@ if __name__ == '__main__':
             "embed_dim":768,
             "image_resolution":224,
             "lr": lr,
-            "eps":1e-6,
+            "eps":1e-8,
             "weight_decay":wd,
             "per_warm": pw,
-            "batch_size":1,
+            "batch_size":4,
             "vir_batch_size":vb,
             "rand_seed":42,
-            "MAX_EPOC":30,
+            "MAX_EPOC":10,
             "VERSION":3000,
-            "save":False,
+            "save":True,
             "cpu_only":False,
             "hidden_layer_from_end": hl,
             "training_step":1,
             "lora_dropout":do,
             "lora_rank":r,
-            "norm":  norm,
             "pre_trained_connector_path":None,
             "lora_alpha": a,
             "visual_encoder_type": "CLIP-pretrained",
-            "use_half" : True
+            "use_half" : False
                 }
                 for lr in LR_LIST 
                 for wd in WEIGHT_DECAY_LIST 
@@ -473,7 +493,6 @@ if __name__ == '__main__':
                 for hl in HIDDEN_LAYER_LIST
                 for do in DROPOUT_LIST
                 for r in  RANK_LIST
-                for norm in NORM_LIST
                 for a in LORA_ALPHA_LIST
                 ]
 
