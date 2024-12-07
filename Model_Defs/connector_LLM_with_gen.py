@@ -155,32 +155,36 @@ class Connector_LLM_With_Gen(nn.Module):
 
     
     def forward(self, image_embeddings, question, answer):
-
+        # Convert to half precision if needed
         if self.llm.dtype == torch.float16:
-            image_embeddings = image_embeddings.half()  # Match LLaMA's precision
+            image_embeddings = image_embeddings.half()
 
-        # Project the image embeddings
+        # Project the image embeddings - connector needs gradients
         projected_img_embeddings = self.connector(image_embeddings)
         
-        # embed the text into the VAQ format, and concatnate them for llm generation
+        # Embed the text into the VAQ format, and concatenate them for llm generation
         embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
 
-        #TODO:Make sure that graient tracking works
-        # Autoregressive prediction
-        #with torch.no_grad() if not self.llm.training else nullcontext():
-        outputs = self.llm.generate(
-            inputs_embeds=embeddings,
-            labels=answer,
-            attention_mask=attention_mask,
-            max_length=self.max_length,
-            generation_config=self.llm.generation_config
+        # Use no_grad for LLM forward pass to save memory and computation
+        with torch.no_grad():
+            self.llm.eval()  # Ensure eval mode
+            outputs = self.llm.generate(
+                inputs_embeds=embeddings.detach(),  # Detach to prevent gradient computation through input
+                labels=answer,
+                attention_mask=attention_mask,
+                max_length=self.max_length,
+                generation_config=self.llm.generation_config
+            )
+            generated_logits = outputs.generated_logits
+
+        # Compute loss with gradients only through connector path
+        loss = self.llm.external_loss_function_for_gen(
+            generated_logits.requires_grad_(True),  # Re-enable gradients for loss computation
+            answer, 
+            self.llm.config.vocab_size,
+            num_items_in_batch=generated_logits.size(0)
         )
-
-        loss = outputs.loss
-        if not self.llm.training:
-            loss.requires_grad_(True)
-            
-
+        
         return outputs.sequences, loss
     
 
