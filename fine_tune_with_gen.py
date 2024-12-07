@@ -258,7 +258,10 @@ def feature_aliginment_training(
     print((len(train_loader.dataset)/batch_size), " train batches")
 
     # Optimizer and learning rate scheduling
-    optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
+    if training_step == 2:
+        optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
+    else:
+        optim = torch.optim.AdamW(connector_llm.connector.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
     #scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
 
     initial_weights = {name: param.detach().clone() for name, param in connector_llm.llm.named_parameters()}
@@ -277,7 +280,7 @@ def feature_aliginment_training(
             connector_llm.train() 
         else:
             connector_llm.connector.train()
-            connector_llm.freeze_llm()
+            #connector_llm.freeze_llm()
 
         count_t = 0
         optim.zero_grad()
@@ -345,7 +348,6 @@ def feature_aliginment_training(
                 metrics = Metrics(loss,**calc_loss_and_metrics(list(output),list(answer_),tokenizer=connector_llm.tokenizer))
                 metrics_validate += metrics     
                 count = count + 1
-
 
         all_same = True  # Flag to track if all parameters are the same
 
@@ -474,7 +476,7 @@ if __name__ == '__main__':
             "rand_seed":42,
             "MAX_EPOC":10,
             "VERSION":3000,
-            "save":True,
+            "save":False,
             "cpu_only":False,
             "hidden_layer_from_end": hl,
             "training_step":1,
@@ -483,7 +485,7 @@ if __name__ == '__main__':
             "pre_trained_connector_path":None,
             "lora_alpha": a,
             "visual_encoder_type": "CLIP-pretrained",
-            "use_half" : False
+            "use_half" : True
                 }
                 for lr in LR_LIST 
                 for wd in WEIGHT_DECAY_LIST 
