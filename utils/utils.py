@@ -131,16 +131,12 @@ class GenerateDecoderOnlyOutput(ModelOutput):
     hidden_states: Optional[Tuple[Tuple[torch.FloatTensor]]] = None
     past_key_values: Optional[Tuple[Tuple[Tuple[torch.FloatTensor]]]] = None
     loss: Optional[float] = None
+    generated_logits: Optional[torch.FloatTensor] = None
 
 #Typing shortcuts
 GenerateNonBeamOutput = Union[GenerateDecoderOnlyOutput, GenerateEncoderDecoderOutput]
 GenerateBeamOutput = Union[GenerateBeamDecoderOnlyOutput, GenerateBeamEncoderDecoderOutput]
 GenerateOutput = Union[GenerateNonBeamOutput, GenerateBeamOutput]
-
-
-
-
-
 
 class CustomGeneration(GenerationMixin):
     def __init__(self, model, tokenizer):
@@ -740,7 +736,6 @@ class CustomGeneration(GenerationMixin):
                 " generate arguments will also show up in this list)"
             )
 
-
     def prepare_inputs_for_generation(
         self,
         input_ids: torch.LongTensor,
@@ -869,7 +864,6 @@ class CustomGeneration(GenerationMixin):
         
         return model_inputs
 
-
     def prep_labels(self,labels: Optional[torch.LongTensor] = None, gen_itr = 0):
         return labels[:,gen_itr]
 
@@ -902,7 +896,9 @@ class CustomGeneration(GenerationMixin):
         decoder_hidden_states = () if (return_dict_in_generate and output_hidden_states) else None
         decoder_attentions = () if (return_dict_in_generate and output_attentions) else None
 
-        cumulative_loss = torch.tensor([0.0], device=input_ids.device)
+        output_logits = None
+        
+        #cumulative_loss = torch.tensor([0.0], device=input_ids.device)
         gen_len = 0
 
         model_kwargs = self._get_initial_cache_position(input_ids, model_kwargs)
@@ -921,14 +917,13 @@ class CustomGeneration(GenerationMixin):
             model_inputs.update({"output_attentions": output_attentions} if output_attentions else {})
             model_inputs.update({"output_hidden_states": output_hidden_states} if output_hidden_states else {})
 
-           
             # Forward pass to get outputs
             outputs = self(**model_inputs, return_dict=True)
 
             # Extract loss if targets are available
-            if "loss" in outputs:
-                # Accumulate the loss
-                cumulative_loss += outputs.loss
+            # if "loss" in outputs:
+            #     # Accumulate the loss
+            #     cumulative_loss += outputs.loss
 
             # Update model kwargs for generation
             model_kwargs = self._update_model_kwargs_for_generation(
@@ -940,6 +935,16 @@ class CustomGeneration(GenerationMixin):
             # Pre-process logits
             next_token_logits = outputs.logits[:, -1, :].float()
             next_token_logits = next_token_logits.to(input_ids.device)
+
+            # Store the logits to return if needed
+            if return_dict_in_generate:
+                if output_logits == None:
+                    # We want (batch_size, 1, vocab_size)
+                    output_logits = next_token_logits.unsqueeze(1)
+                else:
+                    output_logits = torch.cat((output_logits, next_token_logits.unsqueeze(1)), dim=1)
+
+            # Apply logit processors
             next_token_scores = logits_processor(input_ids, next_token_logits)
 
             # Token selection
@@ -971,11 +976,12 @@ class CustomGeneration(GenerationMixin):
             streamer.end()
 
         if return_dict_in_generate:
-            loss_avg = cumulative_loss / gen_len
+            #loss_avg = cumulative_loss / gen_len
             return GenerateDecoderOnlyOutput(
                 sequences=input_ids,
                 scores=scores,
-                loss=loss_avg,
+                # loss=loss_avg,
+                generated_logits=output_logits,
                 attentions=decoder_attentions,
                 hidden_states=decoder_hidden_states,
             )
@@ -1113,6 +1119,50 @@ class LlamaForCausalLMCustom(LlamaPreTrainedModel, CustomGeneration):
         if original_dtype == torch.float16:
             loss = loss.half()
 
+        return loss
+    
+
+    def external_loss_function_for_gen(
+    self, logits, labels, vocab_size: int, num_items_in_batch: int = None, ignore_index: int = -100, **kwargs
+):
+        """
+        Compute the loss for token generation across batch and generation length dimensions.
+        Args:
+            logits: shape (batch_size, gen_length, vocab_size)
+            labels: shape (batch_size, gen_length)
+        """
+        # Upcast logits to float32
+        original_dtype = logits.dtype
+        logits = logits.float()
+        
+        # Get dimensions
+        batch_size, gen_length, vocab_size = logits.shape
+
+        if gen_length < labels.size(1):
+            labels = labels[:, :gen_length]
+        elif gen_length > labels.size(1):
+            raise ValueError(f"Generation length {gen_length} is greater than labels length {labels.size}")
+        
+        # Reshape logits to (batch_size * gen_length, vocab_size)
+        shift_logits = logits.reshape(-1, vocab_size)
+        
+        # Reshape labels to (batch_size * gen_length)
+        shift_labels = labels.reshape(-1)
+        
+        # Ensure labels are on same device
+        shift_labels = shift_labels.to(shift_logits.device)
+        
+        # If num_items_in_batch not specified, use batch_size * gen_length
+        if num_items_in_batch is None:
+            num_items_in_batch = batch_size * gen_length
+        
+        # Compute loss
+        loss = fixed_cross_entropy(shift_logits, shift_labels, num_items_in_batch, ignore_index, **kwargs)
+        
+        # Restore original dtype
+        if original_dtype == torch.float16:
+            loss = loss.half()
+            
         return loss
 
 
