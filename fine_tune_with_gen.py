@@ -485,7 +485,7 @@ if __name__ == '__main__':
             "pre_trained_connector_path":None,
             "lora_alpha": a,
             "visual_encoder_type": "CLIP-pretrained",
-            "use_half" : True
+            "use_half" : False
                 }
                 for lr in LR_LIST 
                 for wd in WEIGHT_DECAY_LIST 
