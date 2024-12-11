@@ -165,9 +165,7 @@ class Connector_LLM_With_Gen(nn.Module):
         # Embed the text into the VAQ format, and concatenate them for llm generation
         embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
 
-        # Use no_grad for LLM forward pass to save memory and computation
-        with torch.no_grad():
-            self.llm.eval()  # Ensure eval mode
+        with torch.no_grad() if not self.llm.training else nullcontext():
             outputs = self.llm.generate(
                 inputs_embeds=embeddings.detach(),  # Detach to prevent gradient computation through input
                 labels=answer,
@@ -175,11 +173,11 @@ class Connector_LLM_With_Gen(nn.Module):
                 max_length=self.max_length,
                 generation_config=self.llm.generation_config
             )
-            generated_logits = outputs.generated_logits
+        generated_logits = outputs.generated_logits.requires_grad_(True)
 
         # Compute loss with gradients only through connector path
         loss = self.llm.external_loss_function_for_gen(
-            generated_logits.requires_grad_(True),  # Re-enable gradients for loss computation
+            generated_logits,
             answer, 
             self.llm.config.vocab_size,
             num_items_in_batch=generated_logits.size(0)
