@@ -262,7 +262,7 @@ def feature_aliginment_training(
         optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
     else:
         optim = torch.optim.AdamW(connector_llm.connector.parameters(), lr=lr,weight_decay=weight_decay, eps=eps)
-    #scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
+    scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps, num_training_steps=total_training_steps,training_step=training_step)
 
     initial_weights = {name: param.detach().clone() for name, param in connector_llm.llm.named_parameters()}
 
@@ -312,20 +312,16 @@ def feature_aliginment_training(
             loss.backward()
             if ((count_t) % accumulation_steps == 0):
                 optim.step()
-                #scheduler.step()
                 optim.zero_grad()
+                scheduler.step()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
-
-                print(loss)
-                #connector_llm.connector.zero_grad()
 
         # Ensure to perform a step if we have leftover gradients
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
-            #scheduler.step()
-            #connector_llm.zero_grad()
+            scheduler.step()
 
         # VALIDATE
         count = 0
@@ -452,9 +448,9 @@ if __name__ == '__main__':
     CONNECTOR_LAYERS_LIST = [2]
 
     #Training parameters
-    LR_LIST = [0.01, 0.001, 0.0001]
-    WEIGHT_DECAY_LIST = [0.01, 0.001,  0.0001]
-    PERC_WARM_LIST = [0.0]
+    LR_LIST = [0.0001,0.00001]
+    WEIGHT_DECAY_LIST = [0.01, 0.001,0.0001]
+    PERC_WARM_LIST = [0.0,0.33333]
     VIR_BATCH_SIZE_LIST = [64]
 
     #LoRA parameters
@@ -474,7 +470,7 @@ if __name__ == '__main__':
             "batch_size":4,
             "vir_batch_size":vb,
             "rand_seed":42,
-            "MAX_EPOC":10,
+            "MAX_EPOC":3,
             "VERSION":3000,
             "save":False,
             "cpu_only":False,
