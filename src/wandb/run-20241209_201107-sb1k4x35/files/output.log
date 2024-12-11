@@ -1,0 +1,238 @@
+Only one GPU available, models are split between GPU 0
+loading pretrained CLIP visual encoder
+0  warmup steps
+231  total steps
+1229.5  train batches
+No grad for llm
+No grad for llm
+No grad for llm
+C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\transformers\models\llama\modeling_llama.py:602: UserWarning: 1Torch was not compiled with flash attention. (Triggered internally at ..\aten\src\ATen\native\transformers\cuda\sdp_utils.cpp:455.)
+  attn_output = torch.nn.functional.scaled_dot_product_attention(
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+No grad for llm
+Traceback (most recent call last):
+  File "c:\Users\George\Desktop\Repositories\MSc_Code\fine_tune_with_gen.py", line 501, in <module>
+    feature_aliginment_training(**para)
+  File "c:\Users\George\Desktop\Repositories\MSc_Code\fine_tune_with_gen.py", line 304, in feature_aliginment_training
+    output, loss  = connector_llm(image_features.to(device_llm), question, answer_)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\George\Desktop\Repositories\MSc_Code\Model_Defs\connector_LLM_with_gen.py", line 171, in forward
+    outputs = self.llm.generate(
+              ^^^^^^^^^^^^^^^^^^
+  File "c:\Users\George\Desktop\Repositories\MSc_Code\utils\utils.py", line 508, in generate
+    result = self._sample(
+             ^^^^^^^^^^^^^
+  File "c:\Users\George\Desktop\Repositories\MSc_Code\utils\utils.py", line 921, in _sample
+    outputs = self(**model_inputs, return_dict=True)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\Users\George\Desktop\Repositories\MSc_Code\utils\utils.py", line 1225, in forward
+    outputs = self.model(
+              ^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\transformers\models\llama\modeling_llama.py", line 948, in forward
+    layer_outputs = decoder_layer(
+                    ^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\transformers\models\llama\modeling_llama.py", line 692, in forward
+    hidden_states = self.mlp(hidden_states)
+                    ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\transformers\models\llama\modeling_llama.py", line 258, in forward
+    down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+                                           ^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1532, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1541, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\linear.py", line 116, in forward
+    return F.linear(input, self.weight, self.bias)
+                           ^^^^^^^^^^^
+  File "C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\torch\nn\modules\module.py", line 1696, in __getattr__
+    def __getattr__(self, name: str) -> Any:
+KeyboardInterrupt

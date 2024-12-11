@@ -1,0 +1,53 @@
+{
+    "os": "Windows-10-10.0.19045-SP0",
+    "python": "3.11.8",
+    "heartbeatAt": "2024-12-07T19:37:06.599891",
+    "startedAt": "2024-12-07T19:37:06.020984",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "C:\\Users\\George\\Desktop\\Repositories\\MSc_Code\\fine_tune_with_gen.py",
+    "codePathLocal": "fine_tune_with_gen.py",
+    "codePath": "fine_tune_with_gen.py",
+    "git": {
+        "remote": "https://github.com/sc20gb/MSc_Code.git",
+        "commit": "67ac134ebc537de81ef021fa5bae215384d64bf0"
+    },
+    "email": "77701666+sc20gb@users.noreply.github.com",
+    "root": "C:/Users/George/Desktop/Repositories/MSc_Code",
+    "host": "DESKTOP-U3CKK0E",
+    "username": "george",
+    "executable": "C:\\Users\\George\\anaconda3\\envs\\CondaforDeepLearning\\python.exe",
+    "cpu_count": 16,
+    "cpu_count_logical": 24,
+    "cpu_freq": {
+        "current": 3400.0,
+        "min": 0.0,
+        "max": 3400.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3400.0,
+            "min": 0.0,
+            "max": 3400.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 930.8720855712891,
+            "used": 856.8651390075684
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 4070 Ti",
+    "gpu_count": 1,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 4070 Ti",
+            "memory_total": 12878610432
+        }
+    ],
+    "memory": {
+        "total": 31.778644561767578
+    }
+}

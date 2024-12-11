@@ -1,0 +1,8 @@
+Only one GPU available, models are split between GPU 0
+loading pretrained CLIP visual encoder
+77  warmup steps
+231  total steps
+1229.5  train batches
+All parameters are the same.
+All parameters are the same.
+All parameters are the same.

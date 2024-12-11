@@ -1,0 +1,10 @@
+Only one GPU available, models are split between GPU 0
+loading pretrained CLIP visual encoder
+0  warmup steps
+231  total steps
+1229.5  train batches
+C:\Users\George\anaconda3\envs\CondaforDeepLearning\Lib\site-packages\transformers\models\llama\modeling_llama.py:602: UserWarning: 1Torch was not compiled with flash attention. (Triggered internally at ..\aten\src\ATen\native\transformers\cuda\sdp_utils.cpp:455.)
+  attn_output = torch.nn.functional.scaled_dot_product_attention(
+All parameters are the same.
+All parameters are the same.
+All parameters are the same.

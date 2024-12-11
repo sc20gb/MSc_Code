@@ -1,0 +1,35 @@
+2024-12-10 16:14:06,924 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Current SDK version is 0.17.7
+2024-12-10 16:14:06,924 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Configure stats pid to 38720
+2024-12-10 16:14:06,924 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Loading settings from C:\Users\George\.config\wandb\settings
+2024-12-10 16:14:06,924 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Loading settings from C:\Users\George\Desktop\Repositories\MSc_Code\wandb\settings
+2024-12-10 16:14:06,924 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Loading settings from environment variables: {}
+2024-12-10 16:14:06,924 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Applying setup settings: {'_disable_service': False}
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Inferring run settings from compute environment: {'program_relpath': 'fine_tune_with_gen.py', 'program_abspath': 'c:\\Users\\George\\Desktop\\Repositories\\MSc_Code\\fine_tune_with_gen.py', 'program': 'c:\\Users\\George\\Desktop\\Repositories\\MSc_Code\\fine_tune_with_gen.py'}
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_setup.py:_flush():76] Applying login settings: {}
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_init.py:_log_setup():524] Logging user logs to C:\Users\George\Desktop\Repositories\MSc_Code\wandb\run-20241210_161406-j35q49fu\logs\debug.log
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_init.py:_log_setup():525] Logging internal logs to C:\Users\George\Desktop\Repositories\MSc_Code\wandb\run-20241210_161406-j35q49fu\logs\debug-internal.log
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_init.py:init():607] calling init triggers
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_init.py:init():614] wandb.init called with sweep_config: {}
+config: {'vicuna_path': 'C:\\Users\\George\\Desktop\\Repositories\\MSc_Code\\Models\\TinyLLama-v1.0', 'connector_layers': 2, 'embed_dim': 768, 'image_resolution': 224, 'lr': 0.0001, 'eps': 1e-08, 'weight_decay': 0.0001, 'per_warm': 0.0, 'batch_size': 4, 'vir_batch_size': 64, 'rand_seed': 42, 'MAX_EPOC': 3, 'VERSION': 3004, 'save': False, 'cpu_only': False, 'hidden_layer_from_end': 1, 'training_step': 1, 'lora_dropout': 0.3, 'lora_rank': 8, 'pre_trained_connector_path': None, 'lora_alpha': 32, 'visual_encoder_type': 'CLIP-pretrained', 'use_half': False}
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_init.py:init():657] starting backend
+2024-12-10 16:14:06,925 INFO    MainThread:38720 [wandb_init.py:init():661] setting up manager
+2024-12-10 16:14:06,927 INFO    MainThread:38720 [backend.py:_multiprocessing_setup():105] multiprocessing start_methods=spawn, using: spawn
+2024-12-10 16:14:06,928 INFO    MainThread:38720 [wandb_init.py:init():669] backend started and connected
+2024-12-10 16:14:06,932 INFO    MainThread:38720 [wandb_init.py:init():764] updated telemetry
+2024-12-10 16:14:07,198 INFO    MainThread:38720 [wandb_init.py:init():797] communicating run to backend with 90.0 second timeout
+2024-12-10 16:14:08,068 INFO    MainThread:38720 [wandb_run.py:_on_init():2479] communicating current version
+2024-12-10 16:14:08,166 INFO    MainThread:38720 [wandb_run.py:_on_init():2488] got version response upgrade_message: "wandb version 0.19.0 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
+
+2024-12-10 16:14:08,166 INFO    MainThread:38720 [wandb_init.py:init():848] starting run threads in backend
+2024-12-10 16:14:12,893 INFO    MainThread:38720 [wandb_run.py:_console_start():2457] atexit reg
+2024-12-10 16:14:12,893 INFO    MainThread:38720 [wandb_run.py:_redirect():2303] redirect: wrap_raw
+2024-12-10 16:14:12,893 INFO    MainThread:38720 [wandb_run.py:_redirect():2368] Wrapping output streams.
+2024-12-10 16:14:12,893 INFO    MainThread:38720 [wandb_run.py:_redirect():2393] Redirects installed.
+2024-12-10 16:14:12,893 INFO    MainThread:38720 [wandb_init.py:init():891] run started, returning control to user process
+2024-12-10 17:14:09,107 INFO    MainThread:38720 [wandb_run.py:_finish():2154] finishing run sc20gwb-university-of-leeds/path_TinyLLama/j35q49fu
+2024-12-10 17:14:09,107 INFO    MainThread:38720 [wandb_run.py:_atexit_cleanup():2418] got exitcode: 0
+2024-12-10 17:14:09,107 INFO    MainThread:38720 [wandb_run.py:_restore():2400] restore
+2024-12-10 17:14:09,107 INFO    MainThread:38720 [wandb_run.py:_restore():2406] restore done
+2024-12-10 17:14:14,349 INFO    MainThread:38720 [wandb_run.py:_footer_history_summary_info():4076] rendering history
+2024-12-10 17:14:14,349 INFO    MainThread:38720 [wandb_run.py:_footer_history_summary_info():4108] rendering summary
+2024-12-10 17:14:14,359 INFO    MainThread:38720 [wandb_run.py:_footer_sync_info():4035] logging synced files
