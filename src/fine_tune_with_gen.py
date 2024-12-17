@@ -205,7 +205,7 @@ def load_data_loaders(val_dataset, train_dataset, visual_encoder_type, image_res
             data_transform = transforms.Compose([
             processor
         ])
-        data_path = os.path.join(os.getcwd(), 'Slake1.0')
+        data_path = os.path.join(os.path.dirname(os.getcwd()), 'Slake1.0')
         train_loader, validate_loader = load_data(
             data_transform, batch_size, rand_seed, data_path
         )
@@ -464,7 +464,7 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
     dataset = load_data_cross_val( transforms.Compose([
             transforms.Resize((para["image_resolution"],para["image_resolution"] )),
             transforms.ToTensor()
-        ]), os.path.join(os.getcwd(), 'Slake1.0'))
+        ]), os.path.join(os.path.dirname(os.getcwd()), 'Slake1.0'))
     
     if per_data != 1.0:
     
