@@ -48,7 +48,7 @@ class JsonDataset(Dataset):
         self.data_frame = self.data_frame[(self.data_frame['question'] != '') & (self.data_frame['answer'] != '')].reset_index(drop=True)
 
         self.transform = transform
-        dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
+        dir = os.path.join(os.path.dirname(os.getcwd()),'Slake1.0', 'imgs')
         self.img_dir = os.path.normpath(dir)
 
     def load_image_as_tensor(self, img_path, transform):
@@ -115,7 +115,7 @@ class JsonDatasetTest(Dataset):
         self.data_frame = pd.DataFrame(self.data)        
         self.data_frame = self.data_frame[self.data_frame['q_lang'] == 'en']
         self.transform = transform
-        dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
+        dir = os.path.join(os.path.dirname(os.getcwd()),'Slake1.0', 'imgs')
         self.img_dir = os.path.normpath(dir)
 
     def load_image_as_tensor(self, img_path, transform):
@@ -293,7 +293,7 @@ class CLIPTrainJsonDataset(JsonDataset):
             self.data_frame = pd.concat([self.data_frame, new_row_df], ignore_index=True)
 
         self.transform = transform
-        dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
+        dir = os.path.join(os.path.dirname(os.getcwd()),'Slake1.0', 'imgs')
         self.img_dir = os.path.normpath(dir)
     
     def __getitem__(self, idx):
