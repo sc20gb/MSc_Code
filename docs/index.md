@@ -20,3 +20,17 @@ Welcome to the project’s weekly progress updates. Here, you’ll find summarie
 
 Each link above provides details for that week’s work.
 
+## Gantt Chart
+
+```mermaid
+gantt
+    title Project Progress
+    dateFormat  YYYY-MM-DD
+    section Week 1
+    Task 1           :done,    des1, 2024-11-18,2024-11-24
+    section Week 2
+    Task 2           :active,  des2, 2024-11-25,2024-12-01
+    section Week 3
+    Task 3           :         des3, 2024-12-02,2024-12-08
+    section Week 4
+    Task 4           :         des4, 2024-12-09,2024-12-15
