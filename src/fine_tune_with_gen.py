@@ -543,7 +543,7 @@ if __name__ == '__main__':
             "batch_size":4,
             "vir_batch_size":vb,
             "rand_seed":42,
-            "MAX_EPOC":5,
+            "MAX_EPOC":15,
             "VERSION":3000,
             "save":False,
             "cpu_only":False,
