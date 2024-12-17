@@ -521,15 +521,15 @@ if __name__ == '__main__':
     CONNECTOR_LAYERS_LIST = [2]
 
     #Training parameters
-    LR_LIST = [0.0001,0.00001]
-    WEIGHT_DECAY_LIST = [0.0000000001, 0.01]
-    PERC_WARM_LIST = [0.0,0.33333, 0.5]
+    LR_LIST = [0.001]
+    WEIGHT_DECAY_LIST = [0.01]
+    PERC_WARM_LIST = [0.2]
     VIR_BATCH_SIZE_LIST = [64]
 
     #LoRA parameters
-    DROPOUT_LIST = [0.3]
-    RANK_LIST = [8]
-    LORA_ALPHA_LIST =  [32]
+    DROPOUT_LIST = [0.3,0.0,0.5]
+    RANK_LIST = [8,4,12]
+    LORA_ALPHA_LIST =  [32,16,8]
 
     optim_list = [{
             "vicuna_path":lamaCausalLM_path,
