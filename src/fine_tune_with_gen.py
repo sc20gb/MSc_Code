@@ -153,7 +153,7 @@ class CustomLayerNorm(torch.nn.LayerNorm):
 def handle_devices(cpu_only=False):
     if torch.cuda.is_available() and not cpu_only:
         gpu_count = torch.cuda.device_count()
-        if gpu_count >= 2:
+        if (gpu_count >= 2):
             print(f"CUDA is available with {gpu_count} GPU(s)!")
             
             # Assign the first GPU for the visual encoder
@@ -509,7 +509,7 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
 if __name__ == '__main__':
     
     # Construct path to models directory
-    path_TinyLLama_LOCAL = os.path.join(os.getcwd(), "Models", "TinyLLama-v1.0")
+    path_TinyLLama_LOCAL = os.path.join(os.path.dirname(os.getcwd()), "Models", "TinyLLama-v1.0")
 
     path_TinyLLama_ARC = os.path.join("/nobackup", "sc20gwb", "Models", "TinyLLama-v1.0")
 
