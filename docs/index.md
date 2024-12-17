@@ -1,7 +1,11 @@
 # Project Outline
 
-[Project Outline](plan.md)
+The aims, objectives, and research questions for this project are outlined in the [Project Outline](plan.md).
 
+# Overview
+
+This project provides adaptations of the transformers library code to facilitate the training of an MLLM for purposes of medical Visual Question Answering (VQA) tasks. Early works pretrained a visual encoder through Contrastive Language Image Pretraining (CLIP); however, this was later changed to use the pretrained CLIP model from OpenAI. Through feature alignment by a Multi-layer Perceptron, the embedded representation of the image is projected to an embedding space recognizable by a pre-trained Large Language Model (LLM). The original model architecture can be seen below:
+<img src="Images/Outline.png" alt="Image 1" style="flex: 1; max-width: 45%; height: auto;">
 
 # Project Progress Notes
 
