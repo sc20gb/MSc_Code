@@ -548,7 +548,7 @@ if __name__ == '__main__':
             "save":False,
             "cpu_only":False,
             "hidden_layer_from_end": hl,
-            "training_step":1,
+            "training_step":2,
             "lora_dropout":do,
             "lora_rank":r,
             "pre_trained_connector_path":None,
