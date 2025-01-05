@@ -10,3 +10,11 @@ __pycache__/data_loading.cpython-311.pyc
 /Models
 /Eval_Results
 /Data_Loading/__pycache__
+
+# macOS system files
+.DS_Store
+docs/.DS_Store
+docs/Images/.DS_Store
+
+
+
