@@ -249,6 +249,20 @@ def load_image_encoder(visual_encoder_type,device,val_dataset,train_dataset, ima
 
     return img_encoder, train_loader, validate_loader
 
+# Get the hash of all non-LoRA parameters
+def get_non_lora_params_hash(model):
+    """Get hash of all non-LoRA parameters"""
+    non_lora_hash = 0
+    for name, param in model.named_parameters():
+        if 'lora' not in name.lower():
+            non_lora_hash += param.data.sum().item()
+    return non_lora_hash
+
+def check_non_lora_params(model, original_hash):
+    """Check if non-LoRA parameters have changed"""
+    current_hash = get_non_lora_params_hash(model)
+    return abs(current_hash - original_hash) < 1e-6
+
 def feature_aliginment_training(
         vicuna_path,
         connector_layers,
@@ -314,7 +328,7 @@ def feature_aliginment_training(
             connector_llm.load_connector(pre_trained_connector_path)
         else:
             print("No connector given, training from scratch")
-
+        initial_non_lora_hash = get_non_lora_params_hash(connector_llm.llm)
         #lora is only needed for step 2
         connector_llm.apply_lora(rank=lora_rank,dropout=lora_dropout,alpha=lora_alpha)
     else:
@@ -338,8 +352,6 @@ def feature_aliginment_training(
 
     initial_weights = {name: param.detach().clone() for name, param in connector_llm.llm.named_parameters()}
 
-    
-
     # to store metrics
     training_list = MetricsList()
     validate_list = MetricsList()
@@ -349,10 +361,14 @@ def feature_aliginment_training(
         
         # Training the LLM is not needed in step 1
         if training_step == 2:
-            connector_llm.train() 
+            connector_llm.train()
+            # Check non-LoRA parameters haven't changed
+            if not check_non_lora_params(connector_llm.llm, initial_non_lora_hash):
+                print("Non-LoRA parameters have been modified during training!")
+            else:
+                print("Non-LoRA parameters have not been modified during training.")
         else:
             connector_llm.connector.train()
-            #connector_llm.freeze_llm()
 
         count_t = 0
         optim.zero_grad()
@@ -523,7 +539,7 @@ if __name__ == '__main__':
     #Training parameters
     LR_LIST = [0.001]
     WEIGHT_DECAY_LIST = [0.01]
-    PERC_WARM_LIST = [0.2]
+    PERC_WARM_LIST = [0.3333]
     VIR_BATCH_SIZE_LIST = [64]
 
     #LoRA parameters
