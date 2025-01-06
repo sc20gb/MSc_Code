@@ -16,16 +16,14 @@ from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
 from torch.optim.lr_scheduler import LambdaLR
 from utils.half import handle_half_for_layer_Norm
 from utils.metrics import Metrics, calc_loss_and_metrics,  MetricsList
-
+from torch.optim.lr_scheduler import LambdaLR
+from transformers import get_cosine_schedule_with_warmup, get_linear_schedule_with_warmup
 
 #I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 
-# Import the CustomCosineSchedulerWithWarmup class
-from torch.optim.lr_scheduler import LambdaLR
-from transformers import get_cosine_schedule_with_warmup, get_linear_schedule_with_warmup
 
 class CustomSchedulerWithWarmup(LambdaLR):
     """Custom learning rate scheduler with warmup period.
@@ -448,19 +446,6 @@ def feature_aliginment_training(
                 metrics_validate += metrics     
                 count = count + 1
 
-        all_same = True  # Flag to track if all parameters are the same
-
-        for name, param in connector_llm.llm.named_parameters():
-            if not torch.equal(param, initial_weights[name]):
-                all_same = False  # If any parameter is updated, set the flag to False
-                break  # Exit the loop early if one mismatch is found
-
-        if all_same:
-            print("All parameters are the same.")
-        else:
-            print("At least one parameter has been updated.")
-
-
         # SAVE RESULTS
         if save:
             if training_step == 2:
@@ -484,10 +469,6 @@ def feature_aliginment_training(
             
 
     return training_list, validate_list
-
-import os
-import torch
-from torchvision import transforms
 
 def cross_val_train(para, n_splits=3, per_data=1.0):
     """Performs k-fold cross validation training.
