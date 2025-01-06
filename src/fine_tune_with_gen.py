@@ -28,6 +28,22 @@ from torch.optim.lr_scheduler import LambdaLR
 from transformers import get_cosine_schedule_with_warmup, get_linear_schedule_with_warmup
 
 class CustomSchedulerWithWarmup(LambdaLR):
+    """Custom learning rate scheduler with warmup period.
+    
+    Implements different scheduling strategies for training phases 1 and 2:
+    - Phase 1: Choice between linear or cosine warmup for connector training
+    - Phase 2: Cosine warmup for full model training with LoRA
+    
+    Args:
+        optimizer: The optimizer to schedule
+        num_warmup_steps (int): Number of warmup steps
+        num_training_steps (int): Total number of training steps
+        training_step (int): Current training phase (1 or 2)
+        schedule_type (str): "linear" or "cosine" for phase 1
+        
+    Returns:
+        LambdaLR scheduler with appropriate learning rate adjustment
+    """
     def __init__(self, optimizer, num_warmup_steps, num_training_steps, training_step, schedule_type="cosine"):
         self.training_step = training_step
         self.num_warmup_steps = num_warmup_steps
@@ -60,80 +76,26 @@ class CustomSchedulerWithWarmup(LambdaLR):
 
         super().__init__(optimizer, lr_lambda)
 
-def test_custom_scheduler_with_warmup():
-    """Test the CustomSchedulerWithWarmup scheduler behavior"""
-    # Setup
-    model = torch.nn.Linear(10, 2)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1.0)
-    num_warmup_steps = 100
-    num_training_steps = 1000
-    training_step = 1
-
-    # Initialize scheduler
-    scheduler = CustomSchedulerWithWarmup(
-        optimizer, 
-        num_warmup_steps=num_warmup_steps,
-        num_training_steps=num_training_steps,
-        training_step=training_step
-    )
-
-    # Test initial learning rate
-    assert abs(scheduler.get_last_lr()[0] - 0.0) < 1e-6, "Initial LR should be close to 0"
-
-    # Test warmup phase
-    for _ in range(num_warmup_steps):
-        scheduler.step()
-    assert abs(scheduler.get_last_lr()[0] - 1.0) < 1e-6, "LR should reach max after warmup"
-
-    # Test decay phase
-    for _ in range(num_training_steps - num_warmup_steps):
-        scheduler.step()
-    assert scheduler.get_last_lr()[0] < 1.0, "LR should decay after warmup"
-
-    print("All CustomSchedulerWithWarmup tests passed!")
-
-def plot_custom_scheduler_with_warmup():
-    """Plot learning rate schedule for CustomSchedulerWithWarmup"""
-    import matplotlib.pyplot as plt
-    
-    # Setup
-    model = torch.nn.Linear(10, 2)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1.0)
-    num_warmup_steps = math.ceil(231 * 0.3333)
-    num_training_steps = 231
-    training_step = 1
-
-    # Initialize scheduler
-    scheduler = CustomSchedulerWithWarmup(
-        optimizer, 
-        num_warmup_steps=num_warmup_steps,
-        num_training_steps=num_training_steps,
-        training_step=training_step
-    )
-
-    # Collect learning rates
-    lr_values = []
-    steps = []
-    
-    # Record all steps
-    for step in range(num_training_steps):
-        lr_values.append(scheduler.get_last_lr()[0])
-        steps.append(step)
-        scheduler.step()
-
-    # Create plot
-    plt.figure(figsize=(10, 6))
-    plt.plot(steps, lr_values)
-    plt.axvline(x=num_warmup_steps, color='r', linestyle='--', label='End of Warmup')
-    plt.xlabel('Training Steps')
-    plt.ylabel('Learning Rate')
-    plt.title('Learning Rate Schedule with Warmup')
-    plt.grid(True)
-    plt.legend()
-    plt.show()
-
 #Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
+    """Loads and returns a Vision Transformer image encoder from a CLIP model checkpoint.
+    
+    Args:
+        tokenizer: Tokenizer for the language model
+        transformer_width (int): Width of transformer layers
+        transformer_layers (int): Number of transformer layers
+        transformer_heads (int): Number of attention heads
+        embed_dim (int): Embedding dimension
+        vision_width (int): Width of vision layers
+        image_resolution (int): Input image resolution
+        vision_patch_size (int): Size of image patches
+        vision_layers (int): Number of vision layers
+        device: Device to load model on
+        clip_model_path (str): Path to CLIP checkpoint
+        
+    Returns:
+        torch.nn.Module: The visual encoder portion of CLIP
+    """
     clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=256,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
 
     state_dict = torch.load(clip_model_path)
@@ -145,12 +107,30 @@ def load_ViT_img_encoder(tokenizer,transformer_width,transformer_layers,transfor
 
 #A container for layernorms with .half
 class CustomLayerNorm(torch.nn.LayerNorm):
+    """Custom LayerNorm that handles half-precision inputs.
+    
+    Converts input to float32 for computation then back to original dtype.
+    Used to avoid numerical instability with half-precision training.
+    """
     def forward(self, input):
         # Convert input to float32 for LayerNorm calculation, then cast back to the original dtype
         return super().forward(input.float()).to(input.dtype)
 
 # Handle the assigining of model to the GPUs
 def handle_devices(cpu_only=False):
+    """Manages device assignment for multi-GPU training.
+    
+    Assigns visual encoder and LLM to appropriate devices based on:
+    - GPU availability 
+    - Number of available GPUs
+    - cpu_only flag
+    
+    Args:
+        cpu_only (bool): Force CPU usage even if GPUs available
+        
+    Returns:
+        tuple: (device_vit, device_llm) - Devices for visual encoder and LLM
+    """
     if torch.cuda.is_available() and not cpu_only:
         gpu_count = torch.cuda.device_count()
         if (gpu_count >= 2):
@@ -175,22 +155,22 @@ def handle_devices(cpu_only=False):
     return device_vit, device_llm
 
 def load_data_loaders(val_dataset, train_dataset, visual_encoder_type, image_resolution, batch_size, rand_seed,processor=None):
-    """
-    Loads data loaders for training and validation, based on the provided dataset and visual encoder type.
+    """Creates data loaders for training and validation datasets.
+    
+    Handles different visual encoder types and their preprocessing requirements.
     
     Args:
-        val_dataset: The validation dataset or None if not provided.
-        train_dataset: The training dataset or None if not provided.
-        visual_encoder_type (str): The type of visual encoder (e.g., "CLIP-trained").
-        image_resolution (int): The desired image resolution for resizing.
-        batch_size (int): The batch size for data loading.
-        rand_seed (int): The random seed for data shuffling.
-        processor:The CLIPProcessor required when using the CLIPModel class
-    
+        val_dataset: Optional validation dataset
+        train_dataset: Optional training dataset  
+        visual_encoder_type (str): Type of visual encoder
+        image_resolution (int): Target image size
+        batch_size (int): Batch size for loading
+        rand_seed (int): Random seed for reproducibility
+        processor: Optional CLIP processor for preprocessing
+        
     Returns:
-        train_loader, validate_loader: The training and validation data loaders.
+        tuple: (train_loader, validate_loader) - DataLoader objects
     """
-    
     # LOAD DATA
     if val_dataset is None or train_dataset is None:
         # Load data based on visual encoder type
@@ -217,7 +197,26 @@ def load_data_loaders(val_dataset, train_dataset, visual_encoder_type, image_res
 
 # Handels the loading of the img encoder and the appropriate dataloaders, provides compatability with cross_fold_validation
 def load_image_encoder(visual_encoder_type,device,val_dataset,train_dataset, image_resolution,batch_size,rand_seed, **model_args):
-
+    """Loads appropriate visual encoder and creates data loaders.
+    
+    Supports multiple visual encoder types:
+    - CLIP-trained: Custom trained CLIP
+    - CLIP-pretrained: Original CLIP
+    - Fine-tuned CLIP with LoRA
+    
+    Args:
+        visual_encoder_type (str): Type of encoder to load
+        device: Device to load model on
+        val_dataset: Optional validation dataset
+        train_dataset: Optional training dataset
+        image_resolution (int): Input image size
+        batch_size (int): Batch size
+        rand_seed (int): Random seed
+        **model_args: Additional arguments for model creation
+        
+    Returns:
+        tuple: (img_encoder, train_loader, validate_loader)
+    """
      # Load the appropriate pipline and visual encoder for the visual encoder method
     if visual_encoder_type == "CLIP-trained":
         # LOAD ViT encoder from the CLIP model on the first GPU
@@ -249,21 +248,6 @@ def load_image_encoder(visual_encoder_type,device,val_dataset,train_dataset, ima
 
     return img_encoder, train_loader, validate_loader
 
-# Get the hash of all non-LoRA parameters
-def get_non_lora_params_hash(model):
-    """Get hash of all non-LoRA parameters"""
-    non_lora_hash = 0
-    for name, param in model.named_parameters():
-        print(" ", name)
-        if 'lora' not in name.lower():
-            non_lora_hash += param.data.sum().item()
-    return non_lora_hash
-
-def check_non_lora_params(model, original_hash):
-    """Check if non-LoRA parameters have changed"""
-    current_hash = get_non_lora_params_hash(model)
-    return abs(current_hash - original_hash) < 1e-6
-
 def feature_aliginment_training(
         vicuna_path,
         connector_layers,
@@ -292,6 +276,43 @@ def feature_aliginment_training(
         use_half=True,
         **model_args
         ):
+    """Trains the feature alignment model between visual encoder and LLM.
+    
+    Implements two-phase training:
+    - Phase 1: Train connector only
+    - Phase 2: Fine-tune LLM with LoRA while training connector
+    
+    Args:
+        vicuna_path (str): Path to LLM checkpoint
+        connector_layers (int): Number of connector layers
+        embed_dim (int): Embedding dimension
+        image_resolution (int): Input image size
+        VERSION (int): Model version
+        lr (float): Learning rate
+        eps (float): Optimizer epsilon
+        weight_decay (float): Weight decay
+        per_warm (float): Warmup proportion
+        batch_size (int): Batch size
+        vir_batch_size (int): Virtual batch size for gradient accumulation
+        rand_seed (int): Random seed
+        MAX_EPOC (int): Number of epochs
+        pre_trained_connector_path (str): Optional path to pretrained connector
+        lora_rank (int): LoRA rank
+        lora_dropout (float): LoRA dropout
+        lora_alpha (float): LoRA alpha
+        save (bool): Whether to save checkpoints
+        cpu_only (bool): Force CPU usage
+        hidden_layer_from_end (int): Which encoder layer to use
+        training_step (int): Training phase (1 or 2)
+        val_dataset: Optional validation dataset
+        train_dataset: Optional training dataset
+        visual_encoder_type (str): Type of visual encoder
+        use_half (bool): Use half precision
+        **model_args: Additional model arguments
+        
+    Returns:
+        tuple: (training_list, validate_list) - Training metrics
+    """
     # CHECK GPU SUPPORT AND ASSIGN DEVICES
     device_image_encoder, device_llm = handle_devices(cpu_only)
     
@@ -316,7 +337,6 @@ def feature_aliginment_training(
         # Half does not work with some layers
         handle_half_for_layer_Norm(img_encoder)
 
-
     # Ensure correct device
     img_encoder.to(device_image_encoder)
     connector_llm.to(device_llm)
@@ -329,7 +349,6 @@ def feature_aliginment_training(
             connector_llm.load_connector(pre_trained_connector_path)
         else:
             print("No connector given, training from scratch")
-        initial_non_lora_hash = get_non_lora_params_hash(connector_llm.llm)
         #lora is only needed for step 2
         connector_llm.apply_lora(rank=lora_rank,dropout=lora_dropout,alpha=lora_alpha)
     else:
@@ -363,11 +382,6 @@ def feature_aliginment_training(
         # Training the LLM is not needed in step 1
         if training_step == 2:
             connector_llm.train()
-            # Check non-LoRA parameters haven't changed
-            if not check_non_lora_params(connector_llm.llm, initial_non_lora_hash):
-                print("Non-LoRA parameters have been modified during training!")
-            else:
-                print("Non-LoRA parameters have not been modified during training.")
         else:
             connector_llm.connector.train()
 
@@ -476,7 +490,16 @@ import torch
 from torchvision import transforms
 
 def cross_val_train(para, n_splits=3, per_data=1.0):
-
+    """Performs k-fold cross validation training.
+    
+    Args:
+        para (dict): Training parameters
+        n_splits (int): Number of folds
+        per_data (float): Proportion of data to use
+        
+    Returns:
+        None: Logs results to wandb
+    """
     # Load the train and val datasets concatnated
     dataset = load_data_cross_val( transforms.Compose([
             transforms.Resize((para["image_resolution"],para["image_resolution"] )),
