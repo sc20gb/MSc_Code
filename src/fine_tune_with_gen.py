@@ -254,6 +254,7 @@ def get_non_lora_params_hash(model):
     """Get hash of all non-LoRA parameters"""
     non_lora_hash = 0
     for name, param in model.named_parameters():
+        print(" ", name)
         if 'lora' not in name.lower():
             non_lora_hash += param.data.sum().item()
     return non_lora_hash
