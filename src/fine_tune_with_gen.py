@@ -19,11 +19,8 @@ from utils.metrics import Metrics, calc_loss_and_metrics,  MetricsList
 from torch.optim.lr_scheduler import LambdaLR
 from transformers import get_cosine_schedule_with_warmup, get_linear_schedule_with_warmup
 
-#I tensorflow/core/util/port.cc:153] oneDNN custom operations are on. You may see slightly different numerical results due to floating-point round-off errors from different computation orders. To turn them off, set the environment variable `TF_ENABLE_ONEDNN_OPTS=0`.
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
-
 
 class CustomSchedulerWithWarmup(LambdaLR):
     """Custom learning rate scheduler with warmup period.
@@ -74,7 +71,6 @@ class CustomSchedulerWithWarmup(LambdaLR):
 
         super().__init__(optimizer, lr_lambda)
 
-#Return  the object that is the visual encoder, return the heat scaling parameter as well
 def load_ViT_img_encoder(tokenizer,transformer_width,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
     """Loads and returns a Vision Transformer image encoder from a CLIP model checkpoint.
     
@@ -103,7 +99,6 @@ def load_ViT_img_encoder(tokenizer,transformer_width,transformer_layers,transfor
 
     return visual.to(device)#clip.visual.to(device)
 
-#A container for layernorms with .half
 class CustomLayerNorm(torch.nn.LayerNorm):
     """Custom LayerNorm that handles half-precision inputs.
     
@@ -114,7 +109,6 @@ class CustomLayerNorm(torch.nn.LayerNorm):
         # Convert input to float32 for LayerNorm calculation, then cast back to the original dtype
         return super().forward(input.float()).to(input.dtype)
 
-# Handle the assigining of model to the GPUs
 def handle_devices(cpu_only=False):
     """Manages device assignment for multi-GPU training.
     
@@ -193,7 +187,6 @@ def load_data_loaders(val_dataset, train_dataset, visual_encoder_type, image_res
 
     return train_loader, validate_loader
 
-# Handels the loading of the img encoder and the appropriate dataloaders, provides compatability with cross_fold_validation
 def load_image_encoder(visual_encoder_type,device,val_dataset,train_dataset, image_resolution,batch_size,rand_seed, **model_args):
     """Loads appropriate visual encoder and creates data loaders.
     
@@ -564,7 +557,7 @@ if __name__ == '__main__':
             "batch_size":4,
             "vir_batch_size":vb,
             "rand_seed":42,
-            "MAX_EPOC":15,
+            "MAX_EPOC":20,
             "VERSION":3000,
             "save":False,
             "cpu_only":False,
