@@ -580,6 +580,8 @@ if __name__ == '__main__':
                 for r in  RANK_LIST
                 for a in LORA_ALPHA_LIST
                 ]
+    # Remove the first 3
+    optim_list = optim_list[3:]
 
     for i, para in enumerate(optim_list):
         para['VERSION'] += i
