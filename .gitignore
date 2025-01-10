@@ -16,5 +16,10 @@ __pycache__/data_loading.cpython-311.pyc
 docs/.DS_Store
 docs/Images/.DS_Store
 
+\src\wandb
 
 
+
+/src/wandb
+/src/Data_Loading/__pycache__
+/src/Data_Loading/__pycache__
