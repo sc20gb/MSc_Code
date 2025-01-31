@@ -18,6 +18,8 @@ Welcome to the project’s weekly progress updates. Here, you’ll find summarie
 - [Week starting 25-11-24](week-25-11-24.md)
 - [Week starting 09-12-24](week-09-12-24.md)
 - [Week starting 06-01-25](week-06-01-25.md)
+- [Week starting 20-01-25](week-10-01-25.md)
+
 
 
 Each link above provides details for that week’s work.
