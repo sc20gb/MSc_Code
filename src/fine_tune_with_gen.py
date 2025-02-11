@@ -1,8 +1,10 @@
-from Training.feature_aliginment_training import feature_aliginment_training, cross_val_train
+from Training.feature_aliginment_training import feature_aliginment_training, cross_val_train, multi_stage_feature_aliginment_training
 from Testing.testing import runtest
 
 import os
 import wandb
+import torch
+from torch.utils.data import TensorDataset
 
 
 if __name__ == '__main__':
@@ -116,3 +118,55 @@ if __name__ == '__main__':
         feature_aliginment_training(**para)
         #cross_val_train(para,n_splits=3,per_data=1.0)
         wandb.finish()
+
+
+
+    #3 Stage Training Script start ###########
+
+    # Create dummy datasets for demonstration.
+    # Replace these with your actual dataset objects.
+    dummy_images = torch.randn(100, 3, 224, 224)
+    dummy_targets = torch.randint(0, 10, (100,))
+    general_dataset = TensorDataset(dummy_images, dummy_targets)
+    medical_dataset = TensorDataset(dummy_images, dummy_targets)
+
+    # Define model parameters and stage-specific overrides.
+    params = {
+        "vicuna_path": lamaCausalLM_path,
+        "connector_layers": 2,
+        "embed_dim": 768,
+        "image_resolution": 224,
+        "VERSION": "3000_experiment",  # Base version string.
+        "lr": 0.001,
+        "eps": 1e-8,
+        "weight_decay": 0.01,
+        "per_warm": 0.333,
+        "batch_size": 4,
+        "vir_batch_size": 32,
+        "rand_seed": 42,
+        "MAX_EPOC": 5,  # Global value (will be overridden per stage if set in stage_params).
+        "pre_trained_connector_path": None,
+        "lora_rank": 4,
+        "lora_dropout": 0.3,
+        "lora_alpha": 32,
+        "hidden_layer_from_end": 1,
+        "training_step": 2,  # Global value (will be set appropriately by multi-stage).
+        "visual_encoder_type": "CLIP-pretrained",
+        "use_half": False,
+        "save": True,
+        "cpu_only": False,
+        # Datasets for different stages:
+        "general_dataset": general_dataset,
+        "medical_dataset": medical_dataset,
+        "training_stages": [1, 2, 3],
+        # Stage-specific parameter overrides.
+        "stage_params": {
+             1: {"lr": 0.001, "eps": 1e-8, "weight_decay": 0.01, "per_warm": 0.333, "MAX_EPOC": 5},
+             2: {"lr": 0.0005, "eps": 1e-9, "weight_decay": 0.005, "per_warm": 0.25, "MAX_EPOC": 8},
+             3: {"lr": 0.0002, "eps": 1e-9, "weight_decay": 0.001, "per_warm": 0.2, "MAX_EPOC": 10}
+        }
+    }
+
+    # Run the multi-stage training.
+    latest_ckpt = multi_stage_feature_aliginment_training(**params)
+    print("Multi-stage training finished. Latest checkpoint:", latest_ckpt)
