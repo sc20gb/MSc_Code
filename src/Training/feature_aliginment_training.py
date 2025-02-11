@@ -15,15 +15,7 @@ import torch
 import wandb
 import torchvision.transforms as transforms
 
-# TODO: Create a new version of the feature_aginment function that allows for three diffrent traning stages:
-# 1. Training the connector from scratch on General Images
-# 2. Training the connector from scratch on Medical Images
-# 3. Training the connector and LLM (with LoRA) on Medical Images
-# The funnction should be able to handle:
-# stage 1 then stage 2 then stage 3
-# stage 1 then stage 3
-# stage 3 only
-# stage 1 then stage 3
+
 def feature_aliginment_training(**model_args):
     """
     Trains the feature alignment model between the visual encoder and LLM.
@@ -310,3 +302,116 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
         
     for (train, val) in zip(avg_list_training, avg_list_validate):
         wandb.log(wandb.log((train).get_log("training_") | (val).get_log("validate_")))
+
+def multi_stage_feature_aliginment_training(**model_args):
+    """
+    Multi-stage training function for feature alignment.
+
+    Stages:
+      Stage 1: Train the connector from scratch on General Images.
+      Stage 2: Train the connector from scratch on Medical Images.
+      Stage 3: Train the connector and LLM (with LoRA) on Medical Images.
+
+    Allowed stage combinations: [1,2,3], [1,3], [3], etc.
+
+    Requirements in model_args:
+      - 'training_stages': list of stage numbers to run (e.g., [1,3])
+      - For stage 1: 'general_dataset' (and optionally 'general_val_dataset')
+      - For stage 2/3: 'medical_dataset' (and optionally 'medical_val_dataset')
+      - Optionally, 'stage_params': a dict mapping stage number to a dict of:
+            { 'lr': value, 'eps': value, 'weight_decay': value, 'per_warm': value, 'MAX_EPOC': value }
+            Any missing value in a stage-specific dict will fall back to the global one.
+    
+    Other required keys are the same as for feature_aliginment_training.
+
+    This function alters the VERSION per stage so that each stage's checkpoints
+    are saved in distinct folders. For stages 2 and 3, if saving is enabled the latest
+    checkpoint from a previous stage is chained as pre_trained_connector_path.
+    Additionally, each stage creates its own wandb run (project "TinyLLama_CLIP_3_stage")
+    to log the metrics.
+    """
+    import wandb
+
+    if 'training_stages' not in model_args:
+        raise KeyError("Missing required key: 'training_stages'")
+    stages = model_args['training_stages']
+    if not isinstance(stages, list) or not stages:
+        raise ValueError("'training_stages' must be a non-empty list of stage numbers")
+
+    base_version = model_args['VERSION']
+    latest_checkpoint = None
+
+    stage_params = model_args.get("stage_params", {})
+
+    for stage in stages:
+        stage_args = model_args.copy()
+        print(f"\n===== Starting Training Stage {stage} =====")
+
+        # Override global parameters with stage-specific ones if provided.
+        for param in ['lr', 'eps', 'weight_decay', 'per_warm', 'MAX_EPOC']:
+            if stage in stage_params and param in stage_params[stage]:
+                stage_args[param] = stage_params[stage][param]
+        
+        if stage == 1:
+            # Stage 1: Train connector from scratch on General Images.
+            if 'general_dataset' not in stage_args:
+                raise KeyError("Stage 1 requires key 'general_dataset'")
+            stage_args['train_dataset'] = stage_args['general_dataset']
+            stage_args['val_dataset'] = stage_args.get('general_val_dataset', None)
+            stage_args['training_step'] = 1  # Train connector only.
+            stage_args['pre_trained_connector_path'] = None  # Always start from scratch.
+            stage_args['VERSION'] = f"{base_version}_stage1"
+            
+        elif stage == 2:
+            # Stage 2: Train connector from scratch on Medical Images.
+            if 'medical_dataset' not in stage_args:
+                raise KeyError("Stage 2 requires key 'medical_dataset'")
+            stage_args['train_dataset'] = stage_args['medical_dataset']
+            stage_args['val_dataset'] = stage_args.get('medical_val_dataset', None)
+            stage_args['training_step'] = 1  # Train connector only.
+            stage_args['pre_trained_connector_path'] = latest_checkpoint
+            stage_args['VERSION'] = f"{base_version}_stage2"
+            
+        elif stage == 3:
+            # Stage 3: Train connector and LLM (with LoRA) on Medical Images.
+            if 'medical_dataset' not in stage_args:
+                raise KeyError("Stage 3 requires key 'medical_dataset'")
+            stage_args['train_dataset'] = stage_args['medical_dataset']
+            stage_args['val_dataset'] = stage_args.get('medical_val_dataset', None)
+            stage_args['training_step'] = 2  # Train both connector and LLM.
+            stage_args['pre_trained_connector_path'] = latest_checkpoint
+            stage_args['VERSION'] = f"{base_version}_stage3"
+        else:
+            raise ValueError(f"Unsupported stage: {stage}")
+
+        # Initialize a new wandb run for this stage.
+        run = wandb.init(project="TinyLLama_CLIP_3_stage", config=stage_args, name=f"Stage{stage}-{stage_args['VERSION']}")
+        
+        # Run training for the current stage.
+        training_list, validate_list = feature_aliginment_training(**stage_args)
+        print(f"Stage {stage} completed with VERSION: {stage_args['VERSION']}")
+        
+        # Finish the wandb run after training.
+        wandb.finish()
+        
+        # If saving is enabled, update the latest checkpoint based on the known saving strategy.
+        if stage_args.get('save', False):
+            if stage_args['training_step'] == 2:
+                checkpoint_folder = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", f"MLLM_V_{stage_args['VERSION']}")
+                final_epoch = stage_args['MAX_EPOC']
+                ckpt_name = f"MLLM_model{final_epoch}.pth"
+            else:
+                checkpoint_folder = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", f"C_V_{stage_args['VERSION']}")
+                final_epoch = stage_args['MAX_EPOC']
+                ckpt_name = f"connector_LLM_model{final_epoch}.pth"
+            stage_checkpoint = os.path.join(checkpoint_folder, ckpt_name)
+            if not os.path.exists(stage_checkpoint):
+                raise FileNotFoundError(f"Expected checkpoint not found: {stage_checkpoint}")
+            latest_checkpoint = stage_checkpoint
+            print(f"Latest checkpoint updated to: {latest_checkpoint}")
+        else:
+            print(f"Stage {stage} complete. (No saving requested)")
+            latest_checkpoint = None  # Reset if not saving.
+
+    print("\n===== Multi-Stage Training Completed =====")
+    return latest_checkpoint
