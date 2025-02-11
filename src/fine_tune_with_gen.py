@@ -1,245 +1,18 @@
 import torchvision.transforms as transforms
 import os
-from Data_Loading.data_loading import load_data, load_data_cross_val, load_test_data
+from Data_Loading.data_loading import load_data_cross_val
 from torch.utils.data import DataLoader, Subset
 import torch
-import numpy as np
-from Model_Defs.CLIP import CLIP
-from transformers import get_cosine_schedule_with_warmup
 from Model_Defs.connector_LLM_with_gen import Connector_LLM_With_Gen
 import wandb
 import math
 from sklearn.model_selection import KFold
 from collections import defaultdict
 from torch.utils.data import random_split
-from Model_Defs.CLIP_with_LORA import CLIPWithLoRA
-from torch.optim.lr_scheduler import LambdaLR
 from utils.half import handle_half_for_layer_Norm
 from utils.metrics import Metrics, calc_loss_and_metrics,  MetricsList
-from torch.optim.lr_scheduler import LambdaLR
-from transformers import get_cosine_schedule_with_warmup, get_linear_schedule_with_warmup
-
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-
-class CustomSchedulerWithWarmup(LambdaLR):
-    """Custom learning rate scheduler with warmup period.
-    
-    Implements different scheduling strategies for training phases 1 and 2:
-    - Phase 1: Choice between linear or cosine warmup for connector training
-    - Phase 2: Cosine warmup for full model training with LoRA
-    
-    Args:
-        optimizer: The optimizer to schedule
-        num_warmup_steps (int): Number of warmup steps
-        num_training_steps (int): Total number of training steps
-        training_step (int): Current training phase (1 or 2)
-        schedule_type (str): "linear" or "cosine" for phase 1
-        
-    Returns:
-        LambdaLR scheduler with appropriate learning rate adjustment
-    """
-    def __init__(self, optimizer, num_warmup_steps, num_training_steps, training_step, schedule_type="cosine"):
-        self.training_step = training_step
-        self.num_warmup_steps = num_warmup_steps
-        self.num_training_steps = num_training_steps
-        self.schedule_type = schedule_type
-
-        if self.training_step == 1:
-            # Choose between linear or cosine schedule for phase 1
-            if self.schedule_type == "linear":
-                self.phase1_scheduler = get_linear_schedule_with_warmup(
-                    optimizer, num_warmup_steps, num_training_steps
-                )
-            elif self.schedule_type == "cosine":
-                self.phase1_scheduler = get_cosine_schedule_with_warmup(
-                    optimizer, num_warmup_steps, num_training_steps
-                )
-            else:
-                raise ValueError("schedule_type must be 'linear' or 'cosine'")
-        else:
-            # Default to cosine schedule when training both projector and LLM (phase 2)
-            self.phase2_scheduler = get_cosine_schedule_with_warmup(
-                optimizer, num_warmup_steps, num_training_steps
-            )
-
-        def lr_lambda(current_step):
-            if self.training_step == 1:
-                return self.phase1_scheduler.lr_lambdas[0](current_step)
-            else:
-                return self.phase2_scheduler.lr_lambdas[0](current_step)
-
-        super().__init__(optimizer, lr_lambda)
-
-def load_ViT_img_encoder(tokenizer,transformer_width,transformer_layers,transformer_heads,embed_dim,vision_width,image_resolution,vision_patch_size,vision_layers,device,clip_model_path):
-    """Loads and returns a Vision Transformer image encoder from a CLIP model checkpoint.
-    
-    Args:
-        tokenizer: Tokenizer for the language model
-        transformer_width (int): Width of transformer layers
-        transformer_layers (int): Number of transformer layers
-        transformer_heads (int): Number of attention heads
-        embed_dim (int): Embedding dimension
-        vision_width (int): Width of vision layers
-        image_resolution (int): Input image resolution
-        vision_patch_size (int): Size of image patches
-        vision_layers (int): Number of vision layers
-        device: Device to load model on
-        clip_model_path (str): Path to CLIP checkpoint
-        
-    Returns:
-        torch.nn.Module: The visual encoder portion of CLIP
-    """
-    clip = CLIP(vocab_size=tokenizer.vocab_size, transformer_width=transformer_width,context_length=256,transformer_layers=transformer_layers,transformer_heads=transformer_heads, embed_dim=embed_dim, vision_width=vision_width, image_resolution=image_resolution, vision_patch_size=vision_patch_size, vision_layers=vision_layers,device=device)
-
-    state_dict = torch.load(clip_model_path)
-    clip.load_state_dict(state_dict,strict=True)
-  
-    visual = clip.visual
-
-    return visual.to(device)#clip.visual.to(device)
-
-class CustomLayerNorm(torch.nn.LayerNorm):
-    """Custom LayerNorm that handles half-precision inputs.
-    
-    Converts input to float32 for computation then back to original dtype.
-    Used to avoid numerical instability with half-precision training.
-    """
-    def forward(self, input):
-        # Convert input to float32 for LayerNorm calculation, then cast back to the original dtype
-        return super().forward(input.float()).to(input.dtype)
-
-def handle_devices(cpu_only=False):
-    """Manages device assignment for multi-GPU training.
-    
-    Assigns visual encoder and LLM to appropriate devices based on:
-    - GPU availability 
-    - Number of available GPUs
-    - cpu_only flag
-    
-    Args:
-        cpu_only (bool): Force CPU usage even if GPUs available
-        
-    Returns:
-        tuple: (device_vit, device_llm) - Devices for visual encoder and LLM
-    """
-    if torch.cuda.is_available() and not cpu_only:
-        gpu_count = torch.cuda.device_count()
-        if (gpu_count >= 2):
-            print(f"CUDA is available with {gpu_count} GPU(s)!")
-            
-            # Assign the first GPU for the visual encoder
-            device_vit = torch.device("cuda:0")
-            print(f"Visual encoder will run on GPU 0: {torch.cuda.get_device_name(0)}")
-
-            # Assign the second GPU for the connector LLM
-            device_llm = torch.device("cuda:1")
-            print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
-        else:
-            print("Only one GPU available, models are split between GPU 0")
-            device_vit = torch.device("cpu")
-            device_llm = torch.device("cuda:0")
-    else:
-        print("CUDA is not available. Training will proceed on CPU.")
-        device_vit = torch.device("cpu")
-        device_llm = torch.device("cpu")
-
-    return device_vit, device_llm
-
-def load_data_loaders(val_dataset, train_dataset, visual_encoder_type, image_resolution, batch_size, rand_seed,processor=None):
-    """Creates data loaders for training and validation datasets.
-    
-    Handles different visual encoder types and their preprocessing requirements.
-    
-    Args:
-        val_dataset: Optional validation dataset
-        train_dataset: Optional training dataset  
-        visual_encoder_type (str): Type of visual encoder
-        image_resolution (int): Target image size
-        batch_size (int): Batch size for loading
-        rand_seed (int): Random seed for reproducibility
-        processor: Optional CLIP processor for preprocessing
-        
-    Returns:
-        tuple: (train_loader, validate_loader) - DataLoader objects
-    """
-    # LOAD DATA
-    if val_dataset is None or train_dataset is None:
-        # Load data based on visual encoder type
-        if visual_encoder_type == "CLIP-trained":
-            data_transform = transforms.Compose([
-            transforms.Resize((image_resolution, image_resolution)),
-            transforms.ToTensor()
-        ])
-        else:
-            if processor == None:
-                print("No CLIPProcessor provided when using CLIPModel")
-            data_transform = transforms.Compose([
-            processor
-        ])
-        data_path = os.path.join(os.path.dirname(os.getcwd()), 'Slake1.0')
-        train_loader, validate_loader = load_data(
-            data_transform, batch_size, rand_seed, data_path
-        )
-        test_loader = load_test_data(data_transform, batch_size, rand_seed, data_path)
-    else:
-        train_loader = train_dataset
-        validate_loader = val_dataset
-        test_loader = None
-
-    return train_loader, validate_loader, test_loader
-
-def load_image_encoder(visual_encoder_type,device,val_dataset,train_dataset, image_resolution,batch_size,rand_seed, **model_args):
-    """Loads appropriate visual encoder and creates data loaders.
-    
-    Supports multiple visual encoder types:
-    - CLIP-trained: Custom trained CLIP
-    - CLIP-pretrained: Original CLIP
-    - Fine-tuned CLIP with LoRA
-    
-    Args:
-        visual_encoder_type (str): Type of encoder to load
-        device: Device to load model on
-        val_dataset: Optional validation dataset
-        train_dataset: Optional training dataset
-        image_resolution (int): Input image size
-        batch_size (int): Batch size
-        rand_seed (int): Random seed
-        **model_args: Additional arguments for model creation
-        
-    Returns:
-        tuple: (img_encoder, train_loader, validate_loader)
-    """
-     # Load the appropriate pipline and visual encoder for the visual encoder method
-    if visual_encoder_type == "CLIP-trained":
-        # LOAD ViT encoder from the CLIP model on the first GPU
-        print("loading our visual encoder")
-        img_encoder = load_ViT_img_encoder(
-            device=device,
-            **model_args
-            )
-        
-        #  load data
-        train_loader, validate_loader, test_loader = load_data_loaders(val_dataset,train_dataset,visual_encoder_type,image_resolution,batch_size,rand_seed)     
-    elif visual_encoder_type == "CLIP-pretrained":
-        print("loading pretrained CLIP visual encoder")
-        clip = CLIPWithLoRA()
-        img_encoder = clip.get_visual_encoder()
-        img_encoder = img_encoder.to(device)
-
-        #  load data
-        train_loader, validate_loader, test_loader = load_data_loaders(val_dataset,train_dataset,visual_encoder_type,image_resolution,batch_size,rand_seed,processor=clip.pre_process_images)
-    else:
-        print("loading fine-tuned CLIP model")
-        clip = CLIPWithLoRA()
-        clip.apply_LORA(lora_r=8, lora_alpha=32, lora_dropout=0.1)
-        clip.load_model(clip_model_path)
-        img_encoder = clip.get_visual_encoder()
-        img_encoder = img_encoder.to(device)
-         #  load data
-        train_loader, validate_loader, test_loader = load_data_loaders(val_dataset,train_dataset,visual_encoder_type,image_resolution,batch_size,rand_seed,processor=clip.pre_process_images)
-
-    return img_encoder, train_loader, validate_loader, test_loader
+from utils.device_handler import handle_devices
+from utils.scheduer import CustomSchedulerWithWarmup
 
 def feature_aliginment_training(
         vicuna_path,
@@ -699,7 +472,12 @@ def runtest(lamaCausalLM_path,modelpath):
 
 
 if __name__ == '__main__':
+    os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+    # Modify as needed to run the training script, cross_val_train, or test script:
     
+    #Test Script start ###########
     # Construct path to models directory
     path_TinyLLama_LOCAL = os.path.join(os.path.dirname(os.getcwd()), "Models", "TinyLLama-v1.0")
 
@@ -715,6 +493,8 @@ if __name__ == '__main__':
     runtest(lamaCausalLM_path,modelpath)
     # end script, remove testing code to run training script
     exit()
+
+    #Training Script start ###########
 
     #Connector parameters
     HIDDEN_LAYER_LIST = [1]
