@@ -24,7 +24,33 @@ if __name__ == '__main__':
     #for i in range(1, 21):
     # Test the model, only run testing code
     modelpath = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", "MLLM_V_3000", "MLLM_model"  + str(20) + ".pth")
-    runtest(lamaCausalLM_path,modelpath)
+    test_params = {
+        "vicuna_path": lamaCausalLM_path,
+        "connector_layers": 2,
+        "embed_dim": 768,
+        "image_resolution": 224,
+        "VERSION": 1,
+        "lr": 0.001,
+        "eps": 1e-8,
+        "weight_decay": 0.01,
+        "per_warm": 0.333,
+        "batch_size": 4,
+        "pre_trained_connector_path": None,
+        "vir_batch_size": 32,
+        "rand_seed": 42,
+        "MAX_EPOC": 1,
+        "mllm_checkpoint_path": modelpath,
+        "lora_rank": 4,
+        "lora_dropout": 0.3,
+        "lora_alpha": 32,
+        "save": False,
+        "cpu_only": False,
+        "hidden_layer_from_end": 1,
+        "training_step": 2,
+        "visual_encoder_type": "CLIP-pretrained",
+        "use_half": False
+    }
+    runtest(lamaCausalLM_path,modelpath, test_params)
     # end script, remove testing code to run training script
     exit()
 
