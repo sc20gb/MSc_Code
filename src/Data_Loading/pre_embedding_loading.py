@@ -45,13 +45,11 @@ class PreEmbeddingCreator:
                 converted = []
                 for elem in val:
                     if isinstance(elem, torch.Tensor):
-                        # Skip any tensor element.
                         continue
                     else:
                         converted.append(elem)
                 return converted
             else:
-                # Try to dump the value; if not possible, convert to string.
                 try:
                     json.dumps(val)
                     return val
@@ -63,7 +61,6 @@ class PreEmbeddingCreator:
                 # Handle both tuple/list inputs and direct tensor inputs.
                 if isinstance(batch, (tuple, list)):
                     images = batch[0]
-                    # Gather additional data—store images' shape and extra data from the batch.
                     batch_data = {
                         'images_shape': list(batch[0].shape),
                         **{f'data_{i}': item for i, item in enumerate(batch[1:], 1)}
@@ -76,19 +73,15 @@ class PreEmbeddingCreator:
                 images = images.to(self.device)
                 _, hidden_states = self.encoder(images)
                 embeddings = hidden_states[(len(hidden_states) - 1) - self.hidden_layer_from_end]
-                
-                # Convert embeddings to CPU tensors (keeping as tensors, not numpy).
                 embeddings = embeddings.cpu()
                 
-                # For each image in the batch, save its embedding and safe-converted batch data as a separate .pt file.
+                # Save each image's embedding separately.
                 for idx in range(len(images)):
                     safe_batch_data = {}
                     for k, v in batch_data.items():
-                        # If the value is tensor-like, convert the item at index idx.
                         if isinstance(v, (torch.Tensor, list, tuple)):
                             try:
                                 safe_val = safe_convert(v[idx])
-                                # Only add key if safe_val is not None.
                                 if safe_val is not None:
                                     safe_batch_data[k] = safe_val
                             except Exception:
@@ -97,20 +90,18 @@ class PreEmbeddingCreator:
                             safe_batch_data[k] = v
                     
                     item = {
-                        'embedding': embeddings[idx],  # remains a tensor.
+                        'embedding': embeddings[idx],
                         'batch_data': safe_batch_data
                     }
                     key = f"img_{batch_idx}_{idx}"
-                    pt_file = os.path.join(self.save_dir, f"{key}.pt")  # .pt file for the tensor.
+                    pt_file = os.path.join(self.save_dir, f"{key}.pt")
                     torch.save(item, pt_file)
                     
-                    # Record in the manifest the location of the .pt file and its safe-converted associated batch data.
                     manifest[key] = {
                         "pt_file": pt_file,
                         "batch_data": safe_batch_data
                     }
         
-        # Save the manifest as a JSON file.
         manifest_file = os.path.join(self.save_dir, "embedding_manifest.json")
         with open(manifest_file, "w", encoding="utf-8") as f:
             json.dump(manifest, f, indent=2)
