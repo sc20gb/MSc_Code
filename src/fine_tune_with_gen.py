@@ -15,13 +15,18 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
-def load_embeddings_dataloader(embedding_dir, dataloader, encoder, device_vit,batch_size,seed):
-    # load the dataloader for the general datasets embeddings for training efficency
-    if not os.path.exists(embedding_dir):
-        # Create the embedding dataset
-        embedding_creator = PreEmbeddingCreator(encoder, dataloader, embedding_dir, device=device_vit)
-        embedding_creator.create_embeddings()
 
+# TODO: If the hidden_layer from end changes then create a new dataset for the embeddings
+def load_embeddings_dataloader(embedding_dir, dataloader, encoder,hidden_layer_from_end, device_vit,batch_size,seed):
+    # load the dataloader for the general datasets embeddings for training efficency
+
+    if not os.path.exists(embedding_dir):
+        print("Creating embeddings for the dataset", embedding_dir)
+        # Create the embedding dataset
+        embedding_creator = PreEmbeddingCreator(encoder, dataloader, embedding_dir,hidden_layer_from_end, device=device_vit)
+        embedding_creator.create_embeddings()
+    else:
+        print("Embeddings already exist for the dataset", embedding_dir)
     general_dataloader = DataLoader(PreEmbeddingDataset(embedding_dir), batch_size=batch_size, shuffle=True, generator=torch.Generator().manual_seed(seed),num_workers=1, prefetch_factor=1, pin_memory=False)    
 
     return general_dataloader
@@ -44,6 +49,9 @@ if __name__ == '__main__':
     # Specify the seed for reproducibility
     seed= 42
 
+    # Specify the emedding layer to use in the encoder
+    hidden_layer_from_end = 1
+
     # The path of the LLM to use. Must be a LlamaForCausalLM model
     lamaCausalLM_path = path_TinyLLama_LOCAL
     
@@ -54,12 +62,15 @@ if __name__ == '__main__':
     # TODO: use the needded CLIP transformer as the transformer for the dataloader
     # TODO: check code runs smoothly
 
+    # Specify the path to the data embedding directory and the original data directory
+    data_embedding_dir = os.path.join("D:\\datasets")
+
     # create the efficent dataloaders for the general dataset
-    general_data_embedding_dir = os.path.join("D:\\datasets", "laion_coco_embeddings")
-    general_data_orginal_dir = os.path.join("D:\\datasets", "laion_coco_images")
+    general_data_embedding_dir = os.path.join(data_embedding_dir, "laion_coco_embeddings")
+    general_data_orginal_dir = os.path.join(data_embedding_dir, "laion_coco_images")
 
     # create the efficent dataloaders for the domain specific dataset
-    specific_data_embedding_dir = os.path.join(os.getcwd(), "slake_embeddings")
+    specific_data_embedding_dir = os.path.join(data_embedding_dir, "slake_embeddings")
     specific_data_orginal_dir = os.path.join(os.path.dirname(os.getcwd()), "Slake1.0")
 
 
@@ -85,8 +96,8 @@ if __name__ == '__main__':
     train_laion_dataloader = load_embeddings_dataloader(
         os.path.join(general_data_embedding_dir, "train"),
         general_train_dataloader,
-        transform,
         encoder,
+        hidden_layer_from_end,
         device_vit,
         batch_size,
         seed
@@ -94,7 +105,8 @@ if __name__ == '__main__':
     val_laion_dataloader = load_embeddings_dataloader(
         os.path.join(general_data_embedding_dir, "validation"),
         general_val_dataloader,
-        transform, encoder,
+        encoder,
+        hidden_layer_from_end,
         device_vit,
         batch_size,
         seed
@@ -104,14 +116,16 @@ if __name__ == '__main__':
     train_laion_dataloader = load_embeddings_dataloader(
         os.path.join(specific_data_embedding_dir, "train"), 
         specific_train_dataloader, 
-        transform, encoder, 
+        encoder,
+        hidden_layer_from_end,
         device_vit,
         batch_size,
         seed)
     val_laion_dataloader = load_embeddings_dataloader(
         os.path.join(specific_data_embedding_dir, "validation"), 
         specific_val_dataloader, 
-        transform, encoder, 
+        encoder,
+        hidden_layer_from_end,
         device_vit, 
         batch_size, 
         seed

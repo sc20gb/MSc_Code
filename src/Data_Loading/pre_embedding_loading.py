@@ -3,100 +3,168 @@ import json
 import os
 from tqdm import tqdm
 import numpy as np
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 
+# TODO: To support use cases in the future where multple tensors are passed in the dataloader
+# TODO: Make the json file updatable and saved with each batch to save on ram for large datasets 
 class PreEmbeddingCreator:
     """Creates and saves embeddings for images using a given encoder."""
     
-    def __init__(self, encoder, data_loader, save_dir, device='cuda'):
+    def __init__(self, encoder, data_loader, save_dir, hidden_layer_from_end, device='cuda'):
         """
         Args:
-            encoder: PyTorch model for creating embeddings
-            data_loader: DataLoader containing images, and optionally additional data
-            save_dir: Directory to save per-image JSON files
-            device: Device to run encoder on
+            encoder: PyTorch model for creating embeddings.
+            data_loader: DataLoader containing images (and optionally additional data).
+            save_dir: Directory to save per-image tensor files and the manifest JSON file.
+            device: Device to run the encoder on.
         """
+        self.hidden_layer_from_end = hidden_layer_from_end
         self.encoder = encoder.to(device)
         self.data_loader = data_loader
         self.save_dir = save_dir
         self.device = device
         
-        # Create save directory if it doesn't exist
+        # Create save directory if it doesn't exist.
         os.makedirs(save_dir, exist_ok=True)
         
     def create_embeddings(self):
-        """Creates embeddings for all images in the dataloader and saves each as a separate JSON file."""
+        """Creates embeddings for all images in the dataloader and saves each as a separate tensor file.
+           Also creates a manifest JSON file mapping each image ID to its tensor file address and accompanying batch data.
+        """
         self.encoder.eval()
+        manifest = {}  # Mapping for each image.
+        
+        # Helper function to safely convert extra data to JSON-serializable types.
+        def safe_convert(val):
+            if isinstance(val, torch.Tensor):
+                try:
+                    return val.tolist()
+                except Exception:
+                    return str(val)
+            elif isinstance(val, (list, tuple)):
+                converted = []
+                for elem in val:
+                    if isinstance(elem, torch.Tensor):
+                        try:
+                            converted.append(elem.tolist())
+                        except Exception:
+                            converted.append(str(elem))
+                    else:
+                        converted.append(elem)
+                return converted
+            else:
+                # Try to dump the value; if not possible, convert to string.
+                try:
+                    json.dumps(val)
+                    return val
+                except TypeError:
+                    return str(val)
         
         with torch.no_grad():
             for batch_idx, batch in enumerate(tqdm(self.data_loader)):
-                # Handle both tuple/list inputs and direct tensor inputs
+                # Handle both tuple/list inputs and direct tensor inputs.
                 if isinstance(batch, (tuple, list)):
                     images = batch[0]
-                    # Store all additional data (only shape info for images)
+                    # Gather additional data—store images' shape and extra data from the batch.
                     batch_data = {
-                        'images': batch[0].shape,
+                        'images_shape': list(batch[0].shape),
                         **{f'data_{i}': item for i, item in enumerate(batch[1:], 1)}
                     }
                 else:
                     images = batch
-                    batch_data = {'images': images.shape}
+                    batch_data = {'images_shape': list(images.shape)}
                 
-                # Get embeddings for batch
+                # Get embeddings for the batch.
                 images = images.to(self.device)
-                embeddings = self.encoder(images)
+                _, hidden_states = self.encoder(images)
+
+                embeddings = hidden_states[(len(hidden_states) - 1) - self.hidden_layer_from_end]
                 
-                # Convert embeddings to CPU numpy arrays
-                embeddings = embeddings.cpu().numpy()
+                # Convert embeddings to CPU tensors (keeping as tensors, not numpy).
+                embeddings = embeddings.cpu()
                 
-                # Save each embedding and its batch data in a separate file
+                # For each image in the batch, save its embedding and safe-converted batch data as a separate .pt file.
                 for idx in range(len(images)):
+                    safe_batch_data = {}
+                    for k, v in batch_data.items():
+                        # If the value is tensor-like, convert the item at index idx.
+                        if isinstance(v, (torch.Tensor, list, tuple)):
+                            try:
+                                safe_val = safe_convert(v[idx])
+                                # Skip if conversion yields an empty or unsatisfactory result.
+                                if safe_val is not None:
+                                    safe_batch_data[k] = safe_val
+                            except Exception:
+                                continue
+                        else:
+                            safe_batch_data[k] = v
+                    
                     item = {
-                        'embedding': embeddings[idx].tolist(),
-                        'batch_data': {
-                            k: v[idx] if isinstance(v, (torch.Tensor, list, tuple)) 
-                              else v for k, v in batch_data.items()
-                        }
+                        'embedding': embeddings[idx],  # remains a tensor.
+                        'batch_data': safe_batch_data
                     }
                     key = f"img_{batch_idx}_{idx}"
-                    file_path = os.path.join(self.save_dir, f"{key}.json")
-                    with open(file_path, 'w') as f:
-                        json.dump(item, f)
-                        
-class PreEmbeddingDataset:
-    """Loads pre-computed embeddings for images from individual JSON files."""
+                    pt_file = os.path.join(self.save_dir, f"{key}.pt")  # .pt file for the tensor.
+                    torch.save(item, pt_file)
+                    
+                    # Record in the manifest the location of the .pt file and its safe-converted associated batch data.
+                    manifest[key] = {
+                        "pt_file": pt_file,
+                        "batch_data": safe_batch_data
+                    }
+        
+        # Save the manifest as a JSON file.
+        manifest_file = os.path.join(self.save_dir, "embedding_manifest.json")
+        with open(manifest_file, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        print(f"Saved manifest for {len(manifest)} images to '{manifest_file}'.")
+
+
+class PreEmbeddingDataset(Dataset):
+    """Loads pre-computed embeddings for images using a manifest JSON file."""
     
     def __init__(self, embeddings_dir):
         """
         Args:
-            embeddings_dir: Directory containing JSON files with embeddings
+            embeddings_dir: Directory containing the .pt files and the manifest JSON file.
         """
         self.embeddings_dir = embeddings_dir
-
-        if not self.check_for_dataset():
-            raise ValueError(f"No embeddings found in directory {embeddings_dir}")
-
-    def check_for_dataset(self):
-        if os.path.exists(self.embeddings_dir):
-            return True
-        return False
+        self.manifest_file = os.path.join(embeddings_dir, "embedding_manifest.json")
+        
+        if not os.path.exists(self.manifest_file):
+            raise ValueError(f"No manifest file found in directory {embeddings_dir}")
+            
+        with open(self.manifest_file, 'r', encoding='utf-8') as f:
+            self.manifest = json.load(f)
+            
+        # List of keys corresponding to each stored image embedding.
+        self.keys = list(self.manifest.keys())
+        
+    def __len__(self):
+        return len(self.keys)
         
     def get_embedding(self, img_id):
         """Loads the embedding and associated data for a specific image ID.
         
         Args:
-            img_id: Image identifier matching the filename (e.g., 'img_0_1')
+            img_id: Image identifier matching one of the keys in the manifest (e.g., 'img_0_1').
             
         Returns:
-            tuple: (embedding array, batch_data dictionary)
+            tuple: (embedding tensor, batch_data dictionary)
         """
-        file_path = os.path.join(self.embeddings_dir, f"{img_id}.json")
-        if not os.path.exists(file_path):
-            raise KeyError(f"No file found for image {img_id}")
+        if img_id not in self.manifest:
+            raise KeyError(f"No entry found for image {img_id} in the manifest.")
             
-        with open(file_path, 'r') as f:
-            item = json.load(f)
-        return np.array(item['embedding']), item['batch_data']
+        pt_file = self.manifest[img_id]['pt_file']
+        if not os.path.exists(pt_file):
+            raise FileNotFoundError(f"The tensor file for image {img_id} was not found at {pt_file}.")
+        
+        item = torch.load(pt_file)
+        return item['embedding'], item['batch_data']
     
+    def __getitem__(self, idx):
+        # Optionally implement __getitem__ to iterate over stored embeddings.
+        img_id = self.keys[idx]
+        return self.get_embedding(img_id)
 
-    
+
