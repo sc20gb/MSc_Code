@@ -6,7 +6,8 @@ import numpy as np
 from torch.utils.data import Dataset
 
 # TODO: To support use cases in the future where multple tensors are passed in the dataloader
-# TODO: Make the json file updatable and saved with each batch to save on ram for large datasets 
+# TODO: Make the json file updatable and saved with each batch to save on ram for large datasets
+# TODO: Add support for checking if the whole dataset has been created or not. and if not then continue from where it left off
 class PreEmbeddingCreator:
     """Creates and saves embeddings for images using a given encoder."""
     
@@ -29,26 +30,23 @@ class PreEmbeddingCreator:
         
     def create_embeddings(self):
         """Creates embeddings for all images in the dataloader and saves each as a separate tensor file.
-           Also creates a manifest JSON file mapping each image ID to its tensor file address and accompanying batch data.
+           Also creates a manifest JSON file mapping each image ID to its tensor file address and
+           accompanying batch data. Extra data that is a tensor is skipped.
         """
         self.encoder.eval()
         manifest = {}  # Mapping for each image.
         
         # Helper function to safely convert extra data to JSON-serializable types.
         def safe_convert(val):
+            # If the value is a tensor, skip it.
             if isinstance(val, torch.Tensor):
-                try:
-                    return val.tolist()
-                except Exception:
-                    return str(val)
+                return None  # Skip saving tensors.
             elif isinstance(val, (list, tuple)):
                 converted = []
                 for elem in val:
                     if isinstance(elem, torch.Tensor):
-                        try:
-                            converted.append(elem.tolist())
-                        except Exception:
-                            converted.append(str(elem))
+                        # Skip any tensor element.
+                        continue
                     else:
                         converted.append(elem)
                 return converted
@@ -77,7 +75,6 @@ class PreEmbeddingCreator:
                 # Get embeddings for the batch.
                 images = images.to(self.device)
                 _, hidden_states = self.encoder(images)
-
                 embeddings = hidden_states[(len(hidden_states) - 1) - self.hidden_layer_from_end]
                 
                 # Convert embeddings to CPU tensors (keeping as tensors, not numpy).
@@ -91,7 +88,7 @@ class PreEmbeddingCreator:
                         if isinstance(v, (torch.Tensor, list, tuple)):
                             try:
                                 safe_val = safe_convert(v[idx])
-                                # Skip if conversion yields an empty or unsatisfactory result.
+                                # Only add key if safe_val is not None.
                                 if safe_val is not None:
                                     safe_batch_data[k] = safe_val
                             except Exception:
@@ -163,7 +160,6 @@ class PreEmbeddingDataset(Dataset):
         return item['embedding'], item['batch_data']
     
     def __getitem__(self, idx):
-        # Optionally implement __getitem__ to iterate over stored embeddings.
         img_id = self.keys[idx]
         return self.get_embedding(img_id)
 
