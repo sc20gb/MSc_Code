@@ -8,6 +8,11 @@ from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 import re
 from torch.utils.data import ConcatDataset
+from datasets import load_dataset
+import requests
+from io import BytesIO
+import glob
+
 
 class CustomMaskTransform(transforms.Compose):
     def __init__(self, transforms_list):
@@ -223,20 +228,6 @@ def display_sample(image_tensor, mask_tensor, question, answer, batchsize=1, sav
         # Show the plot
         plt.show()
 
-def load_data(transform,batchSize,seed, dataDir):
-    train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
-    validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
-
-    # Create Dataset objects
-    train_dataset = JsonDataset(train_json_path, transform)
-    validate_dataset = JsonDataset(validate_json_path, transform)
-
-    # Create DataLoader objects
-    train_loader = DataLoader(train_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed),num_workers=1, prefetch_factor=1, pin_memory=False)
-    validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed),num_workers=1, prefetch_factor=1, pin_memory=False)
-
-    return train_loader, validate_loader
-
 def load_data_cross_val(transform, dataDir):
     train_json_path = os.path.normpath(os.path.join(dataDir, 'train.json'))
     validate_json_path = os.path.normpath(os.path.join(dataDir, 'validate.json'))
@@ -419,3 +410,191 @@ def load_combined_text_data(transform,batchSize,seed, dataDir):
     validate_loader = DataLoader(validate_dataset, batch_size=batchSize, shuffle=True, generator=torch.Generator().manual_seed(seed))
 
     return train_loader, validate_loader
+
+
+class LaionCocoImageDataset(Dataset):
+    def __init__(self, data_dir, split="train", transform=None, stage_batch_size=100):
+        """
+        Loads LAION-COCO images in stages (using streaming mode) and saves them
+        to disk, reducing memory usage.
+
+        If a captions JSON file is already present in the directory, its contents
+        are loaded so that downloaded data isn't lost.
+
+        Args:
+            data_dir (str): Directory to save images.
+            split (str): Dataset split.
+            transform: Transformations to apply.
+            stage_batch_size (int): Number of samples to process per stage.
+        """
+        self.data_dir = data_dir
+        self.transform = transform if transform is not None else transforms.ToTensor()
+        os.makedirs(self.data_dir, exist_ok=True)
+
+        # Initialize the list of image paths
+        self.image_paths = []
+
+        # Location to save incremental captions progress.
+        self.captions_json_path = os.path.join(self.data_dir, "laion_coco_top_captions.json")
+
+        # Check if the captions JSON file already exists.
+        if os.path.exists(self.captions_json_path):
+            try:
+                with open(self.captions_json_path, "r", encoding="utf-8") as f:
+                    self.captions_data = json.load(f)
+                print(f"Loaded existing captions data for {len(self.captions_data)} images from '{self.captions_json_path}'.")
+            except Exception as e:
+                print(f"Error loading existing captions file, starting fresh. {e}")
+                self.captions_data = {}
+        else:
+            print("No existing captions file found. Starting fresh.")
+            self.captions_data = {}
+
+
+         # Check if images have already been downloaded.
+        existing_images = sorted(glob.glob(os.path.join(self.data_dir, "laion_coco_*.jpg")))
+        if existing_images and len(self.captions_data) > 0:
+            self.image_paths = existing_images
+            print("Existing data found; skipping download of new images.")
+            return  # Data already exists, do not create a new dataset.
+
+        # Use streaming so the dataset is not fully loaded into memory.
+        ds_laion = load_dataset(
+            "laion/laion-coco",
+            split=split,
+            streaming=True
+        )
+
+        batch = []
+        count = 0
+
+        # Process in stages specified by stage_batch_size.
+        for sample in ds_laion:
+            batch.append(sample)
+            if len(batch) >= stage_batch_size:
+                self._process_batch(batch, count)
+                count += len(batch)
+                # Save captions data after processing this batch.
+                self._save_captions()
+                batch = []  # Free memory by resetting the batch.
+
+        # Process any remaining samples in batch.
+        if batch:
+            self._process_batch(batch, count)
+            self._save_captions()
+
+        print(f"Downloaded and saved {len(self.image_paths)} images to '{self.data_dir}'.")
+
+    def _process_batch(self, batch, start_index):
+        for i, sample in enumerate(batch):
+            # Get the URL from the sample (adjust key if needed).
+            image_url = sample.get("URL")
+            if image_url is None:
+                continue
+
+            # Try to retrieve the image data.
+            try:
+                response = requests.get(image_url, timeout=10)
+                response.raise_for_status()
+            except Exception as e:
+                continue
+
+            # Try to open the image using PIL.
+            try:
+                image = Image.open(BytesIO(response.content)).convert("RGB")
+            except Exception as e:
+                continue
+
+            # Save the image to disk.
+            image_filename = f"laion_coco_{start_index + i}.jpg"
+            image_path = os.path.join(self.data_dir, image_filename)
+            try:
+                image.save(image_path)
+                self.image_paths.append(image_path)
+            except Exception as e:
+                continue
+
+            # Accumulate the top_caption for the image.
+            top_caption = sample.get("top_caption")
+            if top_caption is None:
+                continue
+            self.captions_data[image_filename] = top_caption
+
+    def _save_captions(self):
+        """
+        Save the current captions_data to disk so progress is not lost.
+        """
+        try:
+            with open(self.captions_json_path, "w", encoding="utf-8") as f:
+                json.dump(self.captions_data, f, ensure_ascii=False, indent=2)
+            print(f"Saved captions data for {len(self.captions_data)} images to '{self.captions_json_path}'.")
+        except Exception as e:
+            print(f"Error saving combined top captions file: {e}")
+
+    def __len__(self):
+        return len(self.image_paths)
+    
+    def __getitem__(self, idx):
+        image_path = self.image_paths[idx]
+        img = Image.open(image_path).convert("RGB")
+        if self.transform:
+            img = self.transform(img)
+        # Retrieve the caption using the image filename as the key.
+        filename = os.path.basename(image_path)
+        caption = self.captions_data.get(filename, "")
+        return img, caption
+
+def load_laion_coco_images(data_dir, split="train", transform=None, batch_size=4, seed=42):
+    import torch
+    from torch.utils.data import DataLoader, random_split
+
+    # Create the full dataset using LaionCocoImageDataset.
+    full_dataset = LaionCocoImageDataset(data_dir=data_dir, split=split, transform=transform)
+
+    # TODO: Implement the appropiate split for the dataset
+
+    # Manually split the full dataset with an 80/20 ratio.
+    train_size = int(0.8 * len(full_dataset))
+    valid_size = len(full_dataset) - train_size
+    train_dataset, validate_dataset = random_split(
+        full_dataset, [train_size, valid_size],
+        generator=torch.Generator().manual_seed(seed)
+    )
+
+    # Create DataLoaders for both splits.
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        generator=torch.Generator().manual_seed(seed),
+        num_workers=1,
+        prefetch_factor=1,
+        pin_memory=False
+    )
+    validate_loader = DataLoader(
+        validate_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        generator=torch.Generator().manual_seed(seed),
+        num_workers=1,
+        prefetch_factor=1,
+        pin_memory=False
+    )
+
+    return train_loader, validate_loader
+
+def load_slake_data(data_dir,transform,batch_size,seed=42):
+    train_json_path = os.path.normpath(os.path.join(data_dir, 'train.json'))
+    validate_json_path = os.path.normpath(os.path.join(data_dir, 'validate.json'))
+
+    # Create Dataset objects
+    train_dataset = JsonDataset(train_json_path, transform)
+    validate_dataset = JsonDataset(validate_json_path, transform)
+
+    # Create DataLoader objects
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, generator=torch.Generator().manual_seed(seed),num_workers=1, prefetch_factor=1, pin_memory=False)
+    validate_loader = DataLoader(validate_dataset, batch_size=batch_size, shuffle=True, generator=torch.Generator().manual_seed(seed),num_workers=1, prefetch_factor=1, pin_memory=False)
+
+    return train_loader, validate_loader
+
+

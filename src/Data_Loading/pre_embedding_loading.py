@@ -3,6 +3,7 @@ import json
 import os
 from tqdm import tqdm
 import numpy as np
+from torch.utils.data import Dataset, DataLoader
 
 class PreEmbeddingCreator:
     """Creates and saves embeddings for images using a given encoder."""
@@ -62,7 +63,7 @@ class PreEmbeddingCreator:
                     with open(file_path, 'w') as f:
                         json.dump(item, f)
                         
-class PreEmbeddingLoader:
+class PreEmbeddingDataset:
     """Loads pre-computed embeddings for images from individual JSON files."""
     
     def __init__(self, embeddings_dir):
@@ -71,6 +72,14 @@ class PreEmbeddingLoader:
             embeddings_dir: Directory containing JSON files with embeddings
         """
         self.embeddings_dir = embeddings_dir
+
+        if not self.check_for_dataset():
+            raise ValueError(f"No embeddings found in directory {embeddings_dir}")
+
+    def check_for_dataset(self):
+        if os.path.exists(self.embeddings_dir):
+            return True
+        return False
         
     def get_embedding(self, img_id):
         """Loads the embedding and associated data for a specific image ID.
@@ -88,3 +97,6 @@ class PreEmbeddingLoader:
         with open(file_path, 'r') as f:
             item = json.load(f)
         return np.array(item['embedding']), item['batch_data']
+    
+
+    

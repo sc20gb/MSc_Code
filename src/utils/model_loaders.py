@@ -3,7 +3,7 @@ from Model_Defs.CLIP import CLIP
 import torch
 import torchvision.transforms as transforms
 import os
-from Data_Loading.data_loading import load_data, load_test_data
+from Data_Loading.data_loading import load_slake_data, load_test_data
 
 def load_image_encoder(visual_encoder_type,device,val_dataset,train_dataset, image_resolution,batch_size,rand_seed, **model_args):
     """Loads appropriate visual encoder and creates data loaders.
@@ -121,9 +121,12 @@ def load_data_loaders(val_dataset, train_dataset, visual_encoder_type, image_res
             processor
         ])
         data_path = os.path.join(os.path.dirname(os.getcwd()), 'Slake1.0')
-        train_loader, validate_loader = load_data(
-            data_transform, batch_size, rand_seed, data_path
-        )
+        train_loader, validate_loader = load_slake_data(
+            data_path,
+            data_transform, 
+            batch_size, 
+            rand_seed
+            )
         test_loader = load_test_data(data_transform, batch_size, rand_seed, data_path)
     else:
         train_loader = train_dataset

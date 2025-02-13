@@ -1,7 +1,7 @@
 from utils.device_handler import handle_devices
 from Model_Defs.connector_LLM_with_gen import Connector_LLM_With_Gen
 from utils.model_loaders import load_image_encoder
-from Model_Defs.half_layer_norm import handle_half_for_layer_Norm
+from utils.half import handle_half_for_layer_Norm
 from utils.metrics import Metrics, calc_loss_and_metrics
 from collections import defaultdict
 
