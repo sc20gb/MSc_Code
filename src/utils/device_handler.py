@@ -29,7 +29,7 @@ def handle_devices(cpu_only=False):
             print(f"Connector LLM will run on GPU 1: {torch.cuda.get_device_name(1)}")
         else:
             print("Only one GPU available, models are split between GPU 0")
-            device_vit = torch.device("cpu")
+            device_vit = torch.device("cuda:0")
             device_llm = torch.device("cuda:0")
     else:
         print("CUDA is not available. Training will proceed on CPU.")
