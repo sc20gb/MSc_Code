@@ -148,7 +148,7 @@ class PreEmbeddingDataset(Dataset):
             raise FileNotFoundError(f"The tensor file for image {img_id} was not found at {pt_file}.")
         
         item = torch.load(pt_file)
-        return item['embedding'], item['batch_data']
+        return item['embedding']
     def get_extra_data(self, img_id):
         """Returns extra data associated with an image ID excluding the embedding filename.
         
