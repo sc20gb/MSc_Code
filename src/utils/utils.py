@@ -250,7 +250,6 @@ class CustomGeneration(GenerationMixin):
                     - [`~generation.GenerateEncoderDecoderOutput`],
                     - [`~generation.GenerateBeamEncoderDecoderOutput`]
         """
-
         # 1. Handle `generation_config` and kwargs that might update it, and validate the `.generate()` call
         self._validate_model_class()
         tokenizer = kwargs.pop("tokenizer", None)  # Pull this out first, we only use it for stopping criteria
@@ -881,7 +880,6 @@ class CustomGeneration(GenerationMixin):
         Generates sequences of token ids for models with a language modeling head using multinomial sampling
         and computes the loss if targets are provided.
         """
-
         # Init values
         pad_token_id = generation_config._pad_token_tensor
         output_attentions = generation_config.output_attentions
