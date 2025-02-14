@@ -15,7 +15,7 @@ import torch
 import wandb
 import torchvision.transforms as transforms
 
-
+# LEGACY CODE TODO: Remove or refactor
 def feature_aliginment_training(**model_args):
     """
     Trains the feature alignment model between the visual encoder and LLM.
@@ -246,6 +246,7 @@ def feature_aliginment_training(**model_args):
             
     return training_list, validate_list
 
+# LEGACY CODE TODO: Remove or refactor
 def cross_val_train(para, n_splits=3, per_data=1.0):
     """Performs k-fold cross validation training.
     
@@ -303,6 +304,219 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
     for (train, val) in zip(avg_list_training, avg_list_validate):
         wandb.log(wandb.log((train).get_log("training_") | (val).get_log("validate_")))
 
+
+def feature_alignment(**model_args):
+    
+    required_keys = [
+        'vicuna_path', 'connector_layers', 'embed_dim', 'version',
+        'lr', 'eps', 'weight_decay', 'per_warm', 'batch_size', 'vir_batch_size', 'rand_seed',
+        'MAX_EPOC', 'pre_trained_connector_dict', 'lora_rank', 'lora_dropout', 'lora_alpha',
+        'hidden_layer_from_end', 'training_step', 'use_half','train_LLM'
+    ]
+
+    missing = [key for key in required_keys if key not in model_args]
+    if missing:
+        raise KeyError(f"Missing required model_args keys: {missing}")
+
+    # Setup optional parameters with defaults
+    save = model_args.get('save', False)
+    cpu_only = model_args.get('cpu_only', False)
+    train_loader = model_args.get('train_loader', None)
+    val_loader = model_args.get('val_loader', None)
+
+    # Setup devices
+    _, device_llm = handle_devices(cpu_only)
+    
+    # Unpack necessary values
+    vicuna_path = model_args['vicuna_path']
+    connector_layers = model_args['connector_layers']
+    embed_dim = model_args['embed_dim']
+    VERSION = model_args['version']
+    lr = model_args['lr']
+    eps = model_args['eps']
+    weight_decay = model_args['weight_decay']
+    per_warm = model_args['per_warm']
+    batch_size = model_args['batch_size']
+    vir_batch_size = model_args['vir_batch_size']
+    MAX_EPOC = model_args['MAX_EPOC']
+    pre_trained_connector_dict = model_args['pre_trained_connector_dict']
+    lora_rank = model_args['lora_rank']
+    lora_dropout = model_args['lora_dropout']
+    lora_alpha = model_args['lora_alpha']
+    training_step = model_args['training_step']
+    use_half = model_args['use_half']
+    train_LLM = model_args['train_LLM']
+
+    # Calculate gradient accumulation steps
+    accumulation_steps = vir_batch_size // batch_size
+
+    # Load connector and LLM model
+    connector_llm = Connector_LLM_With_Gen(
+        image_emded_dim=embed_dim,
+        llm_path=vicuna_path,
+        connector_layers=connector_layers,
+        device=device_llm
+    )
+
+    
+    # Enable half precision if requested
+    if use_half:
+        connector_llm.half()
+        handle_half_for_layer_Norm(connector_llm)
+
+    # Ensure model is on correct device
+    connector_llm.to(device_llm)
+
+    # load the connector weights if provided
+    if pre_trained_connector_dict is not None:
+        print("Loading the connector MLP using provided state dict")
+        connector_llm.connector.load_state_dict(pre_trained_connector_dict)
+
+    if train_LLM:
+        connector_llm.apply_lora(rank=lora_rank, dropout=lora_dropout, alpha=lora_alpha)
+        optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr, weight_decay=weight_decay, eps=eps)
+    else:
+        connector_llm.llm.eval()
+        optim = torch.optim.AdamW(connector_llm.connector.parameters(), lr=lr, weight_decay=weight_decay, eps=eps)
+
+    # calculate the total training steps and the number of warmup steps
+    total_training_steps = math.ceil(len(train_loader.dataset) / vir_batch_size) * MAX_EPOC
+    num_warmup_steps = math.ceil(total_training_steps * per_warm)
+
+    print(f"{num_warmup_steps} warmup steps")
+    print(f"{total_training_steps} total steps")
+    print(f"{len(train_loader.dataset)/batch_size} train batches")
+
+    scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps,
+                                          num_training_steps=total_training_steps, training_step=training_step)
+
+    # Start epoch loop
+    for epoch in range(1, MAX_EPOC + 1):
+        metrics_training = Metrics()
+        metrics_validate = Metrics()
+        
+        if train_LLM:
+            connector_llm.train()
+        else:
+            connector_llm.connector.train()
+
+        count_t = 0
+        count_v = 0
+        optim.zero_grad()
+
+        # training loop
+        for batch in train_loader:
+            embeddings = batch[0]
+            if training_step == 1:
+                # the data is the general data and not vqa data
+                answers = batch[1]['batch_data']['data_1']
+                questions = ["Generate a caption for the image" for i in answers]
+
+            else:
+                # the data is vqa data
+                questions = batch[1]['batch_data']['data_2']
+                answers = batch[1]['batch_data']['data_3']
+
+            # Tokenize the answers
+            answer_ = connector_llm.tokenizer(
+                answers,
+                padding='longest',
+                truncation=True,
+                return_tensors='pt',
+                add_special_tokens=True
+            ).input_ids.to(device_llm)[:, 1:]
+
+            # Add EOS token
+            eos_tensor = torch.full(
+                (answer_.size(0), 1),
+                connector_llm.tokenizer.eos_token_id,
+                dtype=torch.long,
+                device=device_llm
+            )
+            answer_ = torch.cat([answer_, eos_tensor], dim=1)
+
+            # Get prediction and loss from the model
+            output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
+
+            # Calculate metrics
+            metrics = Metrics(loss, **calc_loss_and_metrics(
+                list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
+            ))
+
+            # Accumulate metrics
+            metrics_training += metrics     
+            count_t += 1
+
+            # Backpropagation and weight update
+            loss.backward()
+            if count_t % accumulation_steps == 0:
+                optim.step()
+                optim.zero_grad()
+                scheduler.step()
+                if connector_llm.llm.training:
+                    connector_llm.llm.zero_grad()
+    
+        # Accumulate gradients and update weights left over
+        if (count_t + 1) % accumulation_steps != 0:
+            optim.step()
+            optim.zero_grad()
+            scheduler.step()
+
+        # Validation loop
+        connector_llm.eval()
+        with torch.no_grad():
+            for batch in val_loader:
+                embeddings = batch[0]
+                if training_step == 1:
+                    # the data is the general data and not vqa data
+                    answers = batch[1]['batch_data']['data_1']
+                    questions = ["Generate a caption for the image" for i in answers]
+
+                else:
+                    # the data is vqa data
+                    questions = batch[1]['batch_data']['data_2']
+                    answers = batch[1]['batch_data']['data_3']
+
+                answer_ = connector_llm.tokenizer(
+                    answers,
+                    padding='longest',
+                    truncation=True,
+                    return_tensors='pt',
+                    add_special_tokens=True
+                ).input_ids.to(device_llm)[:, 1:]
+                output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
+                metrics = Metrics(loss, **calc_loss_and_metrics(
+                    list(output), list(answer_), tokenizer=connector_llm.tokenizer
+                ))
+                metrics_validate += metrics     
+                count_v += 1
+
+        # Save checkpoints if needed
+        if save:
+            if train_LLM:
+                path = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", f"MLLM_V_{VERSION}")
+                os.makedirs(path, exist_ok=True)
+                torch.save(connector_llm.state_dict(), os.path.join(path, f"MLLM_model{epoch}.pth"))
+            else:
+                path = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", f"C_V_{VERSION}")
+                os.makedirs(path, exist_ok=True)
+                torch.save(connector_llm.connector.state_dict(), os.path.join(path, f"connector_LLM_model{epoch}.pth"))
+
+        # Log metrics (using wandb as in the original)
+        if count_v and count_t:
+            wandb.log((metrics_training/count_t).get_log("training_") |
+                        (metrics_validate/count_v).get_log("validate_"))
+        else:
+            wandb.log(Metrics(-1, -1, -1, -1, -1, -1).get_log("training_") |
+                        Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
+            
+
+    state = connector_llm.connector.state_dict()
+            
+    #return connector for next stage
+    return state
+
+
 def multi_stage_feature_aliginment_training(**model_args):
     """
     Multi-stage training function for feature alignment.
@@ -338,7 +552,7 @@ def multi_stage_feature_aliginment_training(**model_args):
     if not isinstance(stages, list) or not stages:
         raise ValueError("'training_stages' must be a non-empty list of stage numbers")
 
-    base_version = model_args['VERSION']
+    base_version = model_args['version']
     latest_checkpoint = None
 
     stage_params = model_args.get("stage_params", {})
@@ -356,62 +570,51 @@ def multi_stage_feature_aliginment_training(**model_args):
             # Stage 1: Train connector from scratch on General Images.
             if 'general_dataset' not in stage_args:
                 raise KeyError("Stage 1 requires key 'general_dataset'")
-            stage_args['train_dataset'] = stage_args['general_dataset']
-            stage_args['val_dataset'] = stage_args.get('general_val_dataset', None)
-            stage_args['training_step'] = 1  # Train connector only.
-            stage_args['pre_trained_connector_path'] = None  # Always start from scratch.
-            stage_args['VERSION'] = f"{base_version}_stage1"
+            stage_args['train_loader'] = stage_args['general_train_dataloader']
+            stage_args['val_loader'] = stage_args.get('general_val_dataloader', None)
+            stage_args['training_step'] = 1 
+            stage_args['pre_trained_connector_dict'] = None  # Always start from scratch.
+            stage_args['version'] = f"{base_version}_stage1"
+            stage_args['train_LLM'] = False 
             
         elif stage == 2:
             # Stage 2: Train connector from scratch on Medical Images.
-            if 'medical_dataset' not in stage_args:
-                raise KeyError("Stage 2 requires key 'medical_dataset'")
-            stage_args['train_dataset'] = stage_args['medical_dataset']
-            stage_args['val_dataset'] = stage_args.get('medical_val_dataset', None)
-            stage_args['training_step'] = 1  # Train connector only.
-            stage_args['pre_trained_connector_path'] = latest_checkpoint
-            stage_args['VERSION'] = f"{base_version}_stage2"
+            if 'specific_train_dataloader' not in stage_args or 'specific_val_dataloader' not in stage_args:
+                raise KeyError("Stage 2 requires key 'specific_train_dataloader' and 'specific_val_dataloader'")
+            stage_args['train_loader'] = stage_args['specific_train_dataloader']
+            stage_args['val_loader'] = stage_args.get('specific_val_dataloader', None)
+            stage_args['training_step'] = 2  
+            stage_args['pre_trained_connector_dict'] = latest_checkpoint
+            stage_args['version'] = f"{base_version}_stage2"
+            stage_args['train_LLM'] = False 
+
             
         elif stage == 3:
             # Stage 3: Train connector and LLM (with LoRA) on Medical Images.
-            if 'medical_dataset' not in stage_args:
-                raise KeyError("Stage 3 requires key 'medical_dataset'")
-            stage_args['train_dataset'] = stage_args['medical_dataset']
-            stage_args['val_dataset'] = stage_args.get('medical_val_dataset', None)
-            stage_args['training_step'] = 2  # Train both connector and LLM.
-            stage_args['pre_trained_connector_path'] = latest_checkpoint
-            stage_args['VERSION'] = f"{base_version}_stage3"
+            if 'specific_train_dataloader' not in stage_args or 'specific_val_dataloader' not in stage_args:
+                raise KeyError("Stage 3 requires key 'specific_train_dataloader' and 'specific_val_dataloader'")
+            stage_args['train_loader'] = stage_args['specific_train_dataloader']
+            stage_args['val_loader'] = stage_args.get('specific_val_dataloader', None)
+            stage_args['training_step'] = 3  # Train both connector and LLM.
+            stage_args['pre_trained_connector_dict'] = latest_checkpoint
+            stage_args['version'] = f"{base_version}_stage3"
+            stage_args['train_LLM'] = True 
+
         else:
             raise ValueError(f"Unsupported stage: {stage}")
+        
 
         # Initialize a new wandb run for this stage.
-        run = wandb.init(project="TinyLLama_CLIP_3_stage", config=stage_args, name=f"Stage{stage}-{stage_args['VERSION']}")
+        wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args)
         
         # Run training for the current stage.
-        training_list, validate_list = feature_aliginment_training(**stage_args)
-        print(f"Stage {stage} completed with VERSION: {stage_args['VERSION']}")
+        latest_checkpoint = feature_alignment(**stage_args)
+
+        print(f"Stage {stage} completed with VERSION: {stage_args['version']}")
         
         # Finish the wandb run after training.
         wandb.finish()
         
-        # If saving is enabled, update the latest checkpoint based on the known saving strategy.
-        if stage_args.get('save', False):
-            if stage_args['training_step'] == 2:
-                checkpoint_folder = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", f"MLLM_V_{stage_args['VERSION']}")
-                final_epoch = stage_args['MAX_EPOC']
-                ckpt_name = f"MLLM_model{final_epoch}.pth"
-            else:
-                checkpoint_folder = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", f"C_V_{stage_args['VERSION']}")
-                final_epoch = stage_args['MAX_EPOC']
-                ckpt_name = f"connector_LLM_model{final_epoch}.pth"
-            stage_checkpoint = os.path.join(checkpoint_folder, ckpt_name)
-            if not os.path.exists(stage_checkpoint):
-                raise FileNotFoundError(f"Expected checkpoint not found: {stage_checkpoint}")
-            latest_checkpoint = stage_checkpoint
-            print(f"Latest checkpoint updated to: {latest_checkpoint}")
-        else:
-            print(f"Stage {stage} complete. (No saving requested)")
-            latest_checkpoint = None  # Reset if not saving.
 
     print("\n===== Multi-Stage Training Completed =====")
-    return latest_checkpoint
+    return 0
