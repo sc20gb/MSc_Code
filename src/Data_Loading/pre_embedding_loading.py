@@ -149,9 +149,24 @@ class PreEmbeddingDataset(Dataset):
         
         item = torch.load(pt_file)
         return item['embedding'], item['batch_data']
+    def get_extra_data(self, img_id):
+        """Returns extra data associated with an image ID excluding the embedding filename.
+        
+        Args:
+            img_id: Image identifier matching one of the keys in the manifest (e.g., 'img_0_1').
+            
+        Returns:
+            dict: Extra data associated with the image ID, excluding the 'pt_file' entry.
+        """
+        if img_id not in self.manifest:
+            raise KeyError(f"No entry found for image {img_id} in the manifest.")
+        
+        data = self.manifest[img_id].copy()
+        data.pop("pt_file", None)
+        return data
     
     def __getitem__(self, idx):
         img_id = self.keys[idx]
-        return self.get_embedding(img_id)
+        return self.get_embedding(img_id), self.get_extra_data(img_id)
 
 
