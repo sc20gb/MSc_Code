@@ -431,7 +431,7 @@ class LaionCocoImageDataset(Dataset):
         self.transform = transform if transform is not None else transforms.ToTensor()
         os.makedirs(self.data_dir, exist_ok=True)
 
-        # Initialize the list of image paths
+        # Initialize the list of image paths.
         self.image_paths = []
 
         # Location to save incremental captions progress.
@@ -450,8 +450,7 @@ class LaionCocoImageDataset(Dataset):
             print("No existing captions file found. Starting fresh.")
             self.captions_data = {}
 
-
-         # Check if images have already been downloaded.
+        # Check if images have already been downloaded.
         existing_images = sorted(glob.glob(os.path.join(self.data_dir, "laion_coco_*.jpg")))
         if existing_images and len(self.captions_data) > 0:
             self.image_paths = existing_images
@@ -485,8 +484,26 @@ class LaionCocoImageDataset(Dataset):
 
         print(f"Downloaded and saved {len(self.image_paths)} images to '{self.data_dir}'.")
 
+
+    def process_string(self,s):
+        # Convert to lowercase
+        s = s.lower()
+        # Remove all whitespace characters except spaces
+        s = re.sub(r'[^\S ]+', '', s)
+        # Replace multiple spaces with a single space
+        s = re.sub(r' +', ' ', s)
+        return s.strip()  # Optionally, remove leading/trailing spaces
+
     def _process_batch(self, batch, start_index):
         for i, sample in enumerate(batch):
+            
+            # Retrieve and check top_caption; skip sample if empty.
+            top_caption = sample.get("top_caption", "").strip()
+            if not top_caption:
+                continue
+
+            top_caption = self.process_string(top_caption)
+
             # Get the URL from the sample (adjust key if needed).
             image_url = sample.get("URL")
             if image_url is None:
@@ -496,13 +513,13 @@ class LaionCocoImageDataset(Dataset):
             try:
                 response = requests.get(image_url, timeout=10)
                 response.raise_for_status()
-            except Exception as e:
+            except Exception:
                 continue
 
             # Try to open the image using PIL.
             try:
                 image = Image.open(BytesIO(response.content)).convert("RGB")
-            except Exception as e:
+            except Exception:
                 continue
 
             # Save the image to disk.
@@ -511,13 +528,10 @@ class LaionCocoImageDataset(Dataset):
             try:
                 image.save(image_path)
                 self.image_paths.append(image_path)
-            except Exception as e:
+            except Exception:
                 continue
 
             # Accumulate the top_caption for the image.
-            top_caption = sample.get("top_caption")
-            if top_caption is None:
-                continue
             self.captions_data[image_filename] = top_caption
 
     def _save_captions(self):
@@ -533,7 +547,7 @@ class LaionCocoImageDataset(Dataset):
 
     def __len__(self):
         return len(self.image_paths)
-    
+
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
         img = Image.open(image_path).convert("RGB")
