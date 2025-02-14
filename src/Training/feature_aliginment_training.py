@@ -484,6 +484,20 @@ def feature_alignment(**model_args):
                     return_tensors='pt',
                     add_special_tokens=True
                 ).input_ids.to(device_llm)[:, 1:]
+
+                 # Add EOS token
+                eos_tensor = torch.full(
+                    (answer_.size(0), 1),
+                    connector_llm.tokenizer.eos_token_id,
+                    dtype=torch.long,
+                    device=device_llm
+                )
+                answer_ = torch.cat([answer_, eos_tensor], dim=1)
+
+                print(answers)
+                print(answer_)
+                print(answer_.size())
+                
                 output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
                 metrics = Metrics(loss, **calc_loss_and_metrics(
                     list(output), list(answer_), tokenizer=connector_llm.tokenizer
