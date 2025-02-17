@@ -25,7 +25,21 @@ class CLIP_Processor_Workaround(nn.Module):
         
         Returns:
             A tensor containing the pre-processed pixel values.
+            
+        Raises:
+            ValueError: If any image’s width or height is less than or equal to 1.
         """
+        if not isinstance(images, list):
+            images = [images]
+            
+        for idx, img in enumerate(images):
+            try:
+                width, height = img.width, img.height
+            except AttributeError:
+                raise ValueError(f"Image at index {idx} does not have width/height attributes.")
+            if width <= 1 or height <= 1:
+                raise ValueError(f"Image at index {idx} has invalid dimensions (width: {width}, height: {height}).")
+
         # Use the processor to convert images into a format required by the CLIP model.
         image_inputs = self.processor(images=images, return_tensors="pt")
         # Remove any unnecessary dimensions and return the pixel values.
