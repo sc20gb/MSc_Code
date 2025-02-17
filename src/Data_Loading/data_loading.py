@@ -53,7 +53,7 @@ class JsonDataset(Dataset):
         self.data_frame = self.data_frame[(self.data_frame['question'] != '') & (self.data_frame['answer'] != '')].reset_index(drop=True)
 
         self.transform = transform
-        dir = os.path.join(os.path.dirname(os.getcwd()),'Slake1.0', 'imgs')
+        dir = os.path.join(os.getcwd(),'Slake1.0', 'imgs')
         self.img_dir = os.path.normpath(dir)
 
     def load_image_as_tensor(self, img_path, transform):
@@ -420,13 +420,6 @@ class LaionCocoImageDataset(Dataset):
 
         If a captions JSON file is already present in the directory, its contents
         are loaded so that downloaded data isn't lost.
-
-        Args:
-            data_dir (str): Directory to save images.
-            split (str): Dataset split.
-            transform: Transformations to apply.
-            stage_batch_size (int): Number of samples to process per stage.
-            max_dataset_size (int, optional): Stop creating image-caption pairs once this many are reached.
         """
         self.data_dir = data_dir
         self.transform = transform if transform is not None else transforms.ToTensor()
@@ -464,40 +457,32 @@ class LaionCocoImageDataset(Dataset):
         batch = []
         count = 0
 
-        # Process in stages specified by stage_batch_size.
         for sample in ds_laion:
             batch.append(sample)
             if len(batch) >= stage_batch_size:
                 self._process_batch(batch, count)
                 count += len(batch)
                 self._save_captions()
-                # Stop processing if max_dataset_size is reached.
                 if self.max_dataset_size is not None and len(self.image_paths) >= self.max_dataset_size:
                     break
-                batch = []  # Free memory by resetting the batch.
+                batch = []
 
-        # Process any remaining samples in batch.
         if batch:
             self._process_batch(batch, count)
             self._save_captions()
 
-        # Optionally trim to max_dataset_size
         if self.max_dataset_size is not None:
             self.image_paths = self.image_paths[:self.max_dataset_size]
         print(f"Downloaded and saved {len(self.image_paths)} images to '{self.data_dir}'.")
 
     def process_string(self, s):
-        # Convert to lowercase.
         s = s.lower()
-        # Remove all whitespace characters except spaces.
         s = re.sub(r'[^\S ]+', '', s)
-        # Replace multiple spaces with a single space.
         s = re.sub(r' +', ' ', s)
         return s.strip()
 
     def _process_batch(self, batch, start_index):
         for i, sample in enumerate(batch):
-            # Retrieve and check top_caption; skip sample if empty.
             top_caption = sample.get("top_caption", "")
             if top_caption is None:
                 continue
@@ -521,6 +506,10 @@ class LaionCocoImageDataset(Dataset):
             except Exception:
                 continue
 
+            # Check image dimensions and skip if width or height is smaller than 100.
+            if image.width < 100 or image.height < 100:
+                continue
+
             image_filename = f"laion_coco_{start_index + i}.jpg"
             image_path = os.path.join(self.data_dir, image_filename)
             try:
@@ -531,14 +520,10 @@ class LaionCocoImageDataset(Dataset):
 
             self.captions_data[image_filename] = top_caption
 
-            # If reached max_dataset_size, stop processing further samples.
             if self.max_dataset_size is not None and len(self.image_paths) >= self.max_dataset_size:
                 break
 
     def _save_captions(self):
-        """
-        Save the current captions_data to disk so progress is not lost.
-        """
         try:
             with open(self.captions_json_path, "w", encoding="utf-8") as f:
                 json.dump(self.captions_data, f, ensure_ascii=False, indent=2)
