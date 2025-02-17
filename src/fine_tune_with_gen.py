@@ -35,7 +35,7 @@ if __name__ == '__main__':
     device_vit, device_llm = handle_devices(cpu_only=False)
 
     # ########### Model Parameters: ###########
-    path_TinyLLama_LOCAL = os.path.join(os.path.dirname(os.getcwd()), "Models", "TinyLLama-v1.0")
+    path_TinyLLama_LOCAL = os.path.join(os.getcwd(), "Models", "TinyLLama-v1.0")
     path_TinyLLama_ARC = os.path.join("/nobackup", "sc20gwb", "Models", "TinyLLama-v1.0")
 
     params = {
@@ -77,7 +77,7 @@ if __name__ == '__main__':
 
     # create the efficent dataloaders for the domain specific dataset
     specific_data_embedding_dir = os.path.join(data_embedding_dir, "slake_embeddings")
-    specific_data_orginal_dir = os.path.join(os.path.dirname(os.getcwd()), "Slake1.0")
+    specific_data_orginal_dir = os.path.join(os.getcwd(), "Slake1.0")
 
 
     # Load the CLIP transform and encoder workarounds
