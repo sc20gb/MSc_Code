@@ -29,8 +29,9 @@ def load_embeddings_dataloader(embedding_dir, dataloader, encoder, hidden_layer_
     return general_dataloader
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Fine-tune with general data")
-    parser.add_argument('--general_data_dir', type=str, required=True, help='Path to the general data directory')
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--general_data_dir', required=True)
+    parser.add_argument('--data', required=False)
     args = parser.parse_args()
 
     os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'

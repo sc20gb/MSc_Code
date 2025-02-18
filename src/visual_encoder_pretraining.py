@@ -14,13 +14,6 @@ import csv
 
 import wandb
 
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument('--general_data_dir', required=True)
-parser.add_argument('--data', required=False)  # Add this if needed
-args = parser.parse_args()
-
 def train(BATCHSIZE = 16, RANDSEED  = 42, MAX_LENGTH = 256, IMAGESIZE = 224, MAX_EPOC = 100, VERSION = 2, transformer_width=512, transformer_layers=12,transformer_heads=8,embed_dim=512,vision_width=768, image_resolution=224, vision_patch_size=56, vision_layers=12,lr=1e-4, weight_decay=1e-4, eps=1.0e-08,T_0=10, T_mult=2,save=False):
     # CHECK GPU SUPPORT AND ASSIGN DEVICE
     if torch.cuda.is_available():
