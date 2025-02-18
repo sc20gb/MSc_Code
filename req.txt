@@ -15,7 +15,7 @@ asttokens==2.4.1
 astunparse==1.6.3
 attrs==23.2.0
 # bzip2==1.0.8  <-- Removed: not installable via pip
-ca-certificates==2024.2.2
+# ca-certificates==2024.2.2
 certifi==2024.7.4
 charset-normalizer==3.3.2
 click==8.1.7
