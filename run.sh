@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=ml-job          # Job name
-#SBATCH --time=00:15:00            # Request runtime (hh:mm:ss)
+#SBATCH --time=12:00:00            # Request runtime (hh:mm:ss)
 #SBATCH --partition=gpu            # Request GPU partition
 #SBATCH --gres=gpu:1               # Request 1 GPU
 #SBATCH --ntasks-per-node=1
