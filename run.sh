@@ -14,11 +14,8 @@ module load miniforge
 # Activate conda environment
 conda activate ML2
 
-# Run the job
-python src/fine_tune_with_gen.py --general_data_dir "$SCRATCH/Datasets"
-
 # Run GPU job using local data
-python my_ML_script.py --data $TMP_SHARED/data
+python src/fine_tune_with_gen.py --general_data_dir "$SCRATCH/Datasets" --data $TMP_SHARED/data
 
 # Copy results back to permanent storage
 cp -r $TMP_SHARED/results /path/to/permanent/storage/
