@@ -101,7 +101,7 @@ nh3==0.2.18
 numpy==1.26.4
 openai==1.53.0
 opencv-python==4.9.0.80
-openssl==3.0.13
+# openssl==3.0.13
 opt-einsum==3.3.0
 optree==0.12.1
 orjson==3.10.6
