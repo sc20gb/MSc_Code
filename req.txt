@@ -205,7 +205,7 @@ werkzeug==3.0.4
 wheel==0.41.2
 wrapt==1.16.0
 xxhash==3.5.0
-xz==5.4.6
+# xz==5.4.6
 yarl==1.9.4
 zeromq==4.3.5
 zipp==3.17.0
