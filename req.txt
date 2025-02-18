@@ -133,7 +133,7 @@ python-dotenv==1.0.1
 python-multipart==0.0.9
 #python_abi==3.11
 pytz==2024.1
-pywin32==305
+#pywin32==305
 pyyaml==6.0.1
 pyzmq==25.1.2
 referencing==0.35.1
