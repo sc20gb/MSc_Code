@@ -12,7 +12,7 @@ module load cuda
 module load miniforge
 
 # Activate conda environment
-conda activate my_ML_environment
+conda activate ML2
 
 # Run the job
 python src/fine_tune_with_gen.py --general_data_dir "$SCRATCH/Datasets"
