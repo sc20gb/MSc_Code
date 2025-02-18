@@ -79,7 +79,7 @@ kiwisolver==1.4.5
 lazy-loader==0.4
 libclang==18.1.1
 # libffi==3.4.4
-libsodium==1.0.18
+# libsodium==1.0.18
 llama-cpp-python==0.1.48
 markdown==3.7
 markdown-it-py==3.0.0
