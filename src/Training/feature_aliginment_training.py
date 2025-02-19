@@ -504,11 +504,11 @@ def feature_alignment(**model_args):
         # Save checkpoints if needed
         if save:
             if train_LLM:
-                path = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", f"MLLM_V_{VERSION}")
+                path = os.path.join(os.getcwd(), "SavedModels", f"MLLM_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.state_dict(), os.path.join(path, f"MLLM_model{epoch}.pth"))
             else:
-                path = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", f"C_V_{VERSION}")
+                path = os.path.join(os.getcwd(), "SavedModels", f"C_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.connector.state_dict(), os.path.join(path, f"connector_LLM_model{epoch}.pth"))
 
