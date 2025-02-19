@@ -18,7 +18,7 @@ conda activate ML2
 export LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"
 
 # Run GPU job using local data
-python src/fine_tune_with_gen.py --general_data_dir "$SCRATCH/Datasets" --data $TMP_SHARED/data
+python src/fine_tune_with_gen.py --general_data_dir "$SCRATCH/Datasets" --data $TMP_SHARED/data --save_dir "$SCRATCH/SavedModels"
 
 # Copy results back to permanent storage
 cp -r $TMP_SHARED/results /path/to/permanent/storage/

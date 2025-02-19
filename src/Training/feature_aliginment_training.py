@@ -50,6 +50,7 @@ def feature_aliginment_training(**model_args):
     cpu_only = model_args.get('cpu_only', False)
     train_dataset = model_args.get('train_dataset', None)
     val_dataset = model_args.get('val_dataset', None)
+    save_dir = model_args.get('save_dir', os.getcwd())
     
     # Setup devices
     device_image_encoder, device_llm = handle_devices(cpu_only)
@@ -224,11 +225,11 @@ def feature_aliginment_training(**model_args):
         # Save checkpoints if needed
         if save:
             if training_step == 2:
-                path = os.path.join(os.path.dirname(os.getcwd()), "SavedModels", f"MLLM_V_{VERSION}")
+                path = os.path.join(save_dir, "SavedModels", f"MLLM_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.state_dict(), os.path.join(path, f"MLLM_model{epoch}.pth"))
             else:
-                path = os.path.join("/nobackup", "sc20gwb", "Models", "SavedModels", f"C_V_{VERSION}")
+                path = os.path.join(save_dir, "SavedModels", f"C_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.connector.state_dict(), os.path.join(path, f"connector_LLM_model{epoch}.pth"))
 
@@ -323,6 +324,7 @@ def feature_alignment(**model_args):
     cpu_only = model_args.get('cpu_only', False)
     train_loader = model_args.get('train_loader', None)
     val_loader = model_args.get('val_loader', None)
+    save_dir = model_args.get('save_dir', os.getcwd())
 
     # Setup devices
     _, device_llm = handle_devices(cpu_only)
@@ -504,11 +506,11 @@ def feature_alignment(**model_args):
         # Save checkpoints if needed
         if save:
             if train_LLM:
-                path = os.path.join(os.getcwd(), "SavedModels", f"MLLM_V_{VERSION}")
+                path = os.path.join(save_dir, "SavedModels", f"MLLM_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.state_dict(), os.path.join(path, f"MLLM_model{epoch}.pth"))
             else:
-                path = os.path.join(os.getcwd(), "SavedModels", f"C_V_{VERSION}")
+                path = os.path.join(save_dir, "SavedModels", f"C_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.connector.state_dict(), os.path.join(path, f"connector_LLM_model{epoch}.pth"))
 
@@ -566,6 +568,7 @@ def multi_stage_feature_aliginment_training(**model_args):
     latest_checkpoint = None
 
     stage_params = model_args.get("stage_params", {})
+    save_dir = model_args.get('save_dir', os.getcwd())
 
     for stage in stages:
         stage_args = model_args.copy()
@@ -613,6 +616,7 @@ def multi_stage_feature_aliginment_training(**model_args):
         else:
             raise ValueError(f"Unsupported stage: {stage}")
         
+        stage_args['save_dir'] = save_dir
 
         # Initialize a new wandb run for this stage.
         wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args)
