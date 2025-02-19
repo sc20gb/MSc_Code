@@ -548,7 +548,7 @@ def load_laion_coco_images(data_dir, split="train", transform=None, batch_size=4
     from torch.utils.data import DataLoader, random_split
 
     # Create the full dataset using LaionCocoImageDataset.
-    full_dataset = LaionCocoImageDataset(data_dir=data_dir, split=split, transform=transform, max_dataset_size=10000)
+    full_dataset = LaionCocoImageDataset(data_dir=data_dir, split=split, transform=transform, max_dataset_size=30000)
 
     # Manually split the full dataset with an 80/20 ratio.
     train_size = int(0.8 * len(full_dataset))
