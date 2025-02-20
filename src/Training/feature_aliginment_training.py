@@ -14,6 +14,8 @@ import math
 import torch
 import wandb
 import torchvision.transforms as transforms
+import datetime
+
 
 # LEGACY CODE TODO: Remove or refactor
 def feature_aliginment_training(**model_args):
@@ -524,7 +526,6 @@ def feature_alignment(**model_args):
             
     return state
 
-
 def multi_stage_feature_aliginment_training(**model_args):
     """
     Multi-stage training function for feature alignment.
@@ -535,28 +536,13 @@ def multi_stage_feature_aliginment_training(**model_args):
       Stage 3: Train the connector and LLM (with LoRA) on Medical Images.
 
     Allowed stage combinations: [1,2,3], [1,3], [3], etc.
-
-    Requirements in model_args:
-      - 'training_stages': list of stage numbers to run (e.g., [1,3])
-      - For stage 1: 'general_dataset' (and optionally 'general_val_dataset')
-      - For stage 2/3: 'medical_dataset' (and optionally 'medical_val_dataset')
-      - Optionally, 'stage_params': a dict mapping stage number to a dict of:
-            { 'lr': value, 'eps': value, 'weight_decay': value, 'per_warm': value, 'MAX_EPOC': value }
-            Any missing value in a stage-specific dict will fall back to the global one.
-      - Optionally, for stage-specific batch sizes, use:
-            For stage 1: 'general_batch_size' and 'general_vir_batch_size'
-            For stages 2/3: 'specific_batch_size' and 'specific_vir_batch_size'
-    
-    Other required keys are the same as for feature_aliginment_training.
-
+    Requirements in model_args: see original docstring.
     This function alters the VERSION per stage so that each stage's checkpoints
     are saved in distinct folders. For stages 2 and 3, if saving is enabled the latest
-    checkpoint from a previous stage is chained as pre_trained_connector_path.
-    Additionally, each stage creates its own wandb run (project "TinyLLama_CLIP_3_stage")
+    checkpoint from a previous stage is chained as pre_trained_connector_dict.
+    Additionally, each stage creates its own wandb run (project "TinyLLama_CLIP_3_stages")
     to log the metrics.
     """
-    import wandb
-
     if 'training_stages' not in model_args:
         raise KeyError("Missing required key: 'training_stages'")
     stages = model_args['training_stages']
@@ -565,7 +551,6 @@ def multi_stage_feature_aliginment_training(**model_args):
 
     base_version = model_args['version']
     latest_checkpoint = None
-
     stage_params = model_args.get("stage_params", {})
     save_dir = model_args.get('save_dir', os.getcwd())
 
@@ -573,37 +558,37 @@ def multi_stage_feature_aliginment_training(**model_args):
         stage_args = model_args.copy()
         print(f"\n===== Starting Training Stage {stage} =====")
 
-        # Override global parameters with stage-specific ones if provided.
+        # Override global parameters with stage-specific ones, if provided.
         for param in ['lr', 'eps', 'weight_decay', 'per_warm', 'MAX_EPOC']:
             if stage in stage_params and param in stage_params[stage]:
                 stage_args[param] = stage_params[stage][param]
-        
+
         if stage == 1:
             # Stage 1: Train connector from scratch on General Images.
             if 'general_dataset' not in stage_args:
                 raise KeyError("Stage 1 requires key 'general_dataset'")
             stage_args['train_loader'] = stage_args['general_train_dataloader']
             stage_args['val_loader'] = stage_args.get('general_val_dataloader', None)
-            stage_args['training_step'] = 1 
+            stage_args['training_step'] = 1
             stage_args['pre_trained_connector_dict'] = None  # Always start from scratch.
             stage_args['version'] = f"{base_version}_stage1"
-            stage_args['train_LLM'] = False 
+            stage_args['train_LLM'] = False
             # Override batch sizes for general data if provided.
             if "general_batch_size" in stage_args:
                 stage_args["batch_size"] = stage_args["general_batch_size"]
             if "general_vir_batch_size" in stage_args:
                 stage_args["vir_batch_size"] = stage_args["general_vir_batch_size"]
-            
+
         elif stage == 2:
             # Stage 2: Train connector from scratch on Medical Images.
             if 'specific_train_dataloader' not in stage_args or 'specific_val_dataloader' not in stage_args:
                 raise KeyError("Stage 2 requires keys 'specific_train_dataloader' and 'specific_val_dataloader'")
             stage_args['train_loader'] = stage_args['specific_train_dataloader']
             stage_args['val_loader'] = stage_args.get('specific_val_dataloader', None)
-            stage_args['training_step'] = 2  
+            stage_args['training_step'] = 2
             stage_args['pre_trained_connector_dict'] = latest_checkpoint
             stage_args['version'] = f"{base_version}_stage2"
-            stage_args['train_LLM'] = False 
+            stage_args['train_LLM'] = False
             # Override batch sizes for specific data if provided.
             if "specific_batch_size" in stage_args:
                 stage_args["batch_size"] = stage_args["specific_batch_size"]
@@ -619,28 +604,32 @@ def multi_stage_feature_aliginment_training(**model_args):
             stage_args['training_step'] = 3  # Train both connector and LLM.
             stage_args['pre_trained_connector_dict'] = latest_checkpoint
             stage_args['version'] = f"{base_version}_stage3"
-            stage_args['train_LLM'] = True 
+            stage_args['train_LLM'] = True
             # Override batch sizes for specific data if provided.
             if "specific_batch_size" in stage_args:
                 stage_args["batch_size"] = stage_args["specific_batch_size"]
             if "specific_vir_batch_size" in stage_args:
                 stage_args["vir_batch_size"] = stage_args["specific_vir_batch_size"]
-            
+
         else:
             raise ValueError(f"Unsupported stage: {stage}")
-        
+
         stage_args['save_dir'] = save_dir
 
+        # Create a unique wandb run name using a timestamp.
+        unique_suffix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        run_name = f"Stage_{stage}_{unique_suffix}"
+
         # Initialize a new wandb run for this stage.
-        wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args)
-        
+        wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args, name=run_name)
+
         # Run training for the current stage.
         latest_checkpoint = feature_alignment(**stage_args)
 
         print(f"Stage {stage} completed with VERSION: {stage_args['version']}")
-        
+
         # Finish the wandb run after training.
         wandb.finish()
-        
+
     print("\n===== Multi-Stage Training Completed =====")
     return 0
