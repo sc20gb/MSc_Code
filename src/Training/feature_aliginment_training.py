@@ -475,7 +475,6 @@ def feature_alignment(**model_args):
     
             output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
     
-            metrics_training += metrics     
             count_t += 1
         
 
@@ -484,6 +483,7 @@ def feature_alignment(**model_args):
             metrics = Metrics(loss.detach().to('cpu'), **calc_loss_and_metrics(
                 list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
             ))
+            metrics_training += metrics     
 
             if count_t % accumulation_steps == 0:
                 torch.cuda.memory_summary()
