@@ -543,6 +543,9 @@ def multi_stage_feature_aliginment_training(**model_args):
       - Optionally, 'stage_params': a dict mapping stage number to a dict of:
             { 'lr': value, 'eps': value, 'weight_decay': value, 'per_warm': value, 'MAX_EPOC': value }
             Any missing value in a stage-specific dict will fall back to the global one.
+      - Optionally, for stage-specific batch sizes, use:
+            For stage 1: 'general_batch_size' and 'general_vir_batch_size'
+            For stages 2/3: 'specific_batch_size' and 'specific_vir_batch_size'
     
     Other required keys are the same as for feature_aliginment_training.
 
@@ -585,30 +588,44 @@ def multi_stage_feature_aliginment_training(**model_args):
             stage_args['pre_trained_connector_dict'] = None  # Always start from scratch.
             stage_args['version'] = f"{base_version}_stage1"
             stage_args['train_LLM'] = False 
+            # Override batch sizes for general data if provided.
+            if "general_batch_size" in stage_args:
+                stage_args["batch_size"] = stage_args["general_batch_size"]
+            if "general_vir_batch_size" in stage_args:
+                stage_args["vir_batch_size"] = stage_args["general_vir_batch_size"]
             
         elif stage == 2:
             # Stage 2: Train connector from scratch on Medical Images.
             if 'specific_train_dataloader' not in stage_args or 'specific_val_dataloader' not in stage_args:
-                raise KeyError("Stage 2 requires key 'specific_train_dataloader' and 'specific_val_dataloader'")
+                raise KeyError("Stage 2 requires keys 'specific_train_dataloader' and 'specific_val_dataloader'")
             stage_args['train_loader'] = stage_args['specific_train_dataloader']
             stage_args['val_loader'] = stage_args.get('specific_val_dataloader', None)
             stage_args['training_step'] = 2  
             stage_args['pre_trained_connector_dict'] = latest_checkpoint
             stage_args['version'] = f"{base_version}_stage2"
             stage_args['train_LLM'] = False 
+            # Override batch sizes for specific data if provided.
+            if "specific_batch_size" in stage_args:
+                stage_args["batch_size"] = stage_args["specific_batch_size"]
+            if "specific_vir_batch_size" in stage_args:
+                stage_args["vir_batch_size"] = stage_args["specific_vir_batch_size"]
 
-            
         elif stage == 3:
             # Stage 3: Train connector and LLM (with LoRA) on Medical Images.
             if 'specific_train_dataloader' not in stage_args or 'specific_val_dataloader' not in stage_args:
-                raise KeyError("Stage 3 requires key 'specific_train_dataloader' and 'specific_val_dataloader'")
+                raise KeyError("Stage 3 requires keys 'specific_train_dataloader' and 'specific_val_dataloader'")
             stage_args['train_loader'] = stage_args['specific_train_dataloader']
             stage_args['val_loader'] = stage_args.get('specific_val_dataloader', None)
             stage_args['training_step'] = 3  # Train both connector and LLM.
             stage_args['pre_trained_connector_dict'] = latest_checkpoint
             stage_args['version'] = f"{base_version}_stage3"
             stage_args['train_LLM'] = True 
-
+            # Override batch sizes for specific data if provided.
+            if "specific_batch_size" in stage_args:
+                stage_args["batch_size"] = stage_args["specific_batch_size"]
+            if "specific_vir_batch_size" in stage_args:
+                stage_args["vir_batch_size"] = stage_args["specific_vir_batch_size"]
+            
         else:
             raise ValueError(f"Unsupported stage: {stage}")
         
@@ -625,7 +642,5 @@ def multi_stage_feature_aliginment_training(**model_args):
         # Finish the wandb run after training.
         wandb.finish()
         
-
     print("\n===== Multi-Stage Training Completed =====")
     return 0
-
