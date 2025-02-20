@@ -157,6 +157,7 @@ class PreEmbeddingDataset(Dataset):
         
         item = torch.load(pt_file)
         return item['embedding']
+    
     def get_extra_data(self, img_id):
         """Returns extra data associated with an image ID excluding the embedding filename.
         
