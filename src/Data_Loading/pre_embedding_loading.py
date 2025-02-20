@@ -69,6 +69,12 @@ class PreEmbeddingCreator:
                     images = batch
                     batch_data = {'images_shape': list(images.shape)}
                 
+                # Ensure required keys are present
+                required_keys = ['images_shape']
+                for key in required_keys:
+                    if key not in batch_data:
+                        batch_data[key] = []
+
                 # Get embeddings for the batch.
                 images = images.to(self.device)
                 _, hidden_states = self.encoder(images)
@@ -89,6 +95,9 @@ class PreEmbeddingCreator:
                         else:
                             safe_batch_data[k] = v
                     
+                    # Ensure images_shape is included
+                    safe_batch_data['images_shape'] = batch_data['images_shape']
+
                     item = {
                         'embedding': embeddings[idx],
                         'batch_data': safe_batch_data
