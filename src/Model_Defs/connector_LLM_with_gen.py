@@ -167,7 +167,7 @@ class Connector_LLM_With_Gen(nn.Module):
 
         with torch.no_grad() if not self.llm.training else nullcontext():
             outputs = self.llm.generate(
-                inputs_embeds=embeddings.detach(),  # Detach to prevent gradient computation through input
+                inputs_embeds=embeddings,#.detach(),  # Detach to prevent gradient computation through input
                 labels=answer,
                 attention_mask=attention_mask,
                 max_length=self.max_length,
