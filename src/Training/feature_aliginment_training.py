@@ -306,15 +306,22 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
         wandb.log(wandb.log((train).get_log("training_") | (val).get_log("validate_")))
 
 
+import torch
+
+def check_gpu_memory(context=""):
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated()
+        reserved = torch.cuda.memory_reserved()
+        print(f"[GPU MEMORY {context}]: allocated={allocated}, reserved={reserved}")
+        torch.cuda.empty_cache()
+
 def feature_alignment(**model_args):
-    
     required_keys = [
         'vicuna_path', 'connector_layers', 'embed_dim', 'version',
         'lr', 'eps', 'weight_decay', 'per_warm', 'batch_size', 'vir_batch_size', 'rand_seed',
         'MAX_EPOC', 'pre_trained_connector_dict', 'lora_rank', 'lora_dropout', 'lora_alpha',
         'hidden_layer_from_end', 'training_step', 'use_half','train_LLM'
     ]
-
     missing = [key for key in required_keys if key not in model_args]
     if missing:
         raise KeyError(f"Missing required model_args keys: {missing}")
@@ -349,7 +356,6 @@ def feature_alignment(**model_args):
     use_half = model_args['use_half']
     train_LLM = model_args['train_LLM']
 
-    # Calculate gradient accumulation steps
     accumulation_steps = vir_batch_size // batch_size
 
     # Load connector and LLM model
@@ -359,17 +365,17 @@ def feature_alignment(**model_args):
         connector_layers=connector_layers,
         device=device_llm
     )
-
     
+
     # Enable half precision if requested
     if use_half:
         connector_llm.half()
         handle_half_for_layer_Norm(connector_llm)
-
-    # Ensure model is on correct device
+    
+# Ensure model is on correct device
     connector_llm.to(device_llm)
-
-    # load the connector weights if provided
+    
+# load the connector weights if provided
     if pre_trained_connector_dict is not None:
         print("Loading the connector MLP using provided state dict")
         connector_llm.connector.load_state_dict(pre_trained_connector_dict)
@@ -380,19 +386,21 @@ def feature_alignment(**model_args):
     else:
         connector_llm.llm.eval()
         optim = torch.optim.AdamW(connector_llm.connector.parameters(), lr=lr, weight_decay=weight_decay, eps=eps)
-
-    # calculate the total training steps and the number of warmup steps
+    
+# calculate the total training steps and the number of warmup steps
     total_training_steps = math.ceil(len(train_loader.dataset) / vir_batch_size) * MAX_EPOC
     num_warmup_steps = math.ceil(total_training_steps * per_warm)
 
     print(f"{num_warmup_steps} warmup steps")
     print(f"{total_training_steps} total steps")
     print(f"{len(train_loader.dataset)/batch_size} train batches")
-
+    
     scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps,
                                           num_training_steps=total_training_steps, training_step=training_step)
+    
 
-    # Start epoch loop
+    check_gpu_memory(context="Before Training")
+    
     for epoch in range(1, MAX_EPOC + 1):
         metrics_training = Metrics()
         metrics_validate = Metrics()
@@ -401,25 +409,22 @@ def feature_alignment(**model_args):
             connector_llm.train()
         else:
             connector_llm.connector.train()
-
+    
         count_t = 0
         count_v = 0
         optim.zero_grad()
-
+    
         # training loop
         for batch in train_loader:
+            check_gpu_memory(context=f"Training {count_t}")
             embeddings = batch[0]
             if training_step == 1:
-                # the data is the general data and not vqa data
                 answers = batch[1]['batch_data']['data_1']
-                questions = ["Generate a caption for the image" for i in answers]
-
+                questions = ["Generate a caption for the image" for _ in answers]
             else:
-                # the data is vqa data
                 questions = batch[1]['batch_data']['data_2']
                 answers = batch[1]['batch_data']['data_3']
-
-            # Tokenize the answers
+    
             answer_ = connector_llm.tokenizer(
                 answers,
                 padding='longest',
@@ -427,8 +432,7 @@ def feature_alignment(**model_args):
                 return_tensors='pt',
                 add_special_tokens=True
             ).input_ids.to(device_llm)[:, 1:]
-
-            # Add EOS token
+    
             eos_tensor = torch.full(
                 (answer_.size(0), 1),
                 connector_llm.tokenizer.eos_token_id,
@@ -436,20 +440,15 @@ def feature_alignment(**model_args):
                 device=device_llm
             )
             answer_ = torch.cat([answer_, eos_tensor], dim=1)
-
-            # Get prediction and loss from the model
+    
             output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
-
-            # Calculate metrics
             metrics = Metrics(loss, **calc_loss_and_metrics(
                 list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
             ))
-
-            # Accumulate metrics
+    
             metrics_training += metrics     
             count_t += 1
-
-            # Backpropagation and weight update
+    
             loss.backward()
             if count_t % accumulation_steps == 0:
                 optim.step()
@@ -458,27 +457,22 @@ def feature_alignment(**model_args):
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
     
-        # Accumulate gradients and update weights left over
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
             scheduler.step()
-
-        # Validation loop
+    
         connector_llm.eval()
         with torch.no_grad():
             for batch in val_loader:
                 embeddings = batch[0]
                 if training_step == 1:
-                    # the data is the general data and not vqa data
                     answers = batch[1]['batch_data']['data_1']
-                    questions = ["Generate a caption for the image" for i in answers]
-
+                    questions = ["Generate a caption for the image" for _ in answers]
                 else:
-                    # the data is vqa data
                     questions = batch[1]['batch_data']['data_2']
                     answers = batch[1]['batch_data']['data_3']
-
+    
                 answer_ = connector_llm.tokenizer(
                     answers,
                     padding='longest',
@@ -486,8 +480,7 @@ def feature_alignment(**model_args):
                     return_tensors='pt',
                     add_special_tokens=True
                 ).input_ids.to(device_llm)[:, 1:]
-
-                 # Add EOS token
+    
                 eos_tensor = torch.full(
                     (answer_.size(0), 1),
                     connector_llm.tokenizer.eos_token_id,
@@ -495,15 +488,14 @@ def feature_alignment(**model_args):
                     device=device_llm
                 )
                 answer_ = torch.cat([answer_, eos_tensor], dim=1)
-
+    
                 output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
                 metrics = Metrics(loss, **calc_loss_and_metrics(
                     list(output), list(answer_), tokenizer=connector_llm.tokenizer
                 ))
                 metrics_validate += metrics     
                 count_v += 1
-
-        # Save checkpoints if needed
+    
         if save:
             if train_LLM:
                 path = os.path.join(save_dir, "SavedModels", f"MLLM_V_{VERSION}")
@@ -513,19 +505,21 @@ def feature_alignment(**model_args):
                 path = os.path.join(save_dir, "SavedModels", f"C_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.connector.state_dict(), os.path.join(path, f"connector_LLM_model{epoch}.pth"))
-
-        # Log metrics (using wandb as in the original)
+    
         if count_v and count_t:
             wandb.log((metrics_training/count_t).get_log("training_") |
-                        (metrics_validate/count_v).get_log("validate_"))
+                      (metrics_validate/count_v).get_log("validate_"))
         else:
             wandb.log(Metrics(-1, -1, -1, -1, -1, -1).get_log("training_") |
-                        Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
-            
-
+                      Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
+        
+        # Check and log GPU memory usage at the end of each epoch.
+        check_gpu_memory(context=f"Epoch {epoch}")
+    
     state = connector_llm.connector.state_dict()
+    # One final GPU memory check after training
+    check_gpu_memory(context="Final")
             
-    #return connector for next stage
     return state
 
 
@@ -632,3 +626,4 @@ def multi_stage_feature_aliginment_training(**model_args):
 
     print("\n===== Multi-Stage Training Completed =====")
     return 0
+
