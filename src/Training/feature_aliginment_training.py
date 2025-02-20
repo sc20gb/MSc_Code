@@ -478,7 +478,7 @@ def feature_alignment(**model_args):
     
             loss.backward()
             if count_t % accumulation_steps == 0:
-                print("Optimizing")
+                print("Optimizing inner")
                 optim.step()
                 optim.zero_grad()
                 scheduler.step()
@@ -495,7 +495,7 @@ def feature_alignment(**model_args):
                 torch.cuda.empty_cache()
     
         if (count_t + 1) % accumulation_steps != 0:
-            print("Optimizing")
+            print("Optimizing  outer")
             optim.step()
             optim.zero_grad()
             scheduler.step()
