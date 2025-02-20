@@ -408,6 +408,7 @@ def feature_alignment(**model_args):
 
         # training loop
         for batch in train_loader:
+            print(batch)
             embeddings = batch[0]
             if training_step == 1:
                 # the data is the general data and not vqa data
