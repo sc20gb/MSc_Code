@@ -438,6 +438,7 @@ def feature_alignment(**model_args):
             connector_llm.connector.train()
     
         count_t = 0
+        count_v = 0
         # Initialize counters for caption lengths if in caption training mode.
         optim.zero_grad()
     
@@ -476,8 +477,7 @@ def feature_alignment(**model_args):
             output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
     
             count_t += 1
-        
-
+    
             loss.backward()
 
             metrics = Metrics(loss.detach().to('cpu'), **calc_loss_and_metrics(
@@ -486,26 +486,18 @@ def feature_alignment(**model_args):
             metrics_training += metrics     
 
             if count_t % accumulation_steps == 0:
-                torch.cuda.memory_summary()
-                print("Optimizing inner")
                 optim.step()
                 optim.zero_grad()
                 scheduler.step()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
                 loss = loss.detach()
-                torch.cuda.synchronize()
-                import gc
-                gc.collect()
-                torch.cuda.empty_cache()
-                torch.cuda.memory_summary()
-    
+
         if (count_t + 1) % accumulation_steps != 0:
-            print("Optimizing outer")
             optim.step()
             optim.zero_grad()
             scheduler.step()
-    
+
         # Print the average caption length if training captions (training_step == 1)
         if training_step == 1 and caption_count > 0:
             avg_caption_length = total_caption_length / caption_count
