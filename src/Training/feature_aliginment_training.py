@@ -318,7 +318,7 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
 
 
 import torch
-
+prev_allocated = 0
 def check_gpu_memory(context=""):
     if torch.cuda.is_available():
         device = torch.cuda.current_device()
@@ -330,10 +330,10 @@ def check_gpu_memory(context=""):
 
         # Calculate change from previous call if available
         if hasattr(check_gpu_memory, "prev_allocated"):
-            diff = allocated_mem - check_gpu_memory.prev_allocated
+            diff = allocated_mem - prev_allocated
         else:
             diff = 0
-        check_gpu_memory.prev_allocated = allocated_mem
+        prev_allocated = allocated_mem
 
         print(f"[GPU MEMORY {context}]: allocated = {allocated_mem/1024/1024:.2f} MB, "
               f"total = {total_mem/1024/1024:.2f} MB, free ≈ {free_mem/1024/1024:.2f} MB "
