@@ -58,7 +58,7 @@ if __name__ == '__main__':
         "weight_decay": 0.01,
         "per_warm": 0.333,
         "batch_size": 64,
-        "vir_batch_size": 128,
+        "vir_batch_size": 64,
         "rand_seed": 42,
         "use_half": False,
         "save": True,
