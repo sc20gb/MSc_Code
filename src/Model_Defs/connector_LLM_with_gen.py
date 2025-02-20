@@ -171,7 +171,8 @@ class Connector_LLM_With_Gen(nn.Module):
                 labels=answer,
                 attention_mask=attention_mask,
                 max_length=self.max_length,
-                generation_config=self.llm.generation_config
+                generation_config=self.llm.generation_config,
+                use_cache=False      # Disable caching
             )
         generated_logits = outputs.generated_logits.requires_grad_(True)
 
