@@ -148,12 +148,20 @@ if __name__ == '__main__':
         params["batch_size"], 
         params["rand_seed"]
     )
-    
-    # Add the dataloaders to the params dictionary
+
+    # Add the embeddings dataloaders to the params dictionary
     params["general_train_dataloader"] = train_general_dataloader
     params["general_val_dataloader"] = val_general_dataloader
     params["specific_train_dataloader"] = train_specific_dataloader
     params["specific_val_dataloader"] = val_specific_dataloader
+
+    # Free raw dataloaders and the CLIP encoder (and transform) from memory now that embeddings are loaded
+    del general_train_dataloader, general_val_dataloader, specific_train_dataloader, specific_val_dataloader, encoder, transform
+
+    # Force garbage collection and clear CUDA cache to reallocate the memory stack
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
 
     # ########### Training: ###########
 
