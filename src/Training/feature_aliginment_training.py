@@ -474,17 +474,19 @@ def feature_alignment(**model_args):
             answer_ = torch.cat([answer_, eos_tensor], dim=1)
     
             output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
-            metrics = Metrics(loss, **calc_loss_and_metrics(
-                list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
-            ))
     
             metrics_training += metrics     
             count_t += 1
-    
-            del output, answer_
-    
+        
+
             loss.backward()
+
+            metrics = Metrics(loss.detach(), **calc_loss_and_metrics(
+                list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
+            ))
+
             if count_t % accumulation_steps == 0:
+                torch.cuda.memory_summary()
                 print("Optimizing inner")
                 optim.step()
                 optim.zero_grad()
@@ -496,6 +498,7 @@ def feature_alignment(**model_args):
                 import gc
                 gc.collect()
                 torch.cuda.empty_cache()
+                torch.cuda.memory_summary()
     
         if (count_t + 1) % accumulation_steps != 0:
             print("Optimizing outer")
