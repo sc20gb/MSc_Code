@@ -310,10 +310,14 @@ import torch
 
 def check_gpu_memory(context=""):
     if torch.cuda.is_available():
-        allocated = torch.cuda.memory_allocated()
-        reserved = torch.cuda.memory_reserved()
-        diff = reserved - allocated
-        print(f"[GPU MEMORY {context}]: allocated={allocated}, reserved={reserved}, diff={diff}, in MB={diff/1024/1024}, in GB={diff/1024/1024/1024}")
+        device = torch.cuda.current_device()
+        props = torch.cuda.get_device_properties(device)
+        total_mem = props.total_memory  # in bytes
+        reserved_mem = torch.cuda.memory_reserved()  # bytes reserved by the caching allocator
+        allocated_mem = torch.cuda.memory_allocated()  # bytes actually allocated for tensors
+        free_mem = total_mem - reserved_mem  # approximate free memory available for new allocations
+        print(f"[GPU MEMORY {context}]: allocated = {allocated_mem/1024/1024:.2f} MB, "
+              f"total = {total_mem/1024/1024:.2f} MB, free ≈ {free_mem/1024/1024:.2f} MB")
         torch.cuda.empty_cache()
 
 def feature_alignment(**model_args):
