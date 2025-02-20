@@ -6,7 +6,6 @@ import numpy as np
 from torch.utils.data import Dataset
 
 # TODO: To support use cases in the future where multple tensors are passed in the dataloader
-# TODO: Make the json file updatable and saved with each batch to save on ram for large datasets
 # TODO: Add support for checking if the whole dataset has been created or not. and if not then continue from where it left off
 class PreEmbeddingCreator:
     """Creates and saves embeddings for images using a given encoder."""
