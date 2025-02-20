@@ -195,8 +195,14 @@ def feature_aliginment_training(**model_args):
                 scheduler.step()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
-                # Explicitly delete temporary tensors if possible
-                del loss, output, answer_
+                # Detach the loss, output, and answer if not needed further
+                loss = loss.detach()
+                output = output.detach()
+                answer_ = answer_.detach()
+                # Optionally force synchronization then collect garbage
+                torch.cuda.synchronize()
+                import gc
+                gc.collect()
                 torch.cuda.empty_cache()
 
         if (count_t + 1) % accumulation_steps != 0:
@@ -468,8 +474,14 @@ def feature_alignment(**model_args):
                 scheduler.step()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
-                # Explicitly delete temporary tensors if possible
-                del loss, output, answer_
+                # Detach the loss, output, and answer if not needed further
+                loss = loss.detach()
+                output = output.detach()
+                answer_ = answer_.detach()
+                # Optionally force synchronization then collect garbage
+                torch.cuda.synchronize()
+                import gc
+                gc.collect()
                 torch.cuda.empty_cache()
     
         if (count_t + 1) % accumulation_steps != 0:
