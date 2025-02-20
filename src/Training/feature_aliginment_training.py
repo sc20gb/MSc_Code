@@ -186,6 +186,8 @@ def feature_aliginment_training(**model_args):
             metrics_training += metrics     
             count_t += 1
 
+            del output, answer_
+
             loss.backward()
             if count_t % accumulation_steps == 0:
                 optim.step()
@@ -193,6 +195,9 @@ def feature_aliginment_training(**model_args):
                 scheduler.step()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
+                # Explicitly delete temporary tensors if possible
+                del loss, output, answer_
+                torch.cuda.empty_cache()
 
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
@@ -386,9 +391,11 @@ def feature_alignment(**model_args):
         connector_llm.connector.load_state_dict(pre_trained_connector_dict)
 
     if train_LLM:
+        print("Training the connector and LLM")
         connector_llm.apply_lora(rank=lora_rank, dropout=lora_dropout, alpha=lora_alpha)
         optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr, weight_decay=weight_decay, eps=eps)
     else:
+        print("Training the connector only")
         connector_llm.llm.eval()
         optim = torch.optim.AdamW(connector_llm.connector.parameters(), lr=lr, weight_decay=weight_decay, eps=eps)
     
@@ -461,6 +468,9 @@ def feature_alignment(**model_args):
                 scheduler.step()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
+                # Explicitly delete temporary tensors if possible
+                del loss, output, answer_
+                torch.cuda.empty_cache()
     
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
