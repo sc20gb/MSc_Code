@@ -174,7 +174,7 @@ class Connector_LLM_With_Gen(nn.Module):
                 generation_config=self.llm.generation_config,
                 use_cache=False      # Disable caching
             )
-        generated_logits = outputs.generated_logits.requires_grad_(True)
+        generated_logits = outputs.generated_logits #.requires_grad_(True)
 
         # Compute loss with gradients only through connector path
         loss = self.llm.external_loss_function_for_gen(
