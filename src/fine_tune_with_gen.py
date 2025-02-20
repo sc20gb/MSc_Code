@@ -57,7 +57,7 @@ if __name__ == '__main__':
         "eps": 1e-8,
         "weight_decay": 0.01,
         "per_warm": 0.333,
-        "batch_size": 16,
+        "batch_size": 8,
         "vir_batch_size": 256,
         "rand_seed": 42,
         "use_half": False,
