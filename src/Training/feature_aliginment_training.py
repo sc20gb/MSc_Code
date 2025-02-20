@@ -316,30 +316,6 @@ def cross_val_train(para, n_splits=3, per_data=1.0):
     for (train, val) in zip(avg_list_training, avg_list_validate):
         wandb.log(wandb.log((train).get_log("training_") | (val).get_log("validate_")))
 
-
-import torch
-prev_allocated = 0
-def check_gpu_memory(context=""):
-    if torch.cuda.is_available():
-        device = torch.cuda.current_device()
-        props = torch.cuda.get_device_properties(device)
-        total_mem = props.total_memory  # in bytes
-        reserved_mem = torch.cuda.memory_reserved()  # bytes reserved by the caching allocator
-        allocated_mem = torch.cuda.memory_allocated()  # bytes actually allocated for tensors
-        free_mem = total_mem - reserved_mem  # approximate free memory available for new allocations
-
-        # Calculate change from previous call if available
-        if hasattr(check_gpu_memory, "prev_allocated"):
-            diff = allocated_mem - prev_allocated
-        else:
-            diff = 0
-        prev_allocated = allocated_mem
-
-        print(f"[GPU MEMORY {context}]: allocated = {allocated_mem/1024/1024:.2f} MB, "
-              f"total = {total_mem/1024/1024:.2f} MB, free ≈ {free_mem/1024/1024:.2f} MB "
-              f"(change: {diff/1024/1024:.2f} MB)")
-        torch.cuda.empty_cache()
-
 def feature_alignment(**model_args):
     required_keys = [
         'vicuna_path', 'connector_layers', 'embed_dim', 'version',
@@ -425,8 +401,6 @@ def feature_alignment(**model_args):
     scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps,
                                           num_training_steps=total_training_steps, training_step=training_step)
     
-
-    check_gpu_memory(context="Before Training")
     
     for epoch in range(1, MAX_EPOC + 1):
         metrics_training = Metrics()
@@ -444,16 +418,10 @@ def feature_alignment(**model_args):
     
         # training loop
         for batch in train_loader:
-            check_gpu_memory(context=f"Training {count_t}")
             embeddings = batch[0]
             if training_step == 1:
                 answers = batch[1]['batch_data']['data_1']
                 questions = ["Generate a caption for the image" for _ in answers]
-                # Accumulate caption lengths (using whitespace split as an example)
-                total_caption_length = sum(len(a.split()) for a in answers)
-                caption_count = len(answers)
-
-                print(total_caption_length/caption_count)
             else:
                 questions = batch[1]['batch_data']['data_2']
                 answers = batch[1]['batch_data']['data_3']
@@ -555,11 +523,9 @@ def feature_alignment(**model_args):
                       Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
         
         # Check and log GPU memory usage at the end of each epoch.
-        check_gpu_memory(context=f"Epoch {epoch}")
     
     state = connector_llm.connector.state_dict()
     # One final GPU memory check after training
-    check_gpu_memory(context="Final")
             
     return state
 
