@@ -464,12 +464,7 @@ def feature_alignment(**model_args):
         if (count_t + 1) % accumulation_steps != 0:
             optim.step()
             optim.zero_grad()
-            scheduler.step()
-
-        # Print the average caption length if training captions (training_step == 1)
-        if training_step == 1 and caption_count > 0:
-            avg_caption_length = total_caption_length / caption_count
-            print(f"Epoch {epoch}: Average caption length = {avg_caption_length:.2f} words")
+            scheduler.step()    
     
         connector_llm.eval()
         with torch.no_grad():
