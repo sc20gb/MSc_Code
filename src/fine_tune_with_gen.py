@@ -73,8 +73,8 @@ if __name__ == '__main__':
         },
         "save_dir": args.save_dir,
         # Explicit stage-specific batch sizes, memeory constraints may require different batch sizes for each stage
-        "general_batch_size": 256,
-        "general_vir_batch_size": 512,
+        "general_batch_size": 128,
+        "general_vir_batch_size": 256,
         "specific_batch_size": 4,
         "specific_vir_batch_size": 16
     }
