@@ -481,7 +481,7 @@ def feature_alignment(**model_args):
 
             loss.backward()
 
-            metrics = Metrics(loss.detach(), **calc_loss_and_metrics(
+            metrics = Metrics(loss.detach().to('cpu'), **calc_loss_and_metrics(
                 list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
             ))
 
