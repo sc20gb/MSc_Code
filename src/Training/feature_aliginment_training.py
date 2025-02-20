@@ -554,6 +554,9 @@ def multi_stage_feature_aliginment_training(**model_args):
     stage_params = model_args.get("stage_params", {})
     save_dir = model_args.get('save_dir', os.getcwd())
 
+    # Create a unique wandb run name using a timestamp.
+    unique_suffix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+
     for stage in stages:
         stage_args = model_args.copy()
         print(f"\n===== Starting Training Stage {stage} =====")
@@ -616,8 +619,6 @@ def multi_stage_feature_aliginment_training(**model_args):
 
         stage_args['save_dir'] = save_dir
 
-        # Create a unique wandb run name using a timestamp.
-        unique_suffix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         run_name = f"Stage_{stage}_{unique_suffix}"
 
         # Initialize a new wandb run for this stage.
