@@ -438,7 +438,7 @@ def feature_alignment(**model_args):
             connector_llm.connector.train()
     
         count_t = 0
-        count_v = 0
+        # Initialize counters for caption lengths if in caption training mode.
         optim.zero_grad()
     
         # training loop
@@ -448,6 +448,11 @@ def feature_alignment(**model_args):
             if training_step == 1:
                 answers = batch[1]['batch_data']['data_1']
                 questions = ["Generate a caption for the image" for _ in answers]
+                # Accumulate caption lengths (using whitespace split as an example)
+                total_caption_length = sum(len(a.split()) for a in answers)
+                caption_count = len(answers)
+
+                print(total_caption_length/caption_count)
             else:
                 questions = batch[1]['batch_data']['data_2']
                 answers = batch[1]['batch_data']['data_3']
@@ -476,6 +481,8 @@ def feature_alignment(**model_args):
             metrics_training += metrics     
             count_t += 1
     
+            del output, answer_
+    
             loss.backward()
             if count_t % accumulation_steps == 0:
                 print("Optimizing inner")
@@ -484,21 +491,22 @@ def feature_alignment(**model_args):
                 scheduler.step()
                 if connector_llm.llm.training:
                     connector_llm.llm.zero_grad()
-                # Detach the loss, output, and answer if not needed further
                 loss = loss.detach()
-                output = output.detach()
-                answer_ = answer_.detach()
-                # Optionally force synchronization then collect garbage
                 torch.cuda.synchronize()
                 import gc
                 gc.collect()
                 torch.cuda.empty_cache()
     
         if (count_t + 1) % accumulation_steps != 0:
-            print("Optimizing  outer")
+            print("Optimizing outer")
             optim.step()
             optim.zero_grad()
             scheduler.step()
+    
+        # Print the average caption length if training captions (training_step == 1)
+        if training_step == 1 and caption_count > 0:
+            avg_caption_length = total_caption_length / caption_count
+            print(f"Epoch {epoch}: Average caption length = {avg_caption_length:.2f} words")
     
         connector_llm.eval()
         with torch.no_grad():
