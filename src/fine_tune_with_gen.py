@@ -67,13 +67,13 @@ if __name__ == '__main__':
         "lora_dropout": 0.3,
         "lora_alpha": 32,
         "stage_params": {
-            1: {"lr": 0.001, "eps": 1e-8, "weight_decay": 0.01, "per_warm": 0.333, "MAX_EPOC": 20},
+            1: {"lr": 0.001, "eps": 1e-8, "weight_decay": 0.01, "per_warm": 0.333, "MAX_EPOC": 3},
             2: {"lr": 0.0005, "eps": 1e-9, "weight_decay": 0.005, "per_warm": 0.25, "MAX_EPOC": 5},
             3: {"lr": 0.0002, "eps": 1e-9, "weight_decay": 0.001, "per_warm": 0.2, "MAX_EPOC": 10}
         },
         "save_dir": args.save_dir,
         # Explicit stage-specific batch sizes, memeory constraints may require different batch sizes for each stage
-        "general_batch_size": 8,
+        "general_batch_size": 16,
         "general_vir_batch_size": 16,
         "specific_batch_size": 4,
         "specific_vir_batch_size": 16
