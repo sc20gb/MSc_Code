@@ -62,14 +62,14 @@ if __name__ == '__main__':
         "MAX_EPOC": 5,
         "cpu_only": False,
         "general_dataset": None,  # Required key for stage 1
-        "training_stages": [2, 3],
+        "training_stages": [1, 3],
         "hidden_layer_from_end": 1,
         "lora_rank": 4,
         "lora_dropout": 0.3,
         "lora_alpha": 32,
         "stage_params": {
             1: {"lr": 0.001, "eps": 1e-8, "weight_decay": 0.01, "per_warm": 0.333, "MAX_EPOC": 5},
-            #2: {"lr": 0.0005, "eps": 1e-9, "weight_decay": 0.005, "per_warm": 0.25, "MAX_EPOC": 5},
+            2: {"lr": 0.0005, "eps": 1e-9, "weight_decay": 0.005, "per_warm": 0.25, "MAX_EPOC": 5},
             3: {"lr": 0.0002, "eps": 1e-9, "weight_decay": 0.001, "per_warm": 0.2, "MAX_EPOC": 10}
         },
         "save_dir": args.save_dir,
