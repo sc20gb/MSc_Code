@@ -59,6 +59,7 @@ if __name__ == '__main__':
         "rand_seed": 42,
         "use_half": False,
         "save": True,
+        "MAX_EPOC": 5,
         "cpu_only": False,
         "general_dataset": None,  # Required key for stage 1
         "training_stages": [1, 2, 3],
