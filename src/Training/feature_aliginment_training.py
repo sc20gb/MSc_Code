@@ -526,7 +526,7 @@ def feature_alignment(**model_args):
     state = connector_llm.connector.state_dict()
     # One final GPU memory check after training
             
-    return state
+    return state, metrics_training, metrics_validate
 
 def multi_stage_feature_aliginment_training(**model_args):
     """
@@ -545,6 +545,8 @@ def multi_stage_feature_aliginment_training(**model_args):
     Additionally, each stage creates its own wandb run (project "TinyLLama_CLIP_3_stages")
     to log the metrics.
     """
+    metrics_training_list, metrics_validate_list = MetricsList(), MetricsList()
+
     if 'training_stages' not in model_args:
         raise KeyError("Missing required key: 'training_stages'")
     stages = model_args['training_stages']
@@ -578,7 +580,6 @@ def multi_stage_feature_aliginment_training(**model_args):
             stage_args['pre_trained_connector_dict'] = None  # Always start from scratch.
             stage_args['version'] = f"{base_version}_stage1"
             stage_args['train_LLM'] = False
-            # Override batch sizes for general data if provided.
             if "general_batch_size" in stage_args:
                 stage_args["batch_size"] = stage_args["general_batch_size"]
             if "general_vir_batch_size" in stage_args:
@@ -594,7 +595,6 @@ def multi_stage_feature_aliginment_training(**model_args):
             stage_args['pre_trained_connector_dict'] = latest_checkpoint
             stage_args['version'] = f"{base_version}_stage2"
             stage_args['train_LLM'] = False
-            # Override batch sizes for specific data if provided.
             if "specific_batch_size" in stage_args:
                 stage_args["batch_size"] = stage_args["specific_batch_size"]
             if "specific_vir_batch_size" in stage_args:
@@ -610,7 +610,6 @@ def multi_stage_feature_aliginment_training(**model_args):
             stage_args['pre_trained_connector_dict'] = latest_checkpoint
             stage_args['version'] = f"{base_version}_stage3"
             stage_args['train_LLM'] = True
-            # Override batch sizes for specific data if provided.
             if "specific_batch_size" in stage_args:
                 stage_args["batch_size"] = stage_args["specific_batch_size"]
             if "specific_vir_batch_size" in stage_args:
@@ -620,19 +619,153 @@ def multi_stage_feature_aliginment_training(**model_args):
             raise ValueError(f"Unsupported stage: {stage}")
 
         stage_args['save_dir'] = save_dir
-
         run_name = f"Stage_{stage}_{unique_suffix}"
-
-        # Initialize a new wandb run for this stage.
         wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args, name=run_name)
 
         # Run training for the current stage.
-        latest_checkpoint = feature_alignment(**stage_args)
+        latest_checkpoint, metrics_training, metrics_validate = feature_alignment(**stage_args)
+
+        # here: Concatenate the stage metric lists to the global lists.
+        metrics_training_list.extend(metrics_training)
+        metrics_validate_list.extend(metrics_validate)
 
         print(f"Stage {stage} completed with VERSION: {stage_args['version']}")
-
-        # Finish the wandb run after training.
         wandb.finish()
 
     print("\n===== Multi-Stage Training Completed =====")
-    return 0
+    return metrics_training_list, metrics_validate_list
+
+# TODO: soort out how to handle WandbAI with this function
+def cross_val_multi_stage_feature_alignment(para, n_splits=3, per_data=1.0):
+    """
+    Performs k-fold cross validation for multi-stage feature alignment using
+    separate combined dataloaders for general and specific data.
+    
+    The function assumes that para contains:
+      - "general_train_dataloader" and "general_val_dataloader"
+      - "specific_train_dataloader" and "specific_val_dataloader"
+    
+    These dataloaders’ underlying datasets are combined into one general dataset
+    and one specific dataset (separately). Each is split via k-fold. For each fold,
+    new DataLoaders are created and injected into multi_stage_feature_aliginment_training.
+    
+    This function then aggregates the metric lists returned for each fold and computes
+    the average final scores.
+    
+    Args:
+        para (dict): Parameters including dataloaders and training configuration.
+        n_splits (int): Number of folds.
+        per_data (float): Fraction of the combined dataset to use.
+        
+    Returns:
+        tuple: (avg_training_list, avg_validate_list) where each is the averaged MetricsList.
+    """
+    from torch.utils.data import ConcatDataset, random_split, DataLoader, Subset
+    from sklearn.model_selection import KFold
+    import torch
+
+    # Check that required dataloader keys exist.
+    for key in ["general_train_dataloader", "general_val_dataloader", 
+                "specific_train_dataloader", "specific_val_dataloader"]:
+        if key not in para:
+            raise KeyError(f"Parameter dictionary must include key: {key}")
+
+    # Combine the underlying datasets separately for general and specific channels.
+    general_dataset = ConcatDataset([
+        para["general_train_dataloader"].dataset,
+        para["general_val_dataloader"].dataset
+    ])
+    specific_dataset = ConcatDataset([
+        para["specific_train_dataloader"].dataset,
+        para["specific_val_dataloader"].dataset
+    ])
+    
+    # Optionally reduce dataset sizes.
+    if per_data != 1.0:
+        total_gen = len(general_dataset)
+        new_size_gen = int(per_data * total_gen)
+        _, general_dataset = random_split(
+            general_dataset, [total_gen - new_size_gen, new_size_gen],
+            generator=torch.Generator().manual_seed(para["rand_seed"])
+        )
+        total_spec = len(specific_dataset)
+        new_size_spec = int(per_data * total_spec)
+        _, specific_dataset = random_split(
+            specific_dataset, [total_spec - new_size_spec, new_size_spec],
+            generator=torch.Generator().manual_seed(para["rand_seed"])
+        )
+    
+    # Create separate KFold splits for general and specific datasets.
+    kf_general = KFold(n_splits=n_splits, shuffle=True, random_state=para["rand_seed"])
+    kf_specific = KFold(n_splits=n_splits, shuffle=True, random_state=para["rand_seed"])
+    
+    general_indices = list(kf_general.split(range(len(general_dataset))))
+    specific_indices = list(kf_specific.split(range(len(specific_dataset))))
+    
+    # Prepare empty MetricsList objects for accumulation.
+    summed_training = MetricsList()
+    summed_validate = MetricsList()
+    
+    for fold in range(n_splits):
+        print(f"\n===== Fold {fold + 1}/{n_splits} =====")
+        
+        # For general data.
+        gen_train_idx, gen_val_idx = general_indices[fold]
+        general_train_subset = Subset(general_dataset, gen_train_idx)
+        general_val_subset = Subset(general_dataset, gen_val_idx)
+        general_train_loader = DataLoader(
+            general_train_subset,
+            batch_size=para["batch_size"],
+            shuffle=True,
+            generator=torch.Generator().manual_seed(para["rand_seed"]),
+            num_workers=1, prefetch_factor=1, pin_memory=False
+        )
+        general_val_loader = DataLoader(
+            general_val_subset,
+            batch_size=para["batch_size"],
+            shuffle=False,
+            num_workers=1, prefetch_factor=1, pin_memory=False
+        )
+        
+        # For specific data.
+        spec_train_idx, spec_val_idx = specific_indices[fold]
+        specific_train_subset = Subset(specific_dataset, spec_train_idx)
+        specific_val_subset = Subset(specific_dataset, spec_val_idx)
+        specific_train_loader = DataLoader(
+            specific_train_subset,
+            batch_size=para["batch_size"],
+            shuffle=True,
+            generator=torch.Generator().manual_seed(para["rand_seed"]),
+            num_workers=1, prefetch_factor=1, pin_memory=False
+        )
+        specific_val_loader = DataLoader(
+            specific_val_subset,
+            batch_size=para["batch_size"],
+            shuffle=False,
+            num_workers=1, prefetch_factor=1, pin_memory=False
+        )
+        
+        # Prepare a per-fold copy of parameters and inject the new DataLoaders.
+        fold_args = para.copy()
+        fold_args["general_train_dataloader"] = general_train_loader
+        fold_args["general_val_dataloader"] = general_val_loader
+        fold_args["specific_train_dataloader"] = specific_train_loader
+        fold_args["specific_val_dataloader"] = specific_val_loader
+        
+        # Run multi-stage training for this fold.
+        fold_training, fold_validate = multi_stage_feature_aliginment_training(**fold_args)
+        
+        # Concatenate (extend) the per-fold metric lists into the summed lists.
+        if len(summed_training) == 0:
+            summed_training = fold_training
+            summed_validate = fold_validate
+        else:
+            summed_training += fold_training
+            summed_validate += fold_validate
+        
+    # Average the results over the number of folds.
+    avg_training = summed_training / n_splits
+    avg_validate = summed_validate / n_splits
+    
+    print("\n===== Cross Validation Completed =====")
+    return avg_training, avg_validate
