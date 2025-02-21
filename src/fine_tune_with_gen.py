@@ -75,7 +75,7 @@ if __name__ == '__main__':
         # Explicit stage-specific batch sizes, memeory constraints may require different batch sizes for each stage
         "general_batch_size": 16,
         "general_vir_batch_size": 16,
-        "specific_batch_size": 4,
+        "specific_batch_size": 16,
         "specific_vir_batch_size": 16
     }
     
