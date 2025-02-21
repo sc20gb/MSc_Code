@@ -152,7 +152,6 @@ class Connector_LLM_With_Gen(nn.Module):
 
     def are_all_llm_params_frozen(self):
         return all(param.requires_grad == False for param in self.llm.parameters())
-
     
     def forward(self, image_embeddings, question, answer):
         # Convert to half precision if needed
