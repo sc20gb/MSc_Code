@@ -383,9 +383,11 @@ def feature_alignment(**model_args):
         print("Loading the connector MLP using provided state dict")
         connector_llm.connector.load_state_dict(pre_trained_connector_dict)
 
+
+    connector_llm.apply_lora(rank=lora_rank, dropout=lora_dropout, alpha=lora_alpha)
+
     if train_LLM:
         print("Training the connector and LLM")
-        connector_llm.apply_lora(rank=lora_rank, dropout=lora_dropout, alpha=lora_alpha)
         optim = torch.optim.AdamW(connector_llm.parameters(), lr=lr, weight_decay=weight_decay, eps=eps)
     else:
         print("Training the connector only")
