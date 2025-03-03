@@ -405,7 +405,8 @@ def feature_alignment(**model_args):
     scheduler = CustomSchedulerWithWarmup(optim, num_warmup_steps=num_warmup_steps,
                                           num_training_steps=total_training_steps, training_step=training_step)
     
-    
+    metrics_train_list = MetricsList()
+    metrics_val_liast = MetricsList()
     for epoch in range(1, MAX_EPOC + 1):
         metrics_training = Metrics()
         metrics_validate = Metrics()
@@ -517,6 +518,8 @@ def feature_alignment(**model_args):
         if count_v and count_t:
             wandb.log((metrics_training/count_t).get_log("training_") |
                       (metrics_validate/count_v).get_log("validate_"))
+            metrics_train_list.append(metrics_training / count_t)
+            metrics_val_liast.append(metrics_validate / count_v)
         else:
             wandb.log(Metrics(-1, -1, -1, -1, -1, -1).get_log("training_") |
                       Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
@@ -526,7 +529,7 @@ def feature_alignment(**model_args):
     state = connector_llm.connector.state_dict()
     # One final GPU memory check after training
             
-    return state, metrics_training, metrics_validate
+    return state, metrics_train_list, metrics_val_list
 
 def multi_stage_feature_aliginment_training(**model_args):
     """
