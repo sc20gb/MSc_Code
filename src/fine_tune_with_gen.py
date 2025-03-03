@@ -77,7 +77,8 @@ if __name__ == '__main__':
         "general_batch_size": 16,
         "general_vir_batch_size": 16,
         "specific_batch_size": 16,
-        "specific_vir_batch_size": 16
+        "specific_vir_batch_size": 16,
+        "regulisation_constant": 0.1,
     }
     
     # ########### Loading Data: ###########

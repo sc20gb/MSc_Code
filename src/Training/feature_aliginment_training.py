@@ -1,5 +1,5 @@
 from utils.device_handler import handle_devices
-from Model_Defs.connector_LLM_with_gen import Connector_LLM_With_Gen
+from Model_Defs.connector_LLM_with_gen_reg import Connector_LLM_With_Gen_Reg
 from utils.model_loaders import load_image_encoder
 from utils.half import handle_half_for_layer_Norm
 from utils.scheduer import CustomSchedulerWithWarmup
@@ -323,7 +323,7 @@ def feature_alignment(**model_args):
         'vicuna_path', 'connector_layers', 'embed_dim', 'version',
         'lr', 'eps', 'weight_decay', 'per_warm', 'batch_size', 'vir_batch_size', 'rand_seed',
         'MAX_EPOC', 'pre_trained_connector_dict', 'lora_rank', 'lora_dropout', 'lora_alpha',
-        'hidden_layer_from_end', 'training_step', 'use_half','train_LLM'
+        'hidden_layer_from_end', 'training_step', 'use_half','train_LLM','regulisation_constant'
     ]
     missing = [key for key in required_keys if key not in model_args]
     if missing:
@@ -358,15 +358,17 @@ def feature_alignment(**model_args):
     training_step = model_args['training_step']
     use_half = model_args['use_half']
     train_LLM = model_args['train_LLM']
+    regulisation_constant = model_args['regulisation_constant']
 
     accumulation_steps = vir_batch_size // batch_size
 
     # Load connector and LLM model
-    connector_llm = Connector_LLM_With_Gen(
+    connector_llm = Connector_LLM_With_Gen_Reg(
         image_emded_dim=embed_dim,
         llm_path=vicuna_path,
         connector_layers=connector_layers,
-        device=device_llm
+        device=device_llm,
+        regularisation_constant=regulisation_constant
     )
     
 
