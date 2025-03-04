@@ -62,7 +62,7 @@ if __name__ == '__main__':
         "MAX_EPOC": 5,
         "cpu_only": False,
         "general_dataset": None,  # Required key for stage 1
-        "training_stages": [1, 3],
+        "training_stages": [2, 3],
         "hidden_layer_from_end": 1,
         "lora_rank": 4,
         "lora_dropout": 0.3,
@@ -167,5 +167,10 @@ if __name__ == '__main__':
 
     # ########### Training: ###########
     # Run the multi-stage training.
-    latest_ckpt = multi_stage_feature_aliginment_training(**params)
-    print("Multi-stage training finished. Latest checkpoint:", latest_ckpt)
+
+    regulisation_constants = [0.0,0.2,0.4,0.6,0.8,1.0,1.2]
+    for const in regulisation_constants:
+        params["regulisation_constant"] = const
+        print("Multi-stage training starting. For regulisation_constant ", const, ":")
+        latest_ckpt = multi_stage_feature_aliginment_training(**params)
+        print("Multi-stage training finished. Latest checkpoint:", latest_ckpt)
