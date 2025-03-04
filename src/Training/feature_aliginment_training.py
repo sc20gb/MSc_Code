@@ -440,7 +440,7 @@ def feature_alignment(**model_args):
                 truncation=True,
                 return_tensors='pt',
                 add_special_tokens=True
-            ).input.ids.to(device_llm)[:, 1:]
+            ).input_ids.to(device_llm)[:, 1:]
     
             eos_tensor = torch.full(
                 (answer_.size(0), 1),
@@ -491,7 +491,7 @@ def feature_alignment(**model_args):
                     truncation=True,
                     return_tensors='pt',
                     add_special_tokens=True
-                ).input.ids.to(device_llm)[:, 1:]
+                ).input_ids.to(device_llm)[:, 1:]
     
                 eos_tensor = torch.full(
                     (answer_.size(0), 1),
