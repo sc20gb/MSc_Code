@@ -26,7 +26,7 @@ def print_memory_usage():
 # TODO: Apply this to just the first stage or the second
 class Connector_LLM_With_Gen_Reg(nn.Module):
     def __init__(self, image_emded_dim, device, connector_layers,llm_path,seed=42,max_length=100,regularisation_constant=1.0):
-        super(Connector_LLM_With_Gen, self).__init__()
+        super(Connector_LLM_With_Gen_Reg, self).__init__()
 
         self.image_emded_dim = image_emded_dim
         self.device = device 
@@ -67,11 +67,11 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
             bpro_layers = []
             input_dim = self.llm_hidden_size
             for _ in range(connector_layers - 1):
-                fpro_layers.append(nn.Linear(input_dim, self.llm_hidden_size))
-                fpro_layers.append(nn.GELU())
+                bpro_layers.append(nn.Linear(input_dim, self.llm_hidden_size))
+                bpro_layers.append(nn.GELU())
                 input_dim = self.llm_hidden_size
-            fpro_layers.append(nn.Linear(self.llm_hidden_size, self.input_dim))
-            self.bprojection = nn.Sequential(*fpro_layers).to(device)
+            bpro_layers.append(nn.Linear(self.llm_hidden_size, self.input_dim))
+            self.bprojection = nn.Sequential(*bpro_layers).to(device)
 
 
         self._initialize_weights(seed)
