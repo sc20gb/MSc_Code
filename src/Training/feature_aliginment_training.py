@@ -798,4 +798,3 @@ def cross_val_multi_stage_training(para, n_splits=3):
     wandb.finish()
     
     return avg_training_metrics, avg_validation_metrics
-```
