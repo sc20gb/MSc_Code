@@ -22,6 +22,8 @@ def print_memory_usage():
     print(f"Memory cuda: {torch.cuda.memory_allocated() / 1e6} MB")
     print(f"CPU Memory Usage - VMS: {cpu_memory_vms:.2f} GB")
 
+
+# TODO: Apply this to just the first stage or the second
 class Connector_LLM_With_Gen_Reg(nn.Module):
     def __init__(self, image_emded_dim, device, connector_layers,llm_path,seed=42,max_length=100,regularisation_constant=1.0):
         super(Connector_LLM_With_Gen, self).__init__()
@@ -218,7 +220,6 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
         
         return outputs.sequences, loss
     
-
     #loads the connector from a file 
     def load_connector(self,pre_trained_connector_path):
         state_dict = torch.load(pre_trained_connector_path)
