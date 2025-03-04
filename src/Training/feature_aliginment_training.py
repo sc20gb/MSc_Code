@@ -440,7 +440,7 @@ def feature_alignment(**model_args):
                 truncation=True,
                 return_tensors='pt',
                 add_special_tokens=True
-            ).input_ids.to(device_llm)[:, 1:]
+            ).input.ids.to(device_llm)[:, 1:]
     
             eos_tensor = torch.full(
                 (answer_.size(0), 1),
@@ -649,6 +649,7 @@ def multi_stage_feature_aliginment_training(**model_args):
 def cross_val_multi_stage_training(para, n_splits=3):
     """
     Performs k-fold cross validation for multi-stage feature alignment training.
+    Works with pre-created dataloaders instead of datasets.
     
     Args:
         para (dict): Training parameters dictionary
@@ -666,34 +667,39 @@ def cross_val_multi_stage_training(para, n_splits=3):
     
     stages = para['training_stages']
     
-    # Check for required datasets based on stages
-    general_dataset = specific_dataset = None
-    general_val_dataset = specific_val_dataset = None
-    
-    # Get datasets and combine training with validation for cross-validation
+    # Check for required dataloaders based on stages
     if 1 in stages:
-        if 'general_dataset' not in para:
-            raise KeyError("Stage 1 requires 'general_dataset'")
-        general_dataset = para['general_dataset']
-        # Get validation dataset if provided
-        general_val_dataset = para.get('general_val_dataset')
-        if general_val_dataset:
-            print(f"Combining general training dataset ({len(general_dataset)} samples) with validation dataset ({len(general_val_dataset)} samples) for cross-validation")
-            from torch.utils.data import ConcatDataset
-            general_dataset = ConcatDataset([general_dataset, general_val_dataset])
-            print(f"Combined general dataset size: {len(general_dataset)}")
+        if 'general_train_dataloader' not in para:
+            raise KeyError("Stage 1 requires 'general_train_dataloader'")
     
     if 2 in stages or 3 in stages:
-        if 'specific_dataset' not in para:
-            raise KeyError(f"Stages 2 or 3 require 'specific_dataset'")
-        specific_dataset = para['specific_dataset']
-        # Get validation dataset if provided
-        specific_val_dataset = para.get('specific_val_dataset')
-        if specific_val_dataset:
-            print(f"Combining specific training dataset ({len(specific_dataset)} samples) with validation dataset ({len(specific_val_dataset)} samples) for cross-validation")
-            from torch.utils.data import ConcatDataset
-            specific_dataset = ConcatDataset([specific_dataset, specific_val_dataset])
-            print(f"Combined specific dataset size: {len(specific_dataset)}")
+        if 'specific_train_dataloader' not in para:
+            raise KeyError(f"Stages 2 or 3 require 'specific_train_dataloader'")
+    
+    # Get the datasets from dataloaders for cross-validation
+    from torch.utils.data import ConcatDataset, DataLoader, Subset
+    
+    # Extract datasets from dataloaders
+    general_dataset = None
+    specific_dataset = None
+    
+    if 1 in stages:
+        general_train_dataset = para['general_train_dataloader'].dataset
+        if 'general_val_dataloader' in para and para['general_val_dataloader'] is not None:
+            general_val_dataset = para['general_val_dataloader'].dataset
+            general_dataset = ConcatDataset([general_train_dataset, general_val_dataset])
+            print(f"Combined general dataset: training ({len(general_train_dataset)}) + validation ({len(general_val_dataset)}) = {len(general_dataset)}")
+        else:
+            general_dataset = general_train_dataset
+    
+    if 2 in stages or 3 in stages:
+        specific_train_dataset = para['specific_train_dataloader'].dataset
+        if 'specific_val_dataloader' in para and para['specific_val_dataloader'] is not None:
+            specific_val_dataset = para['specific_val_dataloader'].dataset
+            specific_dataset = ConcatDataset([specific_train_dataset, specific_val_dataset])
+            print(f"Combined specific dataset: training ({len(specific_train_dataset)}) + validation ({len(specific_val_dataset)}) = {len(specific_dataset)}")
+        else:
+            specific_dataset = specific_train_dataset
     
     # Setup KFold cross-validation
     kfold = KFold(n_splits=n_splits, shuffle=True, random_state=para.get("rand_seed", 42))
@@ -702,7 +708,7 @@ def cross_val_multi_stage_training(para, n_splits=3):
     all_training_metrics = MetricsList()
     all_validation_metrics = MetricsList()
     
-    # Generate fold indices for the combined datasets
+    # Generate fold indices
     if general_dataset:
         general_indices = list(range(len(general_dataset)))
         general_folds = list(kfold.split(general_indices))
@@ -722,7 +728,7 @@ def cross_val_multi_stage_training(para, n_splits=3):
         fold_para = para.copy()
         fold_para['version'] = f"{para.get('version', 'default')}_fold{fold+1}"
         
-        # Setup dataloaders for this fold from the combined datasets
+        # Setup dataloaders for this fold
         if general_dataset:
             train_idx, val_idx = general_folds[fold]
             
@@ -735,7 +741,6 @@ def cross_val_multi_stage_training(para, n_splits=3):
                 general_train_subset, 
                 batch_size=para.get("general_batch_size", para.get("batch_size", 32)), 
                 shuffle=True, 
-                generator=torch.Generator().manual_seed(para.get("rand_seed", 42)),
                 num_workers=para.get("num_workers", 1),
                 pin_memory=para.get("pin_memory", False)
             )
@@ -759,7 +764,6 @@ def cross_val_multi_stage_training(para, n_splits=3):
                 specific_train_subset, 
                 batch_size=para.get("specific_batch_size", para.get("batch_size", 32)), 
                 shuffle=True, 
-                generator=torch.Generator().manual_seed(para.get("rand_seed", 42)),
                 num_workers=para.get("num_workers", 1),
                 pin_memory=para.get("pin_memory", False)
             )
@@ -794,3 +798,4 @@ def cross_val_multi_stage_training(para, n_splits=3):
     wandb.finish()
     
     return avg_training_metrics, avg_validation_metrics
+```
