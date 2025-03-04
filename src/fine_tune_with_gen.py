@@ -173,5 +173,5 @@ if __name__ == '__main__':
     for const in regulisation_constants:
         params["regulisation_constant"] = const
         print("Multi-stage training starting. For regulisation_constant ", const, ":")
-        avg_training_metrics, avg_validation_metrics =  cross_val_multi_stage_training(**params, n_splits=3)
+        avg_training_metrics, avg_validation_metrics =  cross_val_multi_stage_training(params, n_splits=3)
         print("Multi-stage training finished. For regulisation_constant ", const)
