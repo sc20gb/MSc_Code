@@ -172,5 +172,5 @@ if __name__ == '__main__':
     for const in regulisation_constants:
         params["regulisation_constant"] = const
         print("Multi-stage training starting. For regulisation_constant ", const, ":")
-        latest_ckpt = multi_stage_feature_aliginment_training(**params)
+        multi_stage_feature_aliginment_training(**params)
         print("Multi-stage training finished. Latest checkpoint:", latest_ckpt)
