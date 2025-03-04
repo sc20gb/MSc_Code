@@ -490,7 +490,7 @@ def feature_alignment(**model_args):
                     truncation=True,
                     return_tensors='pt',
                     add_special_tokens=True
-                ).input_ids.to(device_llm)[:, 1:]
+                ).input.ids.to(device_llm)[:, 1:]
     
                 eos_tensor = torch.full(
                     (answer_.size(0), 1),
@@ -640,137 +640,149 @@ def multi_stage_feature_aliginment_training(**model_args):
     print("\n===== Multi-Stage Training Completed =====")
     return metrics_training_list, metrics_validate_list
 
-# TODO: soort out how to handle WandbAI with this function
-def cross_val_multi_stage_feature_alignment(para, n_splits=3, per_data=1.0):
+def cross_val_multi_stage_training(para, n_splits=3):
     """
-    Performs k-fold cross validation for multi-stage feature alignment using
-    separate combined dataloaders for general and specific data.
-    
-    The function assumes that para contains:
-      - "general_train_dataloader" and "general_val_dataloader"
-      - "specific_train_dataloader" and "specific_val_dataloader"
-    
-    These dataloaders’ underlying datasets are combined into one general dataset
-    and one specific dataset (separately). Each is split via k-fold. For each fold,
-    new DataLoaders are created and injected into multi_stage_feature_aliginment_training.
-    
-    This function then aggregates the metric lists returned for each fold and computes
-    the average final scores.
+    Performs k-fold cross validation for multi-stage feature alignment training.
     
     Args:
-        para (dict): Parameters including dataloaders and training configuration.
-        n_splits (int): Number of folds.
-        per_data (float): Fraction of the combined dataset to use.
+        para (dict): Training parameters dictionary
+        n_splits (int): Number of folds for cross-validation
         
     Returns:
-        tuple: (avg_training_list, avg_validate_list) where each is the averaged MetricsList.
+        tuple: (avg_training_metrics, avg_validation_metrics) - Average metrics across all folds
     """
-    from torch.utils.data import ConcatDataset, random_split, DataLoader, Subset
-    from sklearn.model_selection import KFold
-    import torch
-
-    # Check that required dataloader keys exist.
-    for key in ["general_train_dataloader", "general_val_dataloader", 
-                "specific_train_dataloader", "specific_val_dataloader"]:
-        if key not in para:
-            raise KeyError(f"Parameter dictionary must include key: {key}")
-
-    # Combine the underlying datasets separately for general and specific channels.
-    general_dataset = ConcatDataset([
-        para["general_train_dataloader"].dataset,
-        para["general_val_dataloader"].dataset
-    ])
-    specific_dataset = ConcatDataset([
-        para["specific_train_dataloader"].dataset,
-        para["specific_val_dataloader"].dataset
-    ])
+    # Check required parameters
+    if 'training_stages' not in para:
+        raise KeyError("Missing required key: 'training_stages'")
     
-    # Optionally reduce dataset sizes.
-    if per_data != 1.0:
-        total_gen = len(general_dataset)
-        new_size_gen = int(per_data * total_gen)
-        _, general_dataset = random_split(
-            general_dataset, [total_gen - new_size_gen, new_size_gen],
-            generator=torch.Generator().manual_seed(para["rand_seed"])
-        )
-        total_spec = len(specific_dataset)
-        new_size_spec = int(per_data * total_spec)
-        _, specific_dataset = random_split(
-            specific_dataset, [total_spec - new_size_spec, new_size_spec],
-            generator=torch.Generator().manual_seed(para["rand_seed"])
-        )
+    stages = para['training_stages']
     
-    # Create separate KFold splits for general and specific datasets.
-    kf_general = KFold(n_splits=n_splits, shuffle=True, random_state=para["rand_seed"])
-    kf_specific = KFold(n_splits=n_splits, shuffle=True, random_state=para["rand_seed"])
+    # Check for required datasets based on stages
+    general_dataset = specific_dataset = None
+    general_val_dataset = specific_val_dataset = None
     
-    general_indices = list(kf_general.split(range(len(general_dataset))))
-    specific_indices = list(kf_specific.split(range(len(specific_dataset))))
+    # Get datasets and combine training with validation for cross-validation
+    if 1 in stages:
+        if 'general_dataset' not in para:
+            raise KeyError("Stage 1 requires 'general_dataset'")
+        general_dataset = para['general_dataset']
+        # Get validation dataset if provided
+        general_val_dataset = para.get('general_val_dataset')
+        if general_val_dataset:
+            print(f"Combining general training dataset ({len(general_dataset)} samples) with validation dataset ({len(general_val_dataset)} samples) for cross-validation")
+            from torch.utils.data import ConcatDataset
+            general_dataset = ConcatDataset([general_dataset, general_val_dataset])
+            print(f"Combined general dataset size: {len(general_dataset)}")
     
-    # Prepare empty MetricsList objects for accumulation.
-    summed_training = MetricsList()
-    summed_validate = MetricsList()
+    if 2 in stages or 3 in stages:
+        if 'specific_dataset' not in para:
+            raise KeyError(f"Stages 2 or 3 require 'specific_dataset'")
+        specific_dataset = para['specific_dataset']
+        # Get validation dataset if provided
+        specific_val_dataset = para.get('specific_val_dataset')
+        if specific_val_dataset:
+            print(f"Combining specific training dataset ({len(specific_dataset)} samples) with validation dataset ({len(specific_val_dataset)} samples) for cross-validation")
+            from torch.utils.data import ConcatDataset
+            specific_dataset = ConcatDataset([specific_dataset, specific_val_dataset])
+            print(f"Combined specific dataset size: {len(specific_dataset)}")
     
+    # Setup KFold cross-validation
+    kfold = KFold(n_splits=n_splits, shuffle=True, random_state=para.get("rand_seed", 42))
+    
+    # Metrics collection
+    all_training_metrics = MetricsList()
+    all_validation_metrics = MetricsList()
+    
+    # Generate fold indices for the combined datasets
+    if general_dataset:
+        general_indices = list(range(len(general_dataset)))
+        general_folds = list(kfold.split(general_indices))
+    
+    if specific_dataset:
+        specific_indices = list(range(len(specific_dataset)))
+        specific_folds = list(kfold.split(specific_indices))
+    
+    # Create a unique run ID for this cross-validation session
+    unique_suffix = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Run training for each fold
     for fold in range(n_splits):
-        print(f"\n===== Fold {fold + 1}/{n_splits} =====")
+        print(f"\n===== Starting Fold {fold+1}/{n_splits} =====")
         
-        # For general data.
-        gen_train_idx, gen_val_idx = general_indices[fold]
-        general_train_subset = Subset(general_dataset, gen_train_idx)
-        general_val_subset = Subset(general_dataset, gen_val_idx)
-        general_train_loader = DataLoader(
-            general_train_subset,
-            batch_size=para["batch_size"],
-            shuffle=True,
-            generator=torch.Generator().manual_seed(para["rand_seed"]),
-            num_workers=1, prefetch_factor=1, pin_memory=False
-        )
-        general_val_loader = DataLoader(
-            general_val_subset,
-            batch_size=para["batch_size"],
-            shuffle=False,
-            num_workers=1, prefetch_factor=1, pin_memory=False
-        )
+        # Create fold-specific parameters
+        fold_para = para.copy()
+        fold_para['version'] = f"{para.get('version', 'default')}_fold{fold+1}"
         
-        # For specific data.
-        spec_train_idx, spec_val_idx = specific_indices[fold]
-        specific_train_subset = Subset(specific_dataset, spec_train_idx)
-        specific_val_subset = Subset(specific_dataset, spec_val_idx)
-        specific_train_loader = DataLoader(
-            specific_train_subset,
-            batch_size=para["batch_size"],
-            shuffle=True,
-            generator=torch.Generator().manual_seed(para["rand_seed"]),
-            num_workers=1, prefetch_factor=1, pin_memory=False
-        )
-        specific_val_loader = DataLoader(
-            specific_val_subset,
-            batch_size=para["batch_size"],
-            shuffle=False,
-            num_workers=1, prefetch_factor=1, pin_memory=False
-        )
+        # Setup dataloaders for this fold from the combined datasets
+        if general_dataset:
+            train_idx, val_idx = general_folds[fold]
+            
+            general_train_subset = Subset(general_dataset, train_idx)
+            general_val_subset = Subset(general_dataset, val_idx)
+            
+            print(f"General dataset fold {fold+1}: {len(train_idx)} training samples, {len(val_idx)} validation samples")
+            
+            fold_para['general_train_dataloader'] = DataLoader(
+                general_train_subset, 
+                batch_size=para.get("general_batch_size", para.get("batch_size", 32)), 
+                shuffle=True, 
+                generator=torch.Generator().manual_seed(para.get("rand_seed", 42)),
+                num_workers=para.get("num_workers", 1),
+                pin_memory=para.get("pin_memory", False)
+            )
+            
+            fold_para['general_val_dataloader'] = DataLoader(
+                general_val_subset, 
+                batch_size=para.get("general_batch_size", para.get("batch_size", 32)),
+                num_workers=para.get("num_workers", 1),
+                pin_memory=para.get("pin_memory", False)
+            )
         
-        # Prepare a per-fold copy of parameters and inject the new DataLoaders.
-        fold_args = para.copy()
-        fold_args["general_train_dataloader"] = general_train_loader
-        fold_args["general_val_dataloader"] = general_val_loader
-        fold_args["specific_train_dataloader"] = specific_train_loader
-        fold_args["specific_val_dataloader"] = specific_val_loader
+        if specific_dataset:
+            train_idx, val_idx = specific_folds[fold]
+            
+            specific_train_subset = Subset(specific_dataset, train_idx)
+            specific_val_subset = Subset(specific_dataset, val_idx)
+            
+            print(f"Specific dataset fold {fold+1}: {len(train_idx)} training samples, {len(val_idx)} validation samples")
+            
+            fold_para['specific_train_dataloader'] = DataLoader(
+                specific_train_subset, 
+                batch_size=para.get("specific_batch_size", para.get("batch_size", 32)), 
+                shuffle=True, 
+                generator=torch.Generator().manual_seed(para.get("rand_seed", 42)),
+                num_workers=para.get("num_workers", 1),
+                pin_memory=para.get("pin_memory", False)
+            )
+            
+            fold_para['specific_val_dataloader'] = DataLoader(
+                specific_val_subset, 
+                batch_size=para.get("specific_batch_size", para.get("batch_size", 32)),
+                num_workers=para.get("num_workers", 1),
+                pin_memory=para.get("pin_memory", False)
+            )
         
-        # Run multi-stage training for this fold.
-        fold_training, fold_validate = multi_stage_feature_aliginment_training(**fold_args)
+        # Run the multi-stage training for this fold
+        print(f"Starting multi-stage training for fold {fold+1}")
+        metrics_training, metrics_validate = multi_stage_feature_aliginment_training(**fold_para)
         
-        # Concatenate (extend) the per-fold metric lists into the summed lists.
-        if len(summed_training) == 0:
-            summed_training = fold_training
-            summed_validate = fold_validate
+        # Accumulate metrics
+        if len(all_training_metrics) == 0:  # First fold
+            all_training_metrics = metrics_training
+            all_validation_metrics = metrics_validate
         else:
-            summed_training += fold_training
-            summed_validate += fold_validate
-        
-    # Average the results over the number of folds.
-    avg_training = summed_training / n_splits
-    avg_validate = summed_validate / n_splits
+            all_training_metrics += metrics_training
+            all_validation_metrics += metrics_validate
     
-    print("\n===== Cross Validation Completed =====")
-    return avg_training, avg_validate
+    # Calculate average metrics across all folds
+    avg_training_metrics = all_training_metrics / n_splits
+    avg_validation_metrics = all_validation_metrics / n_splits
+    
+    # Log the average metrics to wandb
+    wandb.init(project="TinyLLama_CLIP_CrossVal", config=para, name=f"CrossVal_{unique_suffix}")
+    for train_metric, val_metric in zip(avg_training_metrics, avg_validation_metrics):
+        wandb.log(train_metric.get_log("avg_training_") | val_metric.get_log("avg_validate_"))
+    wandb.finish()
+    
+    return avg_training_metrics, avg_validation_metrics
+```
