@@ -323,7 +323,7 @@ def feature_alignment(**model_args):
         'vicuna_path', 'connector_layers', 'embed_dim', 'version',
         'lr', 'eps', 'weight_decay', 'per_warm', 'batch_size', 'vir_batch_size', 'rand_seed',
         'MAX_EPOC', 'pre_trained_connector_dict', 'lora_rank', 'lora_dropout', 'lora_alpha',
-        'hidden_layer_from_end', 'training_step', 'use_half','train_LLM','regulisation_constant'
+        'hidden_layer_from_end', 'training_step', 'use_half','train_LLM','regulisation_constant', 'cross_val'
     ]
     missing = [key for key in required_keys if key not in model_args]
     if missing:
@@ -359,6 +359,7 @@ def feature_alignment(**model_args):
     use_half = model_args['use_half']
     train_LLM = model_args['train_LLM']
     regulisation_constant = model_args['regulisation_constant']
+    cross_val = model_args['cross_val']
 
     accumulation_steps = vir_batch_size // batch_size
 
@@ -408,7 +409,7 @@ def feature_alignment(**model_args):
                                           num_training_steps=total_training_steps, training_step=training_step)
     
     metrics_train_list = MetricsList()
-    metrics_val_liast = MetricsList()
+    metrics_val_list = MetricsList()
     for epoch in range(1, MAX_EPOC + 1):
         metrics_training = Metrics()
         metrics_validate = Metrics()
@@ -516,15 +517,16 @@ def feature_alignment(**model_args):
                 path = os.path.join(save_dir, "SavedModels", f"C_V_{VERSION}")
                 os.makedirs(path, exist_ok=True)
                 torch.save(connector_llm.connector.state_dict(), os.path.join(path, f"connector_LLM_model{epoch}.pth"))
-    
-        if count_v and count_t:
-            wandb.log((metrics_training/count_t).get_log("training_") |
-                      (metrics_validate/count_v).get_log("validate_"))
-            metrics_train_list.append(metrics_training / count_t)
-            metrics_val_liast.append(metrics_validate / count_v)
-        else:
-            wandb.log(Metrics(-1, -1, -1, -1, -1, -1).get_log("training_") |
-                      Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
+        
+            if count_v and count_t:
+                if not cross_val:
+                    wandb.log((metrics_training/count_t).get_log("training_") |
+                                (metrics_validate/count_v).get_log("validate_"))
+                metrics_train_list.append(metrics_training / count_t)
+                metrics_val_list.append(metrics_validate / count_v)
+            else:
+                wandb.log(Metrics(-1, -1, -1, -1, -1, -1).get_log("training_") |
+                        Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
         
         # Check and log GPU memory usage at the end of each epoch.
     
@@ -625,7 +627,9 @@ def multi_stage_feature_aliginment_training(**model_args):
 
         stage_args['save_dir'] = save_dir
         run_name = f"Stage_{stage}_{unique_suffix}"
-        wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args, name=run_name)
+
+        if not stage_args['cross_val']:
+            wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args, name=run_name)
 
         # Run training for the current stage.
         latest_checkpoint, metrics_training, metrics_validate = feature_alignment(**stage_args)
@@ -635,7 +639,9 @@ def multi_stage_feature_aliginment_training(**model_args):
         metrics_validate_list.extend(metrics_validate)
 
         print(f"Stage {stage} completed with VERSION: {stage_args['version']}")
-        wandb.finish()
+        
+        if not stage_args['cross_val']:
+            wandb.finish()
 
     print("\n===== Multi-Stage Training Completed =====")
     return metrics_training_list, metrics_validate_list
@@ -654,6 +660,9 @@ def cross_val_multi_stage_training(para, n_splits=3):
     # Check required parameters
     if 'training_stages' not in para:
         raise KeyError("Missing required key: 'training_stages'")
+    
+    if 'cross_val' not in para:
+        para['cross_val'] = True
     
     stages = para['training_stages']
     
@@ -785,4 +794,3 @@ def cross_val_multi_stage_training(para, n_splits=3):
     wandb.finish()
     
     return avg_training_metrics, avg_validation_metrics
-```
