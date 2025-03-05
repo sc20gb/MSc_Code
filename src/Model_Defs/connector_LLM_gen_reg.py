@@ -70,7 +70,7 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
                 bpro_layers.append(nn.Linear(input_dim, self.llm_hidden_size))
                 bpro_layers.append(nn.GELU())
                 input_dim = self.llm_hidden_size
-            bpro_layers.append(nn.Linear(self.llm_hidden_size, self.input_dim))
+            bpro_layers.append(nn.Linear(self.llm_hidden_size, input_dim))
             self.bprojection = nn.Sequential(*bpro_layers).to(device)
 
 
