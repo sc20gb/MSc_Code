@@ -212,7 +212,7 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
         # Compute the cosine simularity loss for the image embeddinghs vs the original image embeddings
         regularisation_loss = 0
         if not self.lamda == 0:
-            regularisation_loss = F.cosine_similarity(projected_img_embeddings,reconstructed_image_embeddings).mean()
+            regularisation_loss = 1.0 - F.cosine_similarity(projected_img_embeddings, reconstructed_image_embeddings, dim=2).mean()
 
 
         # construct the final loss
