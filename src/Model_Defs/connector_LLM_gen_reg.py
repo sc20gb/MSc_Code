@@ -208,12 +208,15 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
             self.llm.config.vocab_size,
             num_items_in_batch=generated_logits.size(0)
         )
+        
 
         # Compute the cosine simularity loss for the image embeddinghs vs the original image embeddings
         regularisation_loss = 0
         if not self.lamda == 0:
+            #TODO:Normalise the embeddings before the cosine simularity loss, to ensure the loss is not dominated by the image embeddings
+            # projected_norm = F.normalize(projected_img_embeddings, p=2, dim=2)
+            # reconstructed_norm = F.normalize(reconstructed_image_embeddings, p=2, dim=2)
             regularisation_loss = 1.0 - F.cosine_similarity(projected_img_embeddings, reconstructed_image_embeddings, dim=2).mean()
-
 
         # construct the final loss
         loss = token_prediction_loss + self.lamda * regularisation_loss
