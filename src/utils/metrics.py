@@ -1,6 +1,3 @@
-
-
-
 import re
 
 
@@ -114,9 +111,11 @@ def calc_loss_and_metrics(predicted, target, tokenizer, print_=False):
 
 
 class Metrics:
-    def __init__(self, loss=0, acc=0, prec=0, recall=0, f1=0, bleu=0):
+    def __init__(self, loss=0, token_prediction_loss=0, regularisation_loss=0, acc=0, prec=0, recall=0, f1=0, bleu=0):
         self.metrics = {
             "loss": loss,
+            "token_prediction_loss": token_prediction_loss,
+            "regularisation_loss": regularisation_loss,
             "acc": acc,
             "prec": prec,
             "recall": recall,
@@ -129,6 +128,8 @@ class Metrics:
             raise TypeError("Can only add Metrics objects")
         return Metrics(
             loss=self.metrics["loss"] + other.metrics["loss"],
+            token_prediction_loss=self.metrics["token_prediction_loss"] + other.metrics["token_prediction_loss"],
+            regularisation_loss=self.metrics["regularisation_loss"] + other.metrics["regularisation_loss"],
             acc=self.metrics["acc"] + other.metrics["acc"],
             prec=self.metrics["prec"] + other.metrics["prec"],
             recall=self.metrics["recall"] + other.metrics["recall"],
@@ -141,6 +142,8 @@ class Metrics:
             raise TypeError("Can only subtract Metrics objects")
         return Metrics(
             loss=self.metrics["loss"] - other.metrics["loss"],
+            token_prediction_loss=self.metrics["token_prediction_loss"] - other.metrics["token_prediction_loss"],
+            regularisation_loss=self.metrics["regularisation_loss"] - other.metrics["regularisation_loss"],
             acc=self.metrics["acc"] - other.metrics["acc"],
             prec=self.metrics["prec"] - other.metrics["prec"],
             recall=self.metrics["recall"] - other.metrics["recall"],
@@ -153,6 +156,8 @@ class Metrics:
             raise TypeError("Can only divide Metrics by an int or float")
         return Metrics(
             loss=self.metrics["loss"] / value,
+            token_prediction_loss=self.metrics["token_prediction_loss"] / value,
+            regularisation_loss=self.metrics["regularisation_loss"] / value,
             acc=self.metrics["acc"] / value,
             prec=self.metrics["prec"] / value,
             recall=self.metrics["recall"] / value,

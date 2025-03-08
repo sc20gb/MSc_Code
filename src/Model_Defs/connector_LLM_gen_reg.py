@@ -221,7 +221,7 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
         # construct the final loss
         loss = token_prediction_loss + self.lamda * regularisation_loss
         
-        return outputs.sequences, loss
+        return outputs.sequences, loss, token_prediction_loss, regularisation_loss
     
     #loads the connector from a file 
     def load_connector(self,pre_trained_connector_path):

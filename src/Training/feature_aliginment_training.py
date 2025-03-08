@@ -148,13 +148,13 @@ def feature_alignment(**model_args):
             )
             answer_ = torch.cat([answer_, eos_tensor], dim=1)
     
-            output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
+            output, loss, token_prediction_loss, regularisation_loss = connector_llm(embeddings.to(device_llm), questions, answer_)
     
             count_t += 1
     
             loss.backward()
 
-            metrics = Metrics(loss.detach().to('cpu'), **calc_loss_and_metrics(
+            metrics = Metrics(loss.detach().to('cpu'),token_prediction_loss=token_prediction_loss.detach().to('cpu'),regularisation_loss=regularisation_loss.detach().to('cpu'), **calc_loss_and_metrics(
                 list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
             ))
             metrics_training += metrics     
@@ -199,8 +199,8 @@ def feature_alignment(**model_args):
                 )
                 answer_ = torch.cat([answer_, eos_tensor], dim=1)
     
-                output, loss = connector_llm(embeddings.to(device_llm), questions, answer_)
-                metrics = Metrics(loss, **calc_loss_and_metrics(
+                output, loss, token_prediction_loss, regularisation_loss = connector_llm(embeddings.to(device_llm), questions, answer_)
+                metrics = Metrics(loss,token_prediction_loss=token_prediction_loss.detach().to('cpu'),regularisation_loss=regularisation_loss.detach().to('cpu'), **calc_loss_and_metrics(
                     list(output), list(answer_), tokenizer=connector_llm.tokenizer
                 ))
                 metrics_validate += metrics     
