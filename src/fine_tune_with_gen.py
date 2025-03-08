@@ -169,7 +169,7 @@ if __name__ == '__main__':
     # ########### Training: ###########
     # Run the multi-stage training.
 
-    regulisation_constants = [3.2,3.4]
+    regulisation_constants = [3.6,3.8]
     for const in regulisation_constants:
         params["regulisation_constant"] = const
         print("Multi-stage training starting. For regulisation_constant ", const, ":")
