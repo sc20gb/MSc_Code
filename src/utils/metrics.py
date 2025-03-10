@@ -5,6 +5,7 @@ import string
 from torcheval.metrics.functional import bleu_score
 from collections import Counter
 
+import torch
 
 def process_string(s):
         # Convert to lowercase
@@ -109,6 +110,30 @@ def calc_loss_and_metrics(predicted, target, tokenizer, print_=False):
         "bleu": average_bleu_score,
     }
 
+
+
+class embeddings_metrics:
+    def __init__(self, embedding_size):
+        self.histogram = torch.Tensor(embedding_size).fill_(0)
+
+        self.size = 0
+
+    def iterate_histogram(self,embeddings):
+        
+        if embeddings.size(1) != self.histogram.size(1):
+            raise ValueError("Embedding size does not match the histogram size")
+        
+        for i in range(embeddings.size(0)): self.histogram += embeddings[i]
+
+        self.size += embeddings.size(0)
+
+
+    def get_histogram(self):
+        return self.histogram / self.size
+
+
+
+        
 
 class Metrics:
     def __init__(self, loss=0, token_prediction_loss=0, regularisation_loss=0, acc=0, prec=0, recall=0, f1=0, bleu=0):
