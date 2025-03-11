@@ -109,8 +109,8 @@ def feature_alignment(**model_args):
     metrics_train_list = MetricsList()
     metrics_val_list = MetricsList()
     for epoch in range(1, MAX_EPOC + 1):
-        metrics_training = Metrics()
-        metrics_validate = Metrics()
+        metrics_training = Metrics(original_embedding=torch.zeros(connector_llm.image_emded_dim), restored_projected_embedding=torch.zeros(connector_llm.image_emded_dim), projected_embedding=torch.zeros(connector_llm.llm_hidden_size))
+        metrics_validate = Metrics(original_embedding=torch.zeros(connector_llm.image_emded_dim), restored_projected_embedding=torch.zeros(connector_llm.image_emded_dim), projected_embedding=torch.zeros(connector_llm.llm_hidden_size))
         
         if train_LLM:
             connector_llm.train()
@@ -148,13 +148,20 @@ def feature_alignment(**model_args):
             )
             answer_ = torch.cat([answer_, eos_tensor], dim=1)
     
-            output, loss, token_prediction_loss, regularisation_loss = connector_llm(embeddings.to(device_llm), questions, answer_)
+            output, loss, token_prediction_loss, regularisation_loss,reconstructed_image_embeddings, projected_img_embeddings = connector_llm(embeddings.to(device_llm), questions, answer_)
     
             count_t += 1
     
             loss.backward()
 
-            metrics = Metrics(loss.detach().to('cpu'),token_prediction_loss=token_prediction_loss,regularisation_loss=regularisation_loss, **calc_loss_and_metrics(
+            metrics = Metrics(
+                loss.detach().to('cpu'),
+                original_embedding=embeddings,
+                restored_projected_embedding=reconstructed_image_embeddings,
+                projected_embedding=projected_img_embeddings,
+                token_prediction_loss=token_prediction_loss,
+                regularisation_loss=regularisation_loss, 
+                **calc_loss_and_metrics(
                 list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
             ))
             metrics_training += metrics     
@@ -182,7 +189,7 @@ def feature_alignment(**model_args):
                 else:
                     questions = batch[1]['batch_data']['data_2']
                     answers = batch[1]['batch_data']['data_3']
-    
+        
                 answer_ = connector_llm.tokenizer(
                     answers,
                     padding='longest',
@@ -190,7 +197,7 @@ def feature_alignment(**model_args):
                     return_tensors='pt',
                     add_special_tokens=True
                 ).input_ids.to(device_llm)[:, 1:]
-    
+        
                 eos_tensor = torch.full(
                     (answer_.size(0), 1),
                     connector_llm.tokenizer.eos_token_id,
@@ -198,11 +205,21 @@ def feature_alignment(**model_args):
                     device=device_llm
                 )
                 answer_ = torch.cat([answer_, eos_tensor], dim=1)
-    
-                output, loss, token_prediction_loss, regularisation_loss = connector_llm(embeddings.to(device_llm), questions, answer_)
-                metrics = Metrics(loss,token_prediction_loss=token_prediction_loss,regularisation_loss=regularisation_loss, **calc_loss_and_metrics(
-                    list(output), list(answer_), tokenizer=connector_llm.tokenizer
-                ))
+        
+                # Updated to capture all six return values from forward pass
+                output, loss, token_prediction_loss, regularisation_loss, reconstructed_image_embeddings, projected_img_embeddings = connector_llm(embeddings.to(device_llm), questions, answer_)
+                
+                metrics = Metrics(
+                    loss,
+                    original_embedding=embeddings,
+                    restored_projected_embedding=reconstructed_image_embeddings,
+                    projected_embedding=projected_img_embeddings,
+                    token_prediction_loss=token_prediction_loss,
+                    regularisation_loss=regularisation_loss, 
+                    **calc_loss_and_metrics(
+                        list(output), list(answer_), tokenizer=connector_llm.tokenizer
+                    )
+                )
                 metrics_validate += metrics     
                 count_v += 1
     
@@ -327,7 +344,7 @@ def multi_stage_feature_aliginment_training(**model_args):
         run_name = f"Stage_{stage}_{unique_suffix}"
 
         if not stage_args['cross_val']:
-            wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args, name=run_name)
+            wandb.init(project="TinyLLama_CLIP_3_stages", config=stage_args, name=run_name, sync_tensorboard=True)
 
         # Run training for the current stage.
         latest_checkpoint, metrics_training, metrics_validate = feature_alignment(**stage_args)
@@ -547,7 +564,7 @@ def cross_val_multi_stage_training(para, n_splits=3, per_data=1.0):
         avg_validation_metrics.append(avg_val_metric)
 
     # Log the average metrics to wandb
-    wandb.init(project="TinyLLama_CLIP_CrossVal", config=para, name=f"CrossVal_{unique_suffix}")
+    wandb.init(project="TinyLLama_CLIP_CrossVal", config=para, name=f"CrossVal_{unique_suffix}", sync_tensorboard=True)
     for i, (train_metric, val_metric) in enumerate(zip(avg_training_metrics, avg_validation_metrics)):
         metrics_dict = train_metric.get_log(f"avg_training_") | val_metric.get_log(f"avg_validate_")
         wandb.log(metrics_dict)
