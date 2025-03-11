@@ -123,7 +123,7 @@ class embeddings_metrics:
             size (int): The current size (number of tokens processed).
         """
         if embedding is not None:
-            if len(embedding.size()) != 3:
+            if len(embedding.shape) != 3:
                 raise ValueError("Embedding tensor must be 3D (b, token_length, embedding_size)")
             self.embedding_size = embedding.size(2)
             self.histogram = torch.zeros(self.embedding_size)
@@ -149,7 +149,7 @@ class embeddings_metrics:
 
 
     def set_histogram(self, histogram):
-        if len(histogram.size()) > 1:
+        if len(histogram.shape) > 1:
             raise ValueError("hist is not 1D")
         self.histogram = histogram
 
