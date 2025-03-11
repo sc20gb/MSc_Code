@@ -125,6 +125,9 @@ def feature_alignment(**model_args):
         # training loop
         for batch in train_loader:
             embeddings = batch[0]
+
+            print(embeddings.size())
+
             if training_step == 1:
                 answers = batch[1]['batch_data']['data_1']
                 questions = ["Generate a caption for the image" for _ in answers]
@@ -158,7 +161,7 @@ def feature_alignment(**model_args):
                 loss=loss.detach().to('cpu'),
                 token_prediction_loss=token_prediction_loss.detach().to('cpu') if isinstance(token_prediction_loss, torch.Tensor) else token_prediction_loss,
                 regularisation_loss=regularisation_loss.detach().to('cpu') if isinstance(regularisation_loss, torch.Tensor) else regularisation_loss,
-                original_embedding=embeddings.to('cpu'),
+                original_embedding=embeddings.detach().to('cpu'),
                 restored_projected_embedding=reconstructed_image_embeddings.detach().to('cpu'),
                 projected_embedding=projected_img_embeddings.detach().to('cpu'),
                 **calc_loss_and_metrics(
