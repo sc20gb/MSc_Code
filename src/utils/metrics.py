@@ -149,7 +149,7 @@ class embeddings_metrics:
         new_histogram = self.histogram + other.histogram
         new_size = self.size + other.size
 
-        new_obj = embeddings_metrics(torch.zeros([1,1,new_histogram.size(0)]))
+        new_obj = embeddings_metrics(torch.zeros([1,1,self.embedding_size]))
 
         new_obj.histogram = new_histogram
         new_obj.size = new_size
