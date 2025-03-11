@@ -148,12 +148,15 @@ class embeddings_metrics:
             raise TypeError("Can only add embeddings_metrics objects")
         
 
+        print(other.histogram.size(), self.histogram.size())
+
         new_histogram = self.histogram + other.histogram
         new_size = self.size + other.size
 
+        print(new_histogram.size())
+
         new_obj = embeddings_metrics(torch.zeros([1,1,self.embedding_size]))
 
-        print(other.histogram.size(), self.histogram.size(), new_histogram.size())
 
 
 
