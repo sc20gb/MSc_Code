@@ -155,7 +155,7 @@ def feature_alignment(**model_args):
             loss.backward()
 
             metrics = Metrics(
-                loss.detach().to('cpu'),
+                loss = loss.detach().to('cpu'),
                 original_embedding=embeddings,
                 restored_projected_embedding=reconstructed_image_embeddings,
                 projected_embedding=projected_img_embeddings,
@@ -210,7 +210,7 @@ def feature_alignment(**model_args):
                 output, loss, token_prediction_loss, regularisation_loss, reconstructed_image_embeddings, projected_img_embeddings = connector_llm(embeddings.to(device_llm), questions, answer_)
                 
                 metrics = Metrics(
-                    loss,
+                    loss = loss,
                     original_embedding=embeddings,
                     restored_projected_embedding=reconstructed_image_embeddings,
                     projected_embedding=projected_img_embeddings,
