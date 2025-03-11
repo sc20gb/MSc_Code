@@ -133,7 +133,7 @@ class embeddings_metrics:
             if len(self.histogram.size()) > 1:
                 raise ValueError("hist is not 1D")
         else:
-            raise ValueError("Either an embedding tensor must be provided.")
+            raise ValueError("A embedding tensor must be provided.")
 
     def iterate_histogram(self, embeddings):
         # embeddings is expected to be a 3D tensor: (batch_size, token_length, embedding_size)
@@ -214,6 +214,15 @@ class Metrics:
                  f1=0, 
                  bleu=0):
         
+        if not isinstance(original_embedding, embeddings_metrics):
+            original_embedding = embeddings_metrics(original_embedding)
+
+        if not isinstance(restored_projected_embedding, embeddings_metrics):
+            restored_projected_embedding = embeddings_metrics(restored_projected_embedding)
+
+        if not isinstance(projected_embedding, embeddings_metrics):
+            projected_embedding = embeddings_metrics(projected_embedding)
+        
         self.metrics = {
             "loss": loss,
             "token_prediction_loss": token_prediction_loss,
@@ -223,9 +232,9 @@ class Metrics:
             "recall": recall,
             "f1": f1,
             "bleu": bleu,
-            "original_embedding": embeddings_metrics(original_embedding),
-            "restored_projected_embedding": embeddings_metrics(restored_projected_embedding),
-            "projected_embedding": embeddings_metrics(projected_embedding)
+            "original_embedding": original_embedding,
+            "restored_projected_embedding": restored_projected_embedding,
+            "projected_embedding": projected_embedding
         }
 
     def __add__(self, other):
