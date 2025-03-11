@@ -145,7 +145,7 @@ class embeddings_metrics:
         # Sum over the batch and token dimensions, preserving the embedding dimension
         self.histogram += embeddings.sum(dim=(0, 1))
         # Update size to reflect the total number of tokens processed
-        self.size += embeddings.size(0) * embeddings.size(1)
+        self.token_length += embeddings.size(0) * embeddings.size(1)
 
     def __add__(self, other):
         if not isinstance(other, embeddings_metrics):
