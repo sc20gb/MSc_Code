@@ -157,6 +157,8 @@ def feature_alignment(**model_args):
     
             loss.backward()
 
+            print(embeddings.size())
+
             batch_metrics = Metrics(
                 loss=loss.detach().to('cpu'),
                 token_prediction_loss=token_prediction_loss.detach().to('cpu'),
@@ -218,15 +220,13 @@ def feature_alignment(**model_args):
                 output, loss, token_prediction_loss, regularisation_loss, reconstructed_image_embeddings, projected_img_embeddings = connector_llm(embeddings.to(device_llm), questions, answer_)
                 
                 metrics = Metrics(
-                    loss = loss,
-                    original_embedding=embeddings,
-                    restored_projected_embedding=reconstructed_image_embeddings,
-                    projected_embedding=projected_img_embeddings,
-                    token_prediction_loss=token_prediction_loss,
-                    regularisation_loss=regularisation_loss, 
-                    **calc_loss_and_metrics(
-                        list(output), list(answer_), tokenizer=connector_llm.tokenizer
-                    )
+                loss=loss.detach().to('cpu'),
+                original_embedding=embeddings.detach().to('cpu'),
+                restored_projected_embedding=reconstructed_image_embeddings.detach().to('cpu'),
+                projected_embedding=projected_img_embeddings.detach().to('cpu'),
+                token_prediction_loss=token_prediction_loss.detach().to('cpu'),
+                regularisation_loss=regularisation_loss,
+                **calc_loss_and_metrics(list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer)
                 )
                 metrics_validate += metrics     
                 count_v += 1
