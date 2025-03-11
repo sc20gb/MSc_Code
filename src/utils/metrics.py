@@ -195,6 +195,9 @@ class embeddings_metrics:
             return self.histogram
         return self.histogram / self.size
 
+    def size(self):
+        return self.histogram.size()
+    
 class Metrics:
     def __init__(self, 
                  original_embedding=embeddings_metrics(torch.zeros([1,1,10])), 
@@ -228,7 +231,7 @@ class Metrics:
         if not isinstance(other, Metrics):
             raise TypeError("Can only add Metrics objects")
         
-        print(other.metrics["original_embedding"].histogram, self.metrics["original_embedding"].histogram)
+        print(other.metrics["original_embedding"].size(), self.metrics["original_embedding"].histogram.size())
         
         return Metrics(
             loss=self.metrics["loss"] + other.metrics["loss"],
