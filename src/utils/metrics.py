@@ -127,8 +127,11 @@ class embeddings_metrics:
                 raise ValueError("Embedding tensor must be 3D (b, token_length, embedding_size)")
             self.embedding_size = embedding.size(2)
             self.histogram = torch.zeros(self.embedding_size)
-            self.size = 0
+            self.token_length = 0
             self.iterate_histogram(embedding)
+
+            if len(self.histogram.size()) > 1:
+                raise ValueError("hist is not 1D")
         else:
             raise ValueError("Either an embedding tensor or embedding_size must be provided.")
 
@@ -138,6 +141,7 @@ class embeddings_metrics:
             raise ValueError(
                 f"Embedding dim {embeddings.size(2)} does not match the histogram's embedding size {self.embedding_size}"
             )
+        
         # Sum over the batch and token dimensions, preserving the embedding dimension
         self.histogram += embeddings.sum(dim=(0, 1))
         # Update size to reflect the total number of tokens processed
@@ -151,17 +155,14 @@ class embeddings_metrics:
         print(other.histogram.size(), self.histogram.size())
 
         new_histogram = self.histogram + other.histogram
-        new_size = self.size + other.size
+        new_size = self.token_length + other.token_length
 
         print(new_histogram.size())
 
         new_obj = embeddings_metrics(torch.zeros([1,1,self.embedding_size]))
 
-
-
-
         new_obj.histogram = new_histogram
-        new_obj.size = new_size
+        new_obj.token_length = new_size
 
         return new_obj
 
@@ -169,11 +170,11 @@ class embeddings_metrics:
         if not isinstance(other, embeddings_metrics):
             raise TypeError("Can only subtract embeddings_metrics objects")
         new_histogram = self.histogram - other.histogram
-        new_size = self.size - other.size
+        new_size = self.token_length - other.token_length
 
         new_obj = embeddings_metrics(torch.zeros([1,1,new_histogram.size(0)]))
         new_obj.histogram = new_histogram
-        new_obj.size = new_size
+        new_obj.token_length = new_size
 
         return new_obj
 
@@ -181,11 +182,11 @@ class embeddings_metrics:
         if not isinstance(value, (int, float)):
             raise TypeError("Can only divide embeddings_metrics by an int or float")
         new_histogram = self.histogram / value
-        new_size = self.size / value
+        new_size = self.token_length / value
 
         new_obj = embeddings_metrics(torch.zeros([1,1,new_histogram.size(0)]))
         new_obj.histogram = new_histogram
-        new_obj.size = new_size
+        new_obj.token_length = new_size
 
         return new_obj
 
@@ -212,7 +213,6 @@ class Metrics:
                  f1=0, 
                  bleu=0):
         
-        embeddings_metrics(torch.zeros([1,1,10]))
         self.metrics = {
             "loss": loss,
             "token_prediction_loss": token_prediction_loss,
