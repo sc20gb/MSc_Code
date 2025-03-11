@@ -228,9 +228,14 @@ def feature_alignment(**model_args):
                 regularisation_loss=regularisation_loss,
                 **calc_loss_and_metrics(list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer)
                 )
-                metrics_validate += metrics     
+
+                if metrics_validate is None:
+                    metrics_validate = metrics
+                else:
+                    metrics_validate += metrics     
                 count_v += 1
-    
+
+
         if save:
             if train_LLM:
                 path = os.path.join(save_dir, "SavedModels", f"MLLM_V_{VERSION}")
@@ -243,14 +248,19 @@ def feature_alignment(**model_args):
         
             if count_v and count_t:
                 if not cross_val:
-                    wandb.log((metrics_training/count_t).get_log("training_") |
+                    if metrics_training is not None and metrics_validate is not None:
+
+                        wandb.log((metrics_training/count_t).get_log("training_") |
                                 (metrics_validate/count_v).get_log("validate_"))
-                metrics_train_list.append(metrics_training / count_t)
-                metrics_val_list.append(metrics_validate / count_v)
-            else:
-                wandb.log(Metrics(-1, -1, -1, -1, -1, -1).get_log("training_") |
-                        Metrics(-1, -1, -1, -1, -1, -1).get_log("validate_"))
-        
+                        
+                if metrics_training is not None and metrics_validate is not None:
+                    metrics_train_list.append(metrics_training / count_t)
+                    metrics_val_list.append(metrics_validate / count_v)
+
+                else:
+                    # throw an error if the metrics are not calculated
+                    raise ValueError("Metrics were non and could not be passed to wandb or added to the metrics list")
+
         # Check and log GPU memory usage at the end of each epoch.
     
     state = connector_llm.connector.state_dict()
