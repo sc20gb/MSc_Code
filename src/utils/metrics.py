@@ -111,32 +111,96 @@ def calc_loss_and_metrics(predicted, target, tokenizer, print_=False):
     }
 
 
-
 class embeddings_metrics:
-    def __init__(self, embedding_size):
-        self.histogram = torch.Tensor(embedding_size).fill_(0)
+    def __init__(self, embedding: torch.Tensor):
+        """
+        Initialize with either an embedding tensor or by providing embedding_size (and optionally histogram and size).
 
-        self.size = 0
+        Args:
+            embedding (torch.Tensor): A 3D tensor (batch_size, token_length, embedding_size).
+            embedding_size (int): The size of the embeddings (required if embedding is not provided).
+            histogram (torch.Tensor): Pre-computed histogram.
+            size (int): The current size (number of tokens processed).
+        """
+        if embedding is not None:
+            if embedding.dim() != 3:
+                raise ValueError("Embedding tensor must be 3D (b, token_length, embedding_size)")
+            self.embedding_size = embedding.size(2)
+            self.histogram = torch.zeros(self.embedding_size)
+            self.size = 0
+            self.iterate_histogram(embedding)
+        else:
+            raise ValueError("Either an embedding tensor or embedding_size must be provided.")
 
-    def iterate_histogram(self,embeddings):
-        
-        if embeddings.size(1) != self.histogram.size(1):
-            raise ValueError("Embedding size does not match the histogram size")
-        
-        for i in range(embeddings.size(0)): self.histogram += embeddings[i]
+    def iterate_histogram(self, embeddings):
+        # embeddings is expected to be a 3D tensor: (batch_size, token_length, embedding_size)
+        if embeddings.size(2) != self.embedding_size:
+            raise ValueError(
+                f"Embedding dim {embeddings.size(2)} does not match the histogram's embedding size {self.embedding_size}"
+            )
+        # Sum over the batch and token dimensions, preserving the embedding dimension
+        self.histogram += embeddings.sum(dim=(0, 1))
+        # Update size to reflect the total number of tokens processed
+        self.size += embeddings.size(0) * embeddings.size(1)
 
-        self.size += embeddings.size(0)
+    def __add__(self, other):
+        if not isinstance(other, embeddings_metrics):
+            raise TypeError("Can only add embeddings_metrics objects")
+        new_histogram = self.histogram + other.histogram
+        new_size = self.size + other.size
 
+        new_obj = embeddings_metrics(torch.zeros(new_histogram.size(0)))
+
+        new_obj.histogram = new_histogram
+        new_obj.size = new_size
+
+        return new_obj
+
+    def __sub__(self, other):
+        if not isinstance(other, embeddings_metrics):
+            raise TypeError("Can only subtract embeddings_metrics objects")
+        new_histogram = self.histogram - other.histogram
+        new_size = self.size - other.size
+
+        new_obj = embeddings_metrics(torch.zeros(new_histogram.size(0)))
+        new_obj.histogram = new_histogram
+        new_obj.size = new_size
+
+        return new_obj
+
+    def __truediv__(self, value):
+        if not isinstance(value, (int, float)):
+            raise TypeError("Can only divide embeddings_metrics by an int or float")
+        new_histogram = self.histogram / value
+        new_size = self.size / value
+
+        new_obj = embeddings_metrics(torch.zeros(new_histogram.size(0)))
+        new_obj.histogram = new_histogram
+        new_obj.size = new_size
+
+        return new_obj
 
     def get_histogram(self):
+        # Returns the average histogram if tokens have been processed, else the raw histogram.
+        if self.size == 0:
+            return self.histogram
         return self.histogram / self.size
 
-
-
-        
-
 class Metrics:
-    def __init__(self, loss=0, token_prediction_loss=0, regularisation_loss=0, acc=0, prec=0, recall=0, f1=0, bleu=0):
+    def __init__(self, 
+                 original_embedding=embeddings_metrics(torch.zeros(10)), 
+                 restored_projected_embedding=embeddings_metrics(torch.zeros(10)), 
+                 projected_embedding=embeddings_metrics(torch.zeros(10)), 
+                 loss=0, 
+                 token_prediction_loss=0, 
+                 regularisation_loss=0, 
+                 acc=0, 
+                 prec=0, 
+                 recall=0, 
+                 f1=0, 
+                 bleu=0):
+        
+        embeddings_metrics(torch.zeros(10))
         self.metrics = {
             "loss": loss,
             "token_prediction_loss": token_prediction_loss,
@@ -145,7 +209,10 @@ class Metrics:
             "prec": prec,
             "recall": recall,
             "f1": f1,
-            "bleu": bleu
+            "bleu": bleu,
+            "original_embedding": original_embedding,
+            "restored_projected_embedding": restored_projected_embedding,
+            "projected_embedding": projected_embedding
         }
 
     def __add__(self, other):
@@ -160,6 +227,9 @@ class Metrics:
             recall=self.metrics["recall"] + other.metrics["recall"],
             f1=self.metrics["f1"] + other.metrics["f1"],
             bleu=self.metrics["bleu"] + other.metrics["bleu"],
+            original_embedding=self.metrics["original_embedding"] + other.metrics["original_embedding"],
+            restored_projected_embedding=self.metrics["restored_projected_embedding"] + other.metrics["restored_projected_embedding"],
+            projected_embedding=self.metrics["projected_embedding"] + other.metrics["projected_embedding"]
         )
 
     def __sub__(self, other):
@@ -174,6 +244,9 @@ class Metrics:
             recall=self.metrics["recall"] - other.metrics["recall"],
             f1=self.metrics["f1"] - other.metrics["f1"],
             bleu=self.metrics["bleu"] - other.metrics["bleu"],
+            original_embedding=self.metrics["original_embedding"] - other.metrics["original_embedding"],
+            restored_projected_embedding=self.metrics["restored_projected_embedding"] - other.metrics["restored_projected_embedding"],
+            projected_embedding=self.metrics["projected_embedding"] - other.metrics["projected_embedding"]
         )
 
     def __truediv__(self, value):
@@ -188,11 +261,15 @@ class Metrics:
             recall=self.metrics["recall"] / value,
             f1=self.metrics["f1"] / value,
             bleu=self.metrics["bleu"] / value,
+            original_embedding=self.metrics["original_embedding"] / value,
+            restored_projected_embedding=self.metrics["restored_projected_embedding"] / value,
+            projected_embedding=self.metrics["projected_embedding"] / value
         )
 
     def get_log(self, header=""):
         """
         Returns a dictionary of metrics with an optional header prepended to each key.
+        For the embedding histograms, returns the actual histogram tensors.
 
         Args:
             header (str): A string to prepend to each key.
@@ -200,7 +277,14 @@ class Metrics:
         Returns:
             dict: A dictionary with updated keys.
         """
-        return {f"{header}{key}": value for key, value in self.metrics.items()}
+        result = {}
+        for key, value in self.metrics.items():
+            if key in ["original_embedding", "restored_projected_embedding", "projected_embedding"]:
+                # Special case for embedding histograms: get the actual histogram tensor
+                result[f"{header}{key}"] = value.get_histogram()
+            else:
+                result[f"{header}{key}"] = value
+        return result
 
     def __repr__(self):
         return f"Metrics({self.metrics})"
