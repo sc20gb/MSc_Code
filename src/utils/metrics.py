@@ -146,10 +146,16 @@ class embeddings_metrics:
     def __add__(self, other):
         if not isinstance(other, embeddings_metrics):
             raise TypeError("Can only add embeddings_metrics objects")
+        
+
         new_histogram = self.histogram + other.histogram
         new_size = self.size + other.size
 
         new_obj = embeddings_metrics(torch.zeros([1,1,self.embedding_size]))
+
+        print(other.histogram.size(), self.histogram.size(), new_histogram.size())
+
+
 
         new_obj.histogram = new_histogram
         new_obj.size = new_size
