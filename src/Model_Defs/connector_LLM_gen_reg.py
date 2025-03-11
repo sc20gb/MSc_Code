@@ -187,6 +187,9 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
         if not self.lamda == 0:
             # project the image embeddings backwards to the original dim
             reconstructed_image_embeddings = self.bprojection(projected_img_embeddings)
+
+        else: 
+            reconstructed_image_embeddings = torch.zeros(image_embeddings.size()).to(self.device)
         
         # Embed the text into the VAQ format, and concatenate them for llm generation
         embeddings, attention_mask = self.encode_text_and_image(question, projected_img_embeddings)
@@ -221,7 +224,7 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
         # construct the final loss
         loss = token_prediction_loss + self.lamda * regularisation_loss
         
-        return outputs.sequences, loss, token_prediction_loss, regularisation_loss
+        return outputs.sequences, loss, token_prediction_loss, regularisation_loss, reconstructed_image_embeddings, projected_img_embeddings
     
     #loads the connector from a file 
     def load_connector(self,pre_trained_connector_path):
