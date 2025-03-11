@@ -122,7 +122,7 @@ class embeddings_metrics:
             histogram (torch.Tensor): Pre-computed histogram.
             size (int): The current size (number of tokens processed).
         """
-        if embedding is not None:
+        if embedding is not None and isinstance(embedding, torch.Tensor):
             if len(embedding.shape) != 3:
                 raise ValueError("Embedding tensor must be 3D (b, token_length, embedding_size)")
             self.embedding_size = embedding.size(2)
@@ -133,7 +133,7 @@ class embeddings_metrics:
             if len(self.histogram.size()) > 1:
                 raise ValueError("hist is not 1D")
         else:
-            raise ValueError("Either an embedding tensor or embedding_size must be provided.")
+            raise ValueError("Either an embedding tensor must be provided.")
 
     def iterate_histogram(self, embeddings):
         # embeddings is expected to be a 3D tensor: (batch_size, token_length, embedding_size)
