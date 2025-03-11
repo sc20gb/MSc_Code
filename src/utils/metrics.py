@@ -149,7 +149,7 @@ class embeddings_metrics:
         new_histogram = self.histogram + other.histogram
         new_size = self.size + other.size
 
-        new_obj = embeddings_metrics([1,1,torch.zeros(new_histogram.size(0))])
+        new_obj = embeddings_metrics(torch.zeros([1,1,new_histogram.size(0)]))
 
         new_obj.histogram = new_histogram
         new_obj.size = new_size
@@ -188,9 +188,9 @@ class embeddings_metrics:
 
 class Metrics:
     def __init__(self, 
-                 original_embedding=embeddings_metrics([1,1,torch.zeros(10)]), 
-                 restored_projected_embedding=embeddings_metrics([1,1,torch.zeros(10)]), 
-                 projected_embedding=embeddings_metrics([1,1,torch.zeros(10)]), 
+                 original_embedding=embeddings_metrics(torch.zeros([1,1,10])), 
+                 restored_projected_embedding=embeddings_metrics(torch.zeros([1,1,10])), 
+                 projected_embedding=embeddings_metrics(torch.zeros([1,1,10])), 
                  loss=0, 
                  token_prediction_loss=0, 
                  regularisation_loss=0, 
@@ -200,7 +200,7 @@ class Metrics:
                  f1=0, 
                  bleu=0):
         
-        embeddings_metrics([1,1,torch.zeros(10)])
+        embeddings_metrics(torch.zeros([1,1,10]))
         self.metrics = {
             "loss": loss,
             "token_prediction_loss": token_prediction_loss,
