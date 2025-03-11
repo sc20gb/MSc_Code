@@ -109,8 +109,8 @@ def feature_alignment(**model_args):
     metrics_train_list = MetricsList()
     metrics_val_list = MetricsList()
     for epoch in range(1, MAX_EPOC + 1):
-        metrics_training = Metrics(original_embedding=torch.zeros(connector_llm.image_emded_dim), restored_projected_embedding=torch.zeros(connector_llm.image_emded_dim), projected_embedding=torch.zeros(connector_llm.llm_hidden_size))
-        metrics_validate = Metrics(original_embedding=torch.zeros(connector_llm.image_emded_dim), restored_projected_embedding=torch.zeros(connector_llm.image_emded_dim), projected_embedding=torch.zeros(connector_llm.llm_hidden_size))
+        metrics_training = None 
+        metrics_validate = None
         
         if train_LLM:
             connector_llm.train()
@@ -154,17 +154,22 @@ def feature_alignment(**model_args):
     
             loss.backward()
 
-            metrics = Metrics(
-                loss = loss.detach().to('cpu'),
-                original_embedding=embeddings,
-                restored_projected_embedding=reconstructed_image_embeddings,
-                projected_embedding=projected_img_embeddings,
-                token_prediction_loss=token_prediction_loss,
-                regularisation_loss=regularisation_loss, 
+            batch_metrics = Metrics(
+                loss=loss.detach().to('cpu'),
+                token_prediction_loss=token_prediction_loss.detach().to('cpu') if isinstance(token_prediction_loss, torch.Tensor) else token_prediction_loss,
+                regularisation_loss=regularisation_loss.detach().to('cpu') if isinstance(regularisation_loss, torch.Tensor) else regularisation_loss,
+                original_embedding=embeddings.to('cpu'),
+                restored_projected_embedding=reconstructed_image_embeddings.detach().to('cpu'),
+                projected_embedding=projected_img_embeddings.detach().to('cpu'),
                 **calc_loss_and_metrics(
-                list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
-            ))
-            metrics_training += metrics     
+                    list(output.to('cpu')), list(answer_.to('cpu')), tokenizer=connector_llm.tokenizer
+                )
+            )
+            
+            if metrics_training is None:
+                metrics_training = batch_metrics
+            else:
+                metrics_training += batch_metrics
 
             if count_t % accumulation_steps == 0:
                 optim.step()
