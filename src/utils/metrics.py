@@ -240,9 +240,7 @@ class Metrics:
     def __add__(self, other):
         if not isinstance(other, Metrics):
             raise TypeError("Can only add Metrics objects")
-        
-        print(other.metrics["original_embedding"].size(), self.metrics["original_embedding"].size())
-        
+                
         return Metrics(
             loss=self.metrics["loss"] + other.metrics["loss"],
             token_prediction_loss=self.metrics["token_prediction_loss"] + other.metrics["token_prediction_loss"],

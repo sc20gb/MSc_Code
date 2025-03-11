@@ -126,8 +126,6 @@ def feature_alignment(**model_args):
         for batch in train_loader:
             embeddings = batch[0]
 
-            print(embeddings.size())
-
             if training_step == 1:
                 answers = batch[1]['batch_data']['data_1']
                 questions = ["Generate a caption for the image" for _ in answers]
@@ -156,8 +154,6 @@ def feature_alignment(**model_args):
             count_t += 1
     
             loss.backward()
-
-            print(embeddings.size())
 
             batch_metrics = Metrics(
                 loss=loss.detach().to('cpu'),
