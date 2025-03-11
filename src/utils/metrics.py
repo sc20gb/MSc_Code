@@ -228,7 +228,7 @@ class Metrics:
         if not isinstance(other, Metrics):
             raise TypeError("Can only add Metrics objects")
         
-        print(other.metrics["original_embedding"].histogram.size(), self.metrics["original_embedding"].histogram.size())
+        print(other.metrics["original_embedding"].histogram, self.metrics["original_embedding"].histogram)
         
         return Metrics(
             loss=self.metrics["loss"] + other.metrics["loss"],
