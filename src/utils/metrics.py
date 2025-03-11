@@ -147,21 +147,22 @@ class embeddings_metrics:
         # Update size to reflect the total number of tokens processed
         self.token_length += embeddings.size(0) * embeddings.size(1)
 
+
+    def set_histogram(self, histogram):
+        if len(histogram.size()) > 1:
+            raise ValueError("hist is not 1D")
+        self.histogram = histogram
+
     def __add__(self, other):
         if not isinstance(other, embeddings_metrics):
             raise TypeError("Can only add embeddings_metrics objects")
         
-
-        print(other.histogram.size(), self.histogram.size())
-
         new_histogram = self.histogram + other.histogram
         new_size = self.token_length + other.token_length
 
-        print(new_histogram.size())
-
         new_obj = embeddings_metrics(torch.zeros([1,1,self.embedding_size]))
 
-        new_obj.histogram = new_histogram
+        new_obj.set_histogram(new_histogram)
         new_obj.token_length = new_size
 
         return new_obj
@@ -173,7 +174,7 @@ class embeddings_metrics:
         new_size = self.token_length - other.token_length
 
         new_obj = embeddings_metrics(torch.zeros([1,1,new_histogram.size(0)]))
-        new_obj.histogram = new_histogram
+        new_obj.set_histogram(new_histogram)
         new_obj.token_length = new_size
 
         return new_obj
@@ -185,7 +186,7 @@ class embeddings_metrics:
         new_size = self.token_length / value
 
         new_obj = embeddings_metrics(torch.zeros([1,1,new_histogram.size(0)]))
-        new_obj.histogram = new_histogram
+        new_obj.set_histogram(new_histogram)
         new_obj.token_length = new_size
 
         return new_obj
@@ -201,9 +202,9 @@ class embeddings_metrics:
     
 class Metrics:
     def __init__(self, 
-                 original_embedding=embeddings_metrics(torch.zeros([1,1,10])), 
-                 restored_projected_embedding=embeddings_metrics(torch.zeros([1,1,10])), 
-                 projected_embedding=embeddings_metrics(torch.zeros([1,1,10])), 
+                 original_embedding=torch.zeros([1,1,10]), 
+                 restored_projected_embedding=torch.zeros([1,1,10]), 
+                 projected_embedding=torch.zeros([1,1,10]), 
                  loss=0, 
                  token_prediction_loss=0, 
                  regularisation_loss=0, 
@@ -222,9 +223,9 @@ class Metrics:
             "recall": recall,
             "f1": f1,
             "bleu": bleu,
-            "original_embedding": original_embedding,
-            "restored_projected_embedding": restored_projected_embedding,
-            "projected_embedding": projected_embedding
+            "original_embedding": embeddings_metrics(original_embedding),
+            "restored_projected_embedding": embeddings_metrics(restored_projected_embedding),
+            "projected_embedding": embeddings_metrics(projected_embedding)
         }
 
     def __add__(self, other):
