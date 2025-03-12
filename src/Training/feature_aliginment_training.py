@@ -558,21 +558,21 @@ def cross_val_multi_stage_training(para, n_splits=3, per_data=1.0):
 
     # Average each metric position across all folds
     for i in range(min_train_len):
-        # Create a new Metrics object for this position
-        avg_train_metric = Metrics()
-        # Add up all metrics from the same position across folds
-        for fold_metrics in all_fold_training_metrics:
-            avg_train_metric += fold_metrics[i]
+        # Start with the first fold's metrics instead of empty Metrics
+        avg_train_metric = all_fold_training_metrics[0][i]
+        # Add up metrics from the remaining folds
+        for fold_idx in range(1, len(all_fold_training_metrics)):
+            avg_train_metric += all_fold_training_metrics[fold_idx][i]
         # Divide by the number of folds to get the average
         avg_train_metric = avg_train_metric / n_splits
         avg_training_metrics.append(avg_train_metric)
 
     for i in range(min_val_len):
-        # Create a new Metrics object for this position
-        avg_val_metric = Metrics()
-        # Add up all metrics from the same position across folds
-        for fold_metrics in all_fold_validation_metrics:
-            avg_val_metric += fold_metrics[i]
+        # Start with the first fold's metrics instead of empty Metrics
+        avg_val_metric = all_fold_validation_metrics[0][i]
+        # Add up metrics from the remaining folds
+        for fold_idx in range(1, len(all_fold_validation_metrics)):
+            avg_val_metric += all_fold_validation_metrics[fold_idx][i]
         # Divide by the number of folds to get the average
         avg_val_metric = avg_val_metric / n_splits
         avg_validation_metrics.append(avg_val_metric)
