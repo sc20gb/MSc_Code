@@ -195,7 +195,7 @@ class embeddings_metrics:
         # Returns the average histogram if tokens have been processed, else the raw histogram.
         if self.size == 0:
             return self.histogram
-        return self.histogram / self.size
+        return self.histogram / self.token_length
 
     def size(self):
         return self.histogram.size()
