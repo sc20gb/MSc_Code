@@ -291,32 +291,24 @@ class Metrics:
             projected_embedding=self.metrics["projected_embedding"] / value
         )
 
+    def __repr__(self):
+        return f"Metrics({self.metrics})"
+    
     def get_log(self, header=""):
         """
         Returns a dictionary of metrics with an optional header prepended to each key.
-        For the embedding histograms, returns custom formatted histograms.
+        For embedding tensors, logs raw values directly without histogram conversion.
         """
-        import numpy as np
         result = {}
         for key, value in self.metrics.items():
             if key in ["original_embedding", "restored_projected_embedding", "projected_embedding"]:
-                # Get the raw histogram tensor
+                # Get the raw histogram tensor and log it directly
                 tensor = value.get_histogram()
+                result[f"{header}{key}"] = tensor.tolist()
                 
-                # Create a custom histogram with dimensions as bins
-                embedding_size = tensor.size(0)
-                dim_bins = list(range(embedding_size + 1))
-                
-                # Convert to numpy arrays for wandb.Histogram
-                result[f"{header}{key}"] = wandb.Histogram(
-                    np_histogram=(np.array(dim_bins), np.array(tensor.tolist())),
-                )
             else:
                 result[f"{header}{key}"] = value
         return result
-
-    def __repr__(self):
-        return f"Metrics({self.metrics})"
     
 class MetricsList(list):
     def __init__(self, *metrics):
