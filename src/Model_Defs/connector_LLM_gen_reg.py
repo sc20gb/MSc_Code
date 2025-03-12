@@ -214,7 +214,7 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
         
 
         # Compute the cosine simularity loss for the image embeddinghs vs the original image embeddings
-        regularisation_loss = 0
+        regularisation_loss = torch.tensor(0.0).to(self.device)
         if not self.lamda == 0:
             #TODO:Normalise the embeddings before the cosine simularity loss, to ensure the loss is not dominated by the image embeddings
             # projected_norm = F.normalize(projected_img_embeddings, p=2, dim=2)
