@@ -7,6 +7,8 @@ from collections import Counter
 
 import torch
 
+import wandb
+
 def process_string(s):
         # Convert to lowercase
         s = s.lower()
@@ -304,7 +306,7 @@ class Metrics:
         for key, value in self.metrics.items():
             if key in ["original_embedding", "restored_projected_embedding", "projected_embedding"]:
                 # Special case for embedding histograms: get the actual histogram tensor
-                result[f"{header}{key}"] = value.get_histogram()
+                result[f"{header}{key}"] = wandb.Histogram(value.get_histogram())
             else:
                 result[f"{header}{key}"] = value
         return result
