@@ -158,7 +158,7 @@ def feature_alignment(**model_args):
             batch_metrics = Metrics(
                 loss=loss.detach().to('cpu'),
                 token_prediction_loss=token_prediction_loss.detach().to('cpu'),
-                regularisation_loss=regularisation_loss.detach().to('cpu'),
+                regularisation_loss=regularisation_loss,
                 original_embedding=embeddings.detach().to('cpu'),
                 restored_projected_embedding=reconstructed_image_embeddings.detach().to('cpu'),
                 projected_embedding=projected_img_embeddings.detach().to('cpu'),
