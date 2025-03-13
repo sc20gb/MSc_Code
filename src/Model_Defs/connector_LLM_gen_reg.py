@@ -65,12 +65,13 @@ class Connector_LLM_With_Gen_Reg(nn.Module):
         if not self.lamda == 0:
             # create the backwards projection
             bpro_layers = []
+            output_dim = self.image_emded_dim
             input_dim = self.llm_hidden_size
             for _ in range(connector_layers - 1):
                 bpro_layers.append(nn.Linear(input_dim, self.llm_hidden_size))
                 bpro_layers.append(nn.GELU())
                 input_dim = self.llm_hidden_size
-            bpro_layers.append(nn.Linear(self.llm_hidden_size, input_dim))
+            bpro_layers.append(nn.Linear(self.llm_hidden_size, output_dim))
             self.bprojection = nn.Sequential(*bpro_layers).to(device)
 
 
